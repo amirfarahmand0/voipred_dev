@@ -1,0 +1,119 @@
+---
+title: "Net benefit of a model in a validation sample"
+author: "Amirhosein Farahmand Piruz"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 2
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4.5)
+```
+
+## Data
+
+We use the GUSTO-I trial data that ships with the package. The outcome is
+30-day mortality (`day30`). We split it into a development sample, used only to
+fit the models, and a validation sample, used to evaluate them.
+
+```{r data}
+library(voipred)
+
+set.seed(1)
+i   <- sample(nrow(gusto))
+dev <- gusto[i[1:5000], ]
+val <- gusto[i[5001:10000], ]
+
+mean(val$day30)   # prevalence in the validation sample
+```
+
+A small function to draw the decision curve from the result of `nb()`:
+
+```{r plot-fun}
+plot_nb <- function(res, main) {
+  plot(res$threshold, res$NB_model, type = "l", lwd = 2, col = "#2a78d6",
+       ylim = c(-0.01, max(res$NB_all)), xlab = "Risk threshold",
+       ylab = "Net benefit", main = main)
+  lines(res$threshold, res$NB_all, lwd = 2, col = "#eb6834", lty = 2)
+  abline(h = 0, lwd = 2)
+  legend("topright", c("Model", "Treat all", "Treat none"), lwd = 2,
+         col = c("#2a78d6", "#eb6834", "black"), lty = c(1, 2, 1), bty = "n")
+}
+```
+
+## Example 1: logistic regression
+
+```{r glm}
+fit_glm <- glm(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
+               family = binomial, data = dev)
+
+res_glm <- nb(fit_glm, data = val, outcome = "day30",
+              thresholds = seq(0, 0.30, by = 0.01))
+head(res_glm, 8)
+```
+
+The result is a data frame with one row per threshold:
+
+- `NB_model`: net benefit of treating patients whose predicted risk is at or
+  above the threshold,
+- `NB_all`: net benefit of treating everyone,
+- `NB_none`: net benefit of treating no one (always 0).
+
+```{r plot-glm}
+plot_nb(res_glm, "Logistic regression")
+```
+
+## Example 2: random forest
+
+For a `ranger` forest, it must be a probability forest (`probability = TRUE`);
+a forest that only predicts classes is rejected.
+
+```{r rf}
+fit_rf <- ranger::ranger(factor(day30) ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
+                         data = dev, probability = TRUE, num.trees = 500, seed = 1)
+
+res_rf <- nb(fit_rf, data = val, outcome = "day30",
+             thresholds = seq(0, 0.30, by = 0.01))
+plot_nb(res_rf, "Random forest")
+```
+
+## Example 3: Bayesian logistic regression (bayespred)
+
+A `bpmfit` model from bayespred. By default the risk is the posterior mean of
+risk (`bayespred_method = "pm"`); `bayespred_method = "pe"` uses the point
+estimate instead.
+
+```{r bpm}
+library(bayespred)
+fit_bpm <- bpmfit(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
+                  data = dev, prior = log_f(m = 2))
+
+res_bpm <- nb(fit_bpm, data = val, outcome = "day30",
+              thresholds = seq(0, 0.30, by = 0.01))
+plot_nb(res_bpm, "Bayesian logistic regression (bayespred)")
+```
+
+## Options
+
+| Argument | What it does |
+|---|---|
+| `model` | A fitted model: `glm`, `ranger`, `randomForest`, or bayespred (`bpmfit`, `bpm`). Other models work if their `predict()` returns probabilities. A vector of predicted risks is not accepted. |
+| `data` | The validation sample. It must contain every covariate the model was developed with. |
+| `outcome` | The binary outcome: a column name (`"day30"`), or a vector with one value per row. The event is 1: 0/1, logical (TRUE = 1), or a two-level factor. |
+| `thresholds` | Risk thresholds in [0, 1). Default `seq(0, 0.99, by = 0.01)`. |
+| `weights` | Optional observation weights, e.g. sampling weights. |
+| `bayespred_method` | Only for bayespred: `"pm"` (posterior mean of risk, default) or `"pe"` (point estimate). |
+
+**Missing covariates.** If the validation data lacks a covariate the model was
+developed with, `nb()` stops and names it:
+
+```{r missing, error = TRUE}
+nb(fit_glm, val[, setdiff(names(val), c("sysbp", "pulse"))], "day30")
+```
+
+**Ties.** As in `dcurves`, a patient is treated when the predicted risk is at
+or above the threshold, and a predicted risk of exactly 0 is never treated.
+The test suite checks that `nb()` reproduces `dcurves::dca()` for logistic
+regression, two random forest packages and bayespred.

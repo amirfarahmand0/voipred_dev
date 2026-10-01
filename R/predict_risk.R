@@ -160,5 +160,9 @@ check_risk <- function(p, newdata = NULL) {
          "in the covariates.", call. = FALSE)
   if (any(p < 0 | p > 1))
     stop("Predicted risks must lie in [0, 1].", call. = FALSE)
+  if (all(p == 0 | p == 1))
+    stop("The model returned only 0s and 1s. These look like predicted ",
+         "classes, not probabilities. Make the model return probabilities ",
+         "(e.g. fit ranger or svm with `probability = TRUE`).", call. = FALSE)
   p
 }

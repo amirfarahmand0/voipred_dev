@@ -1,4 +1,4 @@
-# voipred
+# voipred (development version)
 
 Value of information (VoI) analysis for clinical prediction models.
 
@@ -18,4 +18,7 @@ Results are checked against `dcurves` in the test suite.
 Model development, survival outcomes and the uncertainty and VoI measures
 (ΔNB, P(useful), P(best), EVPI, EVSI) will be added in later versions.
 
+## Tutorial
 
+- `vignettes/nb_validation.Rmd`: net benefit in a validation sample, with
+  logistic regression, random forest and bayespred examples.
