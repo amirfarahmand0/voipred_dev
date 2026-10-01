@@ -1,4 +1,4 @@
-# voipred (development version)
+# voipred
 
 Value of information (VoI) analysis for clinical prediction models.
 
