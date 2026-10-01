@@ -1,14 +1,36 @@
 Package: voipred
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
-Authors@R: 
+Title: Value of Information Analysis for Clinical Prediction Models
+Version: 0.0.1.9000
+Authors@R: c(
     person(given = "Mohsen",
            family = "Sadatsafavi",
            role = c("aut", "cre"),
            email = "mohsen.sadatsafavi@ubc.ca",
-           comment = c(ORCID = "0000-0002-0419-7862"))
-Description: VoI calculations for clinical prediction modles (including tutorials).
-License: GPL
+           comment = c(ORCID = "0000-0002-0419-7862")),
+    person(given = "Amirhosein",
+           family = "Farahmand Piruz",
+           role = "aut",
+           email = "amirhosein.farahmand.piruz@gmail.com"))
+Description: Net benefit, decision curve and value of information (VoI)
+    calculations for clinical prediction models, for model development and
+    validation (including tutorials).
+License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.1.2
+Depends: R (>= 3.5.0)
+Imports:
+    graphics,
+    stats,
+    mvtnorm,
+    glmnet,
+    progress
+Suggests:
+    testthat (>= 3.0.0),
+    dcurves,
+    ranger,
+    randomForest,
+    bayespred
+Remotes: resplab/bayespred
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+Config/roxygen2/version: 8.1.0

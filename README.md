@@ -1,8 +1,24 @@
-This package facilitates Value of Information analysis for clinical prediciton models.
+# voipred (development version)
 
+Value of information (VoI) analysis for clinical prediction models.
 
-# Table of Contents
+## Current scope
 
--   [Tutorial for EVPI calculations for model development](https://resplab.github.io/voipred/articles/devEVPI_tutorial.html)
+This version supports **model validation** for a **binary outcome** only.
 
--   [Alternative methods of EVPI calculations](https://resplab.github.io/voipred/articles/devEVPI_methods.html)
+Given a fitted model, a validation data set and a range of risk thresholds,
+`nb()` returns the net benefit of the model, of treating everyone and of
+treating no one at each threshold. Supported models are logistic regression
+(`glm`), random forests (`ranger`, `randomForest`) and Bayesian logistic
+regression from bayespred. The validation data must contain every covariate
+the model was developed with.
+
+Results are checked against `dcurves` in the test suite.
+
+Model development, survival outcomes and the uncertainty and VoI measures
+(ΔNB, P(useful), P(best), EVPI, EVSI) will be added in later versions.
+
+## Tutorial
+
+- `vignettes/nb_validation.Rmd`: net benefit in a validation sample, with
+  logistic regression, random forest and bayespred examples.
