@@ -54,18 +54,15 @@ test_that("a forest with more than two classes is rejected", {
   expect_error(predict_risk(rf, s$val), "must be binary")
 })
 
-test_that("bayespred: posterior-mean risk by default, bayespred_method passed on", {
+test_that("bayespred: the risk is the posterior mean of risk", {
   skip_if_not_installed("bayespred")
   s <- gusto_split()
   fit <- bayespred::bpmfit(gusto_formula, data = s$dev)
   expect_equal(predict_risk(fit, s$val),
                unname(as.vector(predict(fit, s$val, type = "response", method = "pm"))))
-  expect_equal(predict_risk(fit, s$val, bayespred_method = "pe"),
-               unname(as.vector(predict(fit, s$val, type = "response", method = "pe"))))
   post <- bayespred::posterior(fit)
   expect_equal(predict_risk(post, s$val), predict_risk(fit, s$val))
-  expect_error(predict_risk(fit, s$val, bayespred_method = "xx"), "should be one of")
-  expect_error(nb(fit, s$val, "day30", method = "pe"), "unused argument")
+  expect_error(nb(fit, s$val, "day30", bayespred_method = "pe"), "unused argument")
 })
 
 test_that("a numeric or logical vector is rejected", {

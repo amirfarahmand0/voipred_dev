@@ -4,14 +4,7 @@
 \alias{nb}
 \title{Net benefit of a prediction model in a validation sample}
 \usage{
-nb(
-  model,
-  data,
-  outcome,
-  thresholds = seq(0, 0.99, by = 0.01),
-  weights = NULL,
-  bayespred_method = "pm"
-)
+nb(model, data, outcome, thresholds = seq(0, 0.99, by = 0.01), weights = NULL)
 }
 \arguments{
 \item{model}{A fitted model that \code{\link[=predict_risk]{predict_risk()}} understands (\code{glm},
@@ -28,10 +21,6 @@ two-level factor (level \code{"1"}, or the second level if the levels are not
 \item{thresholds}{Risk thresholds in [0, 1).}
 
 \item{weights}{Optional non-negative observation weights.}
-
-\item{bayespred_method}{Only for bayespred models: \code{"pm"} (default, the
-posterior mean of risk) or \code{"pe"} (the point estimate). See
-\code{\link[=predict_risk]{predict_risk()}}.}
 }
 \value{
 A data frame of class \code{voipred_nb} with one row per threshold and

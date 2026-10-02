@@ -81,9 +81,7 @@ plot_nb(res_rf, "Random forest")
 
 ## Example 3: Bayesian logistic regression (bayespred)
 
-A `bpmfit` model from bayespred. By default the risk is the posterior mean of
-risk (`bayespred_method = "pm"`); `bayespred_method = "pe"` uses the point
-estimate instead.
+A `bpmfit` model from bayespred. The risk is the posterior mean of risk.
 
 ```{r bpm}
 library(bayespred)
@@ -104,7 +102,6 @@ plot_nb(res_bpm, "Bayesian logistic regression (bayespred)")
 | `outcome` | The binary outcome: a column name (`"day30"`), or a vector with one value per row. The event is 1: 0/1, logical (TRUE = 1), or a two-level factor. |
 | `thresholds` | Risk thresholds in [0, 1). Default `seq(0, 0.99, by = 0.01)`. |
 | `weights` | Optional observation weights, e.g. sampling weights. |
-| `bayespred_method` | Only for bayespred: `"pm"` (posterior mean of risk, default) or `"pe"` (point estimate). |
 
 **Models tested.** For each of the following models, the test suite checks on
 GUSTO-I that `nb()` gives the same net benefit as `dcurves::dca()` (model,
@@ -112,7 +109,7 @@ treat all and treat none) at every threshold from 0 to 0.99, and all pass:
 
 | Type | Models |
 |---|---|
-| Regression | `glm` (logit, probit and cloglog links), Firth logistic regression (`logistf`), `mgcv::gam`, MARS (`earth` with a binomial glm), Bayesian logistic regression (bayespred `bpmfit`, posterior mean and point estimate) |
+| Regression | `glm` (logit, probit and cloglog links), Firth logistic regression (`logistf`), `mgcv::gam`, MARS (`earth` with a binomial glm), Bayesian logistic regression (bayespred `bpmfit`) |
 | Trees and ensembles | `rpart`, `partykit::ctree`, `ranger` (`probability = TRUE`), `randomForest`, `gbm` |
 | Other machine learning | k-nearest neighbours (`kknn`), naive Bayes (`naivebayes`, `e1071::naiveBayes`), support vector machine (`e1071::svm`, `probability = TRUE`), neural network (`nnet`), `MASS::lda`, `MASS::qda` |
 | Trained on a numeric matrix | `glmnet` (one lambda), `cv.glmnet`, XGBoost (`xgb.train` and `xgboost()`), LightGBM, CatBoost |

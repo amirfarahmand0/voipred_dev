@@ -21,9 +21,6 @@
 #'   0/1).
 #' @param thresholds Risk thresholds in \[0, 1).
 #' @param weights Optional non-negative observation weights.
-#' @param bayespred_method Only for bayespred models: `"pm"` (default, the
-#'   posterior mean of risk) or `"pe"` (the point estimate). See
-#'   [predict_risk()].
 #' @return A data frame of class `voipred_nb` with one row per threshold and
 #'   columns `threshold`, `NB_model`, `NB_all`, `NB_none`. Attributes hold
 #'   `n`, `prevalence`, and the predicted risks (`risk`).
@@ -35,12 +32,12 @@
 #' head(res)
 #' @export
 nb <- function(model, data, outcome, thresholds = seq(0, 0.99, by = 0.01),
-               weights = NULL, bayespred_method = "pm") {
+               weights = NULL) {
   if (!is.data.frame(data))
     stop("`data` must be a data frame.", call. = FALSE)
   y <- get_outcome(outcome, data)
   thresholds <- check_thresholds(thresholds)
-  p <- predict_risk(model, data, bayespred_method = bayespred_method)
+  p <- predict_risk(model, data)
   if (length(p) != length(y))
     stop("Got ", length(p), " predicted risks for ", length(y), " outcomes.",
          call. = FALSE)

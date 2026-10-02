@@ -29,9 +29,9 @@ predict_risk(model, newdata, ...)
 
 \method{predict_risk}{randomForest}(model, newdata, ...)
 
-\method{predict_risk}{bpmfit}(model, newdata, bayespred_method = "pm", ...)
+\method{predict_risk}{bpmfit}(model, newdata, ...)
 
-\method{predict_risk}{bpm}(model, newdata, bayespred_method = "pm", ...)
+\method{predict_risk}{bpm}(model, newdata, ...)
 
 \method{predict_risk}{svm}(model, newdata, ...)
 
@@ -63,11 +63,6 @@ predict_risk(model, newdata, ...)
 \item{newdata}{A data frame with the covariates the model needs.}
 
 \item{...}{Not used; for methods.}
-
-\item{bayespred_method}{Only for bayespred models: how the risk is
-predicted. \code{"pm"} (default) is the posterior mean of risk; \code{"pe"} uses the
-point estimate of the coefficients; \code{"pm_mackay"} is MacKay's
-approximation to the posterior mean.}
 }
 \value{
 A numeric vector of length \code{nrow(newdata)} with values in [0, 1].
@@ -84,7 +79,7 @@ Any model whose \code{predict()} returns probabilities with
 probabilities in another way:
 \itemize{
 \item \code{ranger} (fit with \code{probability = TRUE}), \code{randomForest};
-\item bayespred (\code{bpmfit}, \code{bpm});
+\item bayespred (\code{bpmfit}, \code{bpm}): the risk is the posterior mean of risk;
 \item \code{e1071::svm} (fit with \code{probability = TRUE}), \code{e1071::naiveBayes},
 \code{naivebayes::naive_bayes}, \code{nnet}, \code{MASS::lda}, \code{MASS::qda};
 \item models fitted to a numeric matrix: \code{glmnet} (one lambda) and

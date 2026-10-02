@@ -10,7 +10,7 @@
 #' probabilities in another way:
 #'
 #' * `ranger` (fit with `probability = TRUE`), `randomForest`;
-#' * bayespred (`bpmfit`, `bpm`);
+#' * bayespred (`bpmfit`, `bpm`): the risk is the posterior mean of risk;
 #' * `e1071::svm` (fit with `probability = TRUE`), `e1071::naiveBayes`,
 #'   `naivebayes::naive_bayes`, `nnet`, `MASS::lda`, `MASS::qda`;
 #' * models fitted to a numeric matrix: `glmnet` (one lambda) and
@@ -32,10 +32,6 @@
 #'
 #' @param model A fitted model.
 #' @param newdata A data frame with the covariates the model needs.
-#' @param bayespred_method Only for bayespred models: how the risk is
-#'   predicted. `"pm"` (default) is the posterior mean of risk; `"pe"` uses the
-#'   point estimate of the coefficients; `"pm_mackay"` is MacKay's
-#'   approximation to the posterior mean.
 #' @param ... Not used; for methods.
 #' @return A numeric vector of length `nrow(newdata)` with values in \[0, 1\].
 #' @examples
@@ -86,11 +82,10 @@ predict_risk.randomForest <- function(model, newdata, ...) {
 
 #' @rdname predict_risk
 #' @export
-predict_risk.bpmfit <- function(model, newdata, bayespred_method = "pm", ...) {
-  bayespred_method <- match.arg(bayespred_method, c("pm", "pe", "pm_mackay"))
+predict_risk.bpmfit <- function(model, newdata, ...) {
   check_covariates(model, newdata)
-  p <- stats::predict(model, newdata = newdata, type = "response",
-                      method = bayespred_method)
+  # the risk is the posterior mean of risk
+  p <- stats::predict(model, newdata = newdata, type = "response", method = "pm")
   check_risk(as.vector(p), newdata)
 }
 

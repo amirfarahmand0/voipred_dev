@@ -32,12 +32,11 @@ test_that("random forest (randomForest) agrees with dcurves", {
   expect_same_as_dcurves(res, s$val)
 })
 
-test_that("bayespred (posterior mean and point estimate) agrees with dcurves", {
+test_that("bayespred (posterior mean of risk) agrees with dcurves", {
   skip_if_not_installed("dcurves")
   skip_if_not_installed("bayespred")
   s <- gusto_split()
   fit <- bayespred::bpmfit(gusto_formula, data = s$dev,
                            prior = bayespred::log_f(m = 2))
   expect_same_as_dcurves(nb(fit, s$val, "day30", all_z), s$val)
-  expect_same_as_dcurves(nb(fit, s$val, "day30", all_z, bayespred_method = "pe"), s$val)
 })
