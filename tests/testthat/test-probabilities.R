@@ -38,3 +38,25 @@ test_that("a glm asked for log-odds would be outside [0, 1]: predict_risk uses p
   p <- predict_risk(fit, s$val)                        # type = "response"
   expect_true(all(p > 0 & p < 1))
 })
+
+test_that("values above 1 or below 0 are rejected as not probabilities", {
+  d <- data.frame(y = c(1, 0, 1, 0))
+  expect_error(predict_risk(fixed_model(c(0.2, 1.3, 0.5, 0.1)), d), "not probabilities")
+  expect_error(predict_risk(fixed_model(c(0.2, -0.1, 0.5, 0.1)), d), "not probabilities")
+  expect_error(nb(fixed_model(c(-2.1, 0.4, 1.7, -0.3)), d, "y"),
+               "outside \\[0, 1\\] \\(from -2.1 to 1.7\\).*scores")
+})
+
+test_that("log-odds from a glm would be rejected as scores", {
+  s <- gusto_split()
+  fit <- glm(gusto_formula, family = binomial, data = s$dev)
+  log_odds <- predict(fit, s$val)                     # type = "link"
+  expect_error(predict_risk(fixed_model(log_odds), s$val), "scores")
+})
+
+test_that("a linear probability model (lm) with predictions below 0 is rejected", {
+  s <- gusto_split()
+  fit <- lm(gusto_formula, data = s$dev)
+  expect_true(any(predict(fit, s$val) < 0))
+  expect_error(nb(fit, s$val, "day30"), "not probabilities")
+})

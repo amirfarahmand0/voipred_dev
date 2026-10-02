@@ -113,7 +113,70 @@ developed with, `nb()` stops and names it:
 nb(fit_glm, val[, setdiff(names(val), c("sysbp", "pulse"))], "day30")
 ```
 
+**Labels instead of probabilities.** A model that only predicts the class
+(0 or 1) cannot be used. For example, a `ranger` forest fitted without
+`probability = TRUE`:
+
+```{r labels, error = TRUE}
+fit_class <- ranger::ranger(factor(day30) ~ age + Killip + sysbp + pulse,
+                            data = dev, num.trees = 100, seed = 1)
+nb(fit_class, val, "day30")
+```
+
+Any other model whose predictions are only 0s and 1s is stopped in the same
+way, with a message that they look like predicted classes.
+
+**Scores instead of probabilities.** Values below 0 or above 1 are not
+probabilities. They may be wrong, or scores from the model that must first be
+turned into probabilities. For example, a linear regression fitted to the 0/1
+outcome gives some negative predictions:
+
+```{r scores, error = TRUE}
+fit_lm <- lm(day30 ~ age + Killip + sysbp + pulse, data = dev)
+nb(fit_lm, val, "day30")
+```
+
 **Ties.** As in `dcurves`, a patient is treated when the predicted risk is at
 or above the threshold, and a predicted risk of exactly 0 is never treated.
 The test suite checks that `nb()` reproduces `dcurves::dca()` for logistic
 regression, two random forest packages and bayespred.
+
+## Weights: one bootstrap draw
+
+`nb()` also accepts observation weights. Besides sampling weights, this is how
+bootstrap draws of the net benefit are made, without copying the data:
+
+- **Ordinary bootstrap:** the weight of each patient is the number of times
+  they are drawn when sampling `n` patients with replacement.
+- **Bayesian bootstrap:** the weights follow a Dirichlet(1, ..., 1)
+  distribution, drawn as independent exponential(1) values divided by their
+  sum.
+
+```{r bootstrap}
+n <- nrow(val)
+z <- c(0.02, 0.05, 0.10, 0.20)
+
+set.seed(2)
+w_boot <- tabulate(sample(n, replace = TRUE), nbins = n)   # ordinary bootstrap
+w_bb   <- rexp(n)
+w_bb   <- n * w_bb / sum(w_bb)                              # Bayesian bootstrap (Dirichlet)
+
+draws <- rbind(
+  original           = nb(fit_glm, val, "day30", z)$NB_model,
+  ordinary_bootstrap = nb(fit_glm, val, "day30", z, weights = w_boot)$NB_model,
+  bayesian_bootstrap = nb(fit_glm, val, "day30", z, weights = w_bb)$NB_model)
+colnames(draws) <- paste("z =", z)
+round(draws, 4)
+```
+
+The ordinary-bootstrap weights give exactly the same result as resampling the
+rows:
+
+```{r bootstrap-check}
+idx <- rep(seq_len(n), w_boot)
+all.equal(nb(fit_glm, val[idx, ], "day30", z)$NB_model,
+          unname(draws["ordinary_bootstrap", ]))
+```
+
+Repeating such draws many times gives the uncertainty in net benefit that the
+next steps of voipred use for ΔNB, P(useful), P(best) and EVPI.

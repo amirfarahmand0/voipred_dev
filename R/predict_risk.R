@@ -159,7 +159,11 @@ check_risk <- function(p, newdata = NULL) {
     stop(sum(is.na(p)), " predicted risks are NA. Check for missing values ",
          "in the covariates.", call. = FALSE)
   if (any(p < 0 | p > 1))
-    stop("Predicted risks must lie in [0, 1].", call. = FALSE)
+    stop("The model returned values outside [0, 1] (from ",
+         signif(min(p), 3), " to ", signif(max(p), 3), "), so these are not ",
+         "probabilities. They may be wrong, or scores from the model (e.g. ",
+         "log-odds or decision values) that must be turned into probabilities ",
+         "first.", call. = FALSE)
   if (all(p == 0 | p == 1))
     stop("The model returned only 0s and 1s. These look like predicted ",
          "classes, not probabilities. Make the model return probabilities ",
