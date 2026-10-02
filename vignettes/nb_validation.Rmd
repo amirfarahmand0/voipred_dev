@@ -109,7 +109,8 @@ treat all and treat none) at every threshold from 0 to 0.99, and all pass:
 
 | Type | Models |
 |---|---|
-| Regression | `glm` (logit, probit and cloglog links), Firth logistic regression (`logistf`), `mgcv::gam`, MARS (`earth` with a binomial glm), Bayesian logistic regression (bayespred `bpmfit`) |
+| Regression | `glm` (logit, probit and cloglog links), Firth logistic regression (`logistf`), `mgcv::gam`, MARS (`earth` with a binomial glm) |
+| bayespred | Bayesian logistic regression (`bpmfit`, and its `posterior()` object), risk = posterior mean of risk |
 | Trees and ensembles | `rpart`, `partykit::ctree`, `ranger` (`probability = TRUE`), `randomForest`, `gbm` |
 | Other machine learning | k-nearest neighbours (`kknn`), naive Bayes (`naivebayes`, `e1071::naiveBayes`), support vector machine (`e1071::svm`, `probability = TRUE`), neural network (`nnet`), `MASS::lda`, `MASS::qda` |
 | Trained on a numeric matrix | `glmnet` (one lambda), `cv.glmnet`, XGBoost (`xgb.train` and `xgboost()`), LightGBM, CatBoost |
