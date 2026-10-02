@@ -1,14 +1,6 @@
 # nb() must reproduce dcurves::dca() on GUSTO-I for every kind of model:
 # model, treat all and treat none, at thresholds 0, 0.01, ..., 0.99.
 
-expect_same_as_dcurves <- function(res, val) {
-  ref <- dcurves_nb(attr(res, "risk"), val, "day30", all_z)
-  expect_equal(res$threshold, ref$threshold)
-  expect_equal(res$NB_model, ref$NB_model, tolerance = 1e-10)
-  expect_equal(res$NB_all, ref$NB_all, tolerance = 1e-10)
-  expect_equal(res$NB_none, ref$NB_none, tolerance = 1e-10)
-}
-
 test_that("logistic regression (glm) agrees with dcurves", {
   skip_if_not_installed("dcurves")
   s <- gusto_split()

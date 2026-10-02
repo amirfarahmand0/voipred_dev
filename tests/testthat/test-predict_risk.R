@@ -76,7 +76,7 @@ test_that("a numeric or logical vector is rejected", {
 
 test_that("an object without a usable predict() gets a clear error", {
   obj <- structure(list(), class = "not_a_model")
-  expect_error(predict_risk(obj, data.frame(x = 1)), "Supported models")
+  expect_error(predict_risk(obj, data.frame(x = 1)), "Could not get predicted risks")
 })
 
 test_that("default method works for a model with predict(type = 'response')", {

@@ -26,10 +26,25 @@ Imports:
     progress
 Suggests:
     testthat (>= 3.0.0),
+    withr,
     dcurves,
     ranger,
     randomForest,
-    bayespred
+    bayespred,
+    catboost,
+    e1071,
+    earth,
+    gbm,
+    kknn,
+    lightgbm,
+    logistf,
+    MASS,
+    mgcv,
+    naivebayes,
+    nnet,
+    partykit,
+    rpart,
+    xgboost
 Remotes: resplab/bayespred
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)

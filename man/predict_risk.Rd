@@ -7,6 +7,17 @@
 \alias{predict_risk.randomForest}
 \alias{predict_risk.bpmfit}
 \alias{predict_risk.bpm}
+\alias{predict_risk.svm}
+\alias{predict_risk.naiveBayes}
+\alias{predict_risk.naive_bayes}
+\alias{predict_risk.nnet}
+\alias{predict_risk.lda}
+\alias{predict_risk.qda}
+\alias{predict_risk.glmnet}
+\alias{predict_risk.cv.glmnet}
+\alias{predict_risk.xgb.Booster}
+\alias{predict_risk.lgb.Booster}
+\alias{predict_risk.catboost.Model}
 \alias{predict_risk.default}
 \title{Predicted risks from a fitted model}
 \usage{
@@ -21,6 +32,28 @@ predict_risk(model, newdata, ...)
 \method{predict_risk}{bpmfit}(model, newdata, bayespred_method = "pm", ...)
 
 \method{predict_risk}{bpm}(model, newdata, bayespred_method = "pm", ...)
+
+\method{predict_risk}{svm}(model, newdata, ...)
+
+\method{predict_risk}{naiveBayes}(model, newdata, ...)
+
+\method{predict_risk}{naive_bayes}(model, newdata, ...)
+
+\method{predict_risk}{nnet}(model, newdata, ...)
+
+\method{predict_risk}{lda}(model, newdata, ...)
+
+\method{predict_risk}{qda}(model, newdata, ...)
+
+\method{predict_risk}{glmnet}(model, newdata, ...)
+
+\method{predict_risk}{cv.glmnet}(model, newdata, ...)
+
+\method{predict_risk}{xgb.Booster}(model, newdata, ...)
+
+\method{predict_risk}{lgb.Booster}(model, newdata, ...)
+
+\method{predict_risk}{catboost.Model}(model, newdata, ...)
 
 \method{predict_risk}{default}(model, newdata, ...)
 }
@@ -44,20 +77,33 @@ Turns a fitted model into a numeric vector of predicted risks
 P(Y = 1 | x), one per row of \code{newdata}.
 }
 \details{
-Methods are provided for \code{glm}, \code{ranger}, \code{randomForest}, and bayespred
-(\code{bpmfit} and \code{bpm}) objects. The default method tries
-\code{predict(model, newdata, type = "response")} and then
-\code{predict(model, newdata, type = "prob")}. A vector of predicted risks is not
-accepted: voipred needs the fitted model itself.
+Any model whose \code{predict()} returns probabilities with
+\code{type = "response"} or \code{type = "prob"} works through the default method
+(e.g. \code{glm}, \code{mgcv::gam}, \code{logistf}, \code{rpart}, \code{partykit::ctree}, \code{gbm},
+\code{kknn} (attach it with \code{library(kknn)}), \code{earth} with a binomial glm). Methods are provided for models that return
+probabilities in another way:
+\itemize{
+\item \code{ranger} (fit with \code{probability = TRUE}), \code{randomForest};
+\item bayespred (\code{bpmfit}, \code{bpm});
+\item \code{e1071::svm} (fit with \code{probability = TRUE}), \code{e1071::naiveBayes},
+\code{naivebayes::naive_bayes}, \code{nnet}, \code{MASS::lda}, \code{MASS::qda};
+\item models fitted to a numeric matrix: \code{glmnet} (one lambda) and
+\code{cv.glmnet} (at \code{lambda.1se}, glmnet's default), \code{xgboost} (objective
+\code{binary:logistic}), \code{lightgbm} (objective \code{binary}) and \code{catboost}
+(loss \code{Logloss}). For these, \code{newdata} must contain columns with the same
+names as the features the model was trained on (e.g. the dummy columns).
+}
 
-The event is always Y = 1. Random forests fitted to a factor outcome
-predict one probability per outcome level; the risk is the probability of
-level \code{"1"} (or of the second level if the levels are not 0/1).
+A vector of predicted risks is not accepted: voipred needs the fitted model
+itself. The event is always Y = 1: when a model predicts one probability per
+outcome level, the risk is the probability of level \code{"1"} (or of the second
+level if the levels are not 0/1).
 
 Before predicting, the covariates the model was fitted with are compared
 with the columns of \code{newdata}. If any are missing, an error lists them.
-This check is skipped when the covariate names cannot be read from the
-model.
+The result must be probabilities: values outside [0, 1] (e.g. log-odds or
+other scores) and predictions that are only 0s and 1s (classes) are
+rejected.
 }
 \examples{
 fit <- glm(day30 ~ age + Killip, family = binomial, data = gusto[1:2000, ])

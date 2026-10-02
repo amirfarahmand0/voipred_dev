@@ -20,3 +20,26 @@ dcurves_nb <- function(risk, data, outcome, thresholds) {
   data.frame(threshold = sort(unique(tab$threshold)),
              NB_model = pick("risk"), NB_all = pick("all"), NB_none = pick("none"))
 }
+
+# nb() result vs dcurves::dca() on the same predicted risks: model, treat all
+# and treat none at every threshold.
+expect_same_as_dcurves <- function(res, val) {
+  ref <- dcurves_nb(attr(res, "risk"), val, "day30", all_z)
+  expect_equal(res$threshold, ref$threshold)
+  expect_equal(res$NB_model, ref$NB_model, tolerance = 1e-10)
+  expect_equal(res$NB_all, ref$NB_all, tolerance = 1e-10)
+  expect_equal(res$NB_none, ref$NB_none, tolerance = 1e-10)
+}
+
+# For models trained on a numeric matrix: the same GUSTO split, with the
+# covariates dummy-coded as columns (KillipII, sexfemale, ...).
+gusto_matrix_split <- function(seed = 2026) {
+  s <- gusto_split(seed)
+  to_df <- function(d) {
+    x <- stats::model.matrix(gusto_formula, d)[, -1]
+    data.frame(x, day30 = d$day30, check.names = FALSE)
+  }
+  dev <- to_df(s$dev)
+  list(dev = dev, val = to_df(s$val),
+       x = as.matrix(dev[, setdiff(names(dev), "day30")]), y = dev$day30)
+}
