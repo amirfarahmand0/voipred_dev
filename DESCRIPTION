@@ -52,8 +52,11 @@ Suggests:
     randomForestSRC,
     rms,
     rstpm2,
-    glmnet
-Remotes: resplab/bayespred
+    glmnet,
+    bayespred.dev
+Remotes:
+    resplab/bayespred,
+    resplab/bayespred.dev
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)
 Config/roxygen2/version: 8.1.0

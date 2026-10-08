@@ -158,6 +158,7 @@ tested against its package's own predictions: e.g. \code{glm}, \code{gam},
 random forests (\code{ranger}, \code{randomForest}), boosting (\code{gbm}, \code{xgboost},
 \code{lightgbm}, \code{catboost}), \code{glmnet}, \code{svm}, bayespred; survival: \code{coxph},
 \code{rms::cph}/\code{psm}, \code{survreg}, \code{flexsurvreg}, \code{rstpm2::stpm2},
+bayespred.dev Bayesian Cox and parametric models (posterior mean of risk),
 survival forests (\code{ranger}, \code{randomForestSRC}, \code{aorsf}), survival trees;
 competing risks: \code{riskRegression::CSC} and \code{FGR}, \code{cmprsk::crr},
 competing-risks \code{randomForestSRC}, survival's multi-state \code{coxph}. See

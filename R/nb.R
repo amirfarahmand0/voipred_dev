@@ -49,6 +49,7 @@
 #'   random forests (`ranger`, `randomForest`), boosting (`gbm`, `xgboost`,
 #'   `lightgbm`, `catboost`), `glmnet`, `svm`, bayespred; survival: `coxph`,
 #'   `rms::cph`/`psm`, `survreg`, `flexsurvreg`, `rstpm2::stpm2`,
+#'   bayespred.dev Bayesian Cox and parametric models (posterior mean of risk),
 #'   survival forests (`ranger`, `randomForestSRC`, `aorsf`), survival trees;
 #'   competing risks: `riskRegression::CSC` and `FGR`, `cmprsk::crr`,
 #'   competing-risks `randomForestSRC`, survival's multi-state `coxph`. See

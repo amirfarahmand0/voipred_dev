@@ -21,6 +21,8 @@
 \alias{predict_risk.gam}
 \alias{predict_risk.flexsurvreg}
 \alias{predict_risk.survreg}
+\alias{predict_risk.bpmfit}
+\alias{predict_risk.bpm}
 \alias{predict_risk.crr}
 \alias{predict_risk.coxphms}
 \alias{predict_risk.FGR}
@@ -65,6 +67,10 @@ predict_risk(model, newdata, horizon = NULL, cause = NULL, ...)
 \method{predict_risk}{flexsurvreg}(model, newdata, horizon = NULL, cause = NULL, ...)
 
 \method{predict_risk}{survreg}(model, newdata, horizon = NULL, cause = NULL, ...)
+
+\method{predict_risk}{bpmfit}(model, newdata, horizon = NULL, cause = NULL, ...)
+
+\method{predict_risk}{bpm}(model, newdata, horizon = NULL, cause = NULL, ...)
 
 \method{predict_risk}{crr}(model, newdata, horizon = NULL, cause = NULL, ...)
 
@@ -154,7 +160,10 @@ level order of \code{xgboost()}), \code{lightgbm}, \code{catboost}; survival: \c
 without \code{x = TRUE} or with case weights, stratified \code{survreg},
 \code{flexsurvreg} when its formula was passed as a variable, \code{aorsf},
 \code{partykit::ctree} survival trees, \code{rstpm2::stpm2} (attach rstpm2),
-\code{mgcv::gam} with \code{cox.ph()}; competing risks: \code{cmprsk::crr}, survival's
+\code{mgcv::gam} with \code{cox.ph()}, bayespred.dev Bayesian Cox and parametric
+survival models (\code{bpmfit} survival fits, and \code{bpm} objects packaged at the
+horizon with \code{posterior(fit, time = )}; the risk is the posterior mean of
+risk); competing risks: \code{cmprsk::crr}, survival's
 multi-state \code{coxph} (\code{coxph(Surv(time, factor_status) ~ x, id = id)}:
 cause-specific Cox models combined by Aalen-Johansen, as
 \code{riskRegression::CSC}), and a check that an \code{FGR} model was fitted for the

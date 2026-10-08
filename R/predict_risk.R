@@ -57,7 +57,10 @@
 #' without `x = TRUE` or with case weights, stratified `survreg`,
 #' `flexsurvreg` when its formula was passed as a variable, `aorsf`,
 #' `partykit::ctree` survival trees, `rstpm2::stpm2` (attach rstpm2),
-#' `mgcv::gam` with `cox.ph()`; competing risks: `cmprsk::crr`, survival's
+#' `mgcv::gam` with `cox.ph()`, bayespred.dev Bayesian Cox and parametric
+#' survival models (`bpmfit` survival fits, and `bpm` objects packaged at the
+#' horizon with `posterior(fit, time = )`; the risk is the posterior mean of
+#' risk); competing risks: `cmprsk::crr`, survival's
 #' multi-state `coxph` (`coxph(Surv(time, factor_status) ~ x, id = id)`:
 #' cause-specific Cox models combined by Aalen-Johansen, as
 #' `riskRegression::CSC`), and a check that an `FGR` model was fitted for the
@@ -614,6 +617,61 @@ predict_risk.survreg <- function(model, newdata, horizon = NULL, cause = NULL, .
   finish_risk(1 - surv_at(model, newdata, rep(horizon, nrow(newdata))), newdata)
 }
 
+# bayespred.dev Bayesian survival models (Cox and parametric). A `bpmfit`
+# survival fit gives risks only once a horizon is chosen: its posterior at the
+# horizon is a `bpm` whose predict() is the posterior mean of the risk, the same
+# convention as for bayespred's binary models.
+
+#' @rdname predict_risk
+#' @export
+predict_risk.bpmfit <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
+  if (!is_bp_survival(model)) return(NextMethod())          # binary: standard route
+  if (is.null(horizon))
+    stop("This bpmfit model is a survival model: use it with a survival outcome ",
+         "made with Surv() and give `horizon`.", call. = FALSE)
+  check_covariates(model, newdata)
+  post <- bp_dev("posterior")(model, time = horizon)
+  finish_risk(bp_dev_predict(post, newdata), newdata)
+}
+
+#' @rdname predict_risk
+#' @export
+predict_risk.bpm <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
+  if (inherits(model, "bpm_lp"))
+    stop("This bpm object has no baseline hazard, so it gives no risks. Package ",
+         "the fit at the horizon: posterior(fit, time = ", if (is.null(horizon))
+           "<horizon>" else horizon, ").", call. = FALSE)
+  if (is.null(model$time)) return(NextMethod())             # binary: standard route
+  if (is.null(horizon))
+    stop("This bpm object is a survival model packaged at time = ", model$time,
+         ": use it with a survival outcome made with Surv() and horizon = ",
+         model$time, ".", call. = FALSE)
+  if (abs(horizon - model$time) > sqrt(.Machine$double.eps) * max(1, horizon))
+    stop("This bpm object gives risks at time = ", model$time, ", but `horizon` ",
+         "is ", horizon, ". Use horizon = ", model$time, ", or package the fit at ",
+         "the horizon: posterior(fit, time = ", horizon, ").", call. = FALSE)
+  check_covariates(model, newdata)
+  finish_risk(bp_dev_predict(model, newdata), newdata)
+}
+
+is_bp_survival <- function(model) {
+  !is.null(model$cox) || !is.null(model$survreg)
+}
+
+# bayespred.dev's own functions (bayespred also defines bpmfit / bpm classes,
+# so the methods are taken from bayespred.dev's namespace explicitly).
+bp_dev <- function(name) {
+  if (!requireNamespace("bayespred.dev", quietly = TRUE))
+    stop("The bayespred.dev package is needed for this survival model.", call. = FALSE)
+  getExportedValue("bayespred.dev", name)
+}
+
+bp_dev_predict <- function(post, newdata) {
+  bp_dev("posterior")                                  # checks it is installed
+  pred <- utils::getFromNamespace("predict.bpm", "bayespred.dev")
+  as.vector(pred(post, newdata = newdata, type = "response"))
+}
+
 # Competing-risks models.
 
 #' @rdname predict_risk
@@ -813,6 +871,25 @@ surv_at.flexsurvreg <- function(model, newdata, times, side = "right") {
     rows <- which(times == tt)
     out[rows] <- summary(model, newdata = newdata[rows, , drop = FALSE], type = "survival",
                          t = tt - eps, ci = FALSE, tidy = TRUE)$est
+  }
+  out
+}
+
+#' @exportS3Method
+surv_at.bpmfit <- function(model, newdata, times, side = "right") {
+  # bayespred.dev survival fit as a censoring model: its posterior at each
+  # needed time (posterior mean of the survival probability)
+  if (!is_bp_survival(model)) return(NextMethod())
+  eps <- if (side == "left") 1e-9 * max(1, max(times)) else 0
+  first_event <- if (!is.null(model$cox$time))
+    min(model$cox$time[model$cox$status == 1]) else -Inf
+  out <- numeric(nrow(newdata))
+  for (tt in unique(times)) {
+    rows <- which(times == tt)
+    t_use <- tt - eps
+    out[rows] <- if (t_use < first_event) 1 else
+      1 - bp_dev_predict(bp_dev("posterior")(model, time = t_use),
+                         newdata[rows, , drop = FALSE])
   }
   out
 }
