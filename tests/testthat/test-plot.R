@@ -1,4 +1,4 @@
-# delta_NB, labels, and plot() / autoplot() of nb() results.
+# delta_NB, labels, and plot() / plot_dca() of nb() results.
 
 toy <- data.frame(y = c(1, 0, 1, 0, 0), p = c(0.9, 0.2, 0.4, 0.05, 0.6))
 z <- c(0, 0.1, 0.3, 0.5, 0.7)
@@ -37,7 +37,7 @@ test_that("label: default from the model's name, given, or reserved", {
 
 test_that("decision curve: model, Treat All and Treat None", {
   res <- nb(fixed_model(toy$p), toy, "y", thresholds = z, label = "M")
-  p <- autoplot(res)
+  p <- plot_dca(res)
   expect_s3_class(p, "ggplot")
   expect_equal(levels(p$data$label), c("Treat All", "Treat None", "M"))
   cv <- curves(p)
@@ -52,7 +52,7 @@ test_that("decision curve: model, Treat All and Treat None", {
 
 test_that("delta plot: delta_NB of each model, line at 0", {
   res <- nb(fixed_model(toy$p), toy, "y", thresholds = z, label = "M")
-  p <- autoplot(res, type = "delta")
+  p <- plot_dca(res, type = "delta")
   expect_equal(levels(p$data$label), "M")
   expect_equal(curves(p)[["M"]], res$delta_NB)
   expect_equal(ggplot2::layer_data(p, 1)$yintercept, 0)
@@ -65,10 +65,10 @@ test_that("several results on one plot, for both types", {
   zz <- seq(0, 0.5, 0.01)
   r1 <- nb(f1, g$val, "day30", thresholds = zz, label = "Full")
   r2 <- nb(f2, g$val, "day30", thresholds = zz, label = "Age")
-  p <- autoplot(r1, r2)
+  p <- plot_dca(r1, r2)
   expect_equal(levels(p$data$label), c("Treat All", "Treat None", "Full", "Age"))
   expect_equal(curves(p)[["Age"]], r2$NB_model)
-  d <- autoplot(r1, r2, type = "delta")
+  d <- plot_dca(r1, r2, type = "delta")
   expect_equal(levels(d$data$label), c("Full", "Age"))
   expect_equal(curves(d)[["Full"]], r1$delta_NB)
   expect_equal(curves(d)[["Age"]], r2$delta_NB)
@@ -80,22 +80,21 @@ test_that("several results on one plot, for both types", {
   expect_equal(as.vector(col_of(p)[levels(p$data$label)]),
                c("#F8766D", "#7CAE00", "#00BFC4", "#C77CFF"))
   # names in ... and `labels`
-  expect_equal(levels(autoplot(r1, Simple = r2)$data$label)[3:4], c("Full", "Simple"))
-  expect_equal(levels(autoplot(r1, r2, type = "delta", labels = c("a", "b"))$data$label),
+  expect_equal(levels(plot_dca(r1, Simple = r2)$data$label)[3:4], c("Full", "Simple"))
+  expect_equal(levels(plot_dca(r1, r2, type = "delta", labels = c("a", "b"))$data$label),
                c("a", "b"))
-  # plot() draws and returns the same plot invisibly; the 2nd result arrives as `y`
+  # printing draws it
   withr::local_pdf(NULL)
-  expect_invisible(q <- plot(r1, r2, type = "delta"))
-  expect_equal(curves(q), curves(d))
+  expect_no_error(print(d))
   # survival
   s <- rott_split()
   c1 <- survival::coxph(surv_formula, data = s$dev)
   c2 <- survival::coxph(survival::Surv(dtimey, death) ~ age + size, data = s$dev)
   s1 <- quiet_nb(c1, s$val, surv_outcome, horizon = 5, thresholds = surv_z, label = "Cox")
   s2 <- quiet_nb(c2, s$val, surv_outcome, horizon = 5, thresholds = surv_z, label = "Small")
-  ps <- autoplot(s1, s2, type = "delta")
+  ps <- plot_dca(s1, s2, type = "delta")
   expect_equal(curves(ps)[["Cox"]], s1$delta_NB[!is.na(s1$delta_NB)])
-  expect_equal(autoplot(s1)$coordinates$limits$y, c(-0.1, 1) * attr(s1, "prevalence"))
+  expect_equal(plot_dca(s1)$coordinates$limits$y, c(-0.1, 1) * attr(s1, "prevalence"))
 })
 
 test_that("results that cannot be drawn together are refused", {
@@ -103,23 +102,23 @@ test_that("results that cannot be drawn together are refused", {
   f <- glm(gusto_formula, family = binomial, data = g$dev)
   zz <- seq(0, 0.5, 0.01)
   r1 <- nb(f, g$val, "day30", thresholds = zz, label = "A")
-  expect_error(autoplot(r1, nb(f, g$dev, "day30", thresholds = zz, label = "B")),
+  expect_error(plot_dca(r1, nb(f, g$dev, "day30", thresholds = zz, label = "B")),
                "different data")
-  expect_error(autoplot(r1, nb(f, g$val, "day30", thresholds = seq(0, 0.4, 0.01), label = "B")),
+  expect_error(plot_dca(r1, nb(f, g$val, "day30", thresholds = seq(0, 0.4, 0.01), label = "B")),
                "different thresholds")
-  expect_error(autoplot(r1, nb(f, g$val[1:4000, ], "day30", thresholds = zz, label = "B")),
+  expect_error(plot_dca(r1, nb(f, g$val[1:4000, ], "day30", thresholds = zz, label = "B")),
                "different number of patients")
   s <- rott_split()
   cx <- survival::coxph(surv_formula, data = s$dev)
   a <- quiet_nb(cx, s$val, surv_outcome, horizon = 5, thresholds = surv_z, label = "A")
   b <- quiet_nb(cx, s$val, surv_outcome, horizon = 3, thresholds = surv_z, label = "B")
-  expect_error(autoplot(a, b), "\"A\" and \"B\" cannot be plotted together: different horizon")
-  expect_error(autoplot(r1, b), "different outcome type")
+  expect_error(plot_dca(a, b), "\"A\" and \"B\" cannot be plotted together: different horizon")
+  expect_error(plot_dca(r1, b), "different outcome type")
   # same label twice, unknown argument, other objects
-  expect_error(autoplot(r1, r1), "same label \\(\"A\"\\)")
-  expect_error(autoplot(r1, ty = "delta"), "Unknown argument `ty`")
-  expect_error(autoplot(r1, data.frame(x = 1)), "Only results of nb\\(\\)")
-  expect_error(autoplot(r1, labels = c("a", "b")), "`labels` must be 1 strings")
-  expect_error(autoplot(r1, labels = "Treat None"), "cannot be used as labels")
-  expect_error(autoplot(r1, type = "roc"), "should be one of")
+  expect_error(plot_dca(r1, r1), "same label \\(\"A\"\\)")
+  expect_error(plot_dca(r1, ty = "delta"), "Unknown argument `ty`")
+  expect_error(plot_dca(r1, data.frame(x = 1)), "Only results of nb\\(\\)")
+  expect_error(plot_dca(r1, labels = c("a", "b")), "`labels` must be 1 strings")
+  expect_error(plot_dca(r1, labels = "Treat None"), "cannot be used as labels")
+  expect_error(plot_dca(r1, type = "roc"), "should be one of")
 })

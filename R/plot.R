@@ -16,19 +16,20 @@
 #' Results drawn together must come from the same data, outcome, horizon,
 #' cause, censoring method and thresholds (voipred checks this). Thresholds
 #' where the net benefit is `NA` are left out. Each curve is named by its
-#' `label` (see [nb()]), unless `labels` is given.
+#' `label` (see [nb()]), unless `labels` is given; a model has the same colour
+#' in both types of plot.
 #'
-#' `autoplot()` returns the plot as a ggplot object, which you can change with
-#' the usual `+` (e.g. `+ ggplot2::coord_cartesian(xlim = c(0, 0.5))`).
-#' `plot()` draws it and returns it invisibly.
+#' The plot is a ggplot object: it is drawn when printed, and can be changed
+#' with the usual `+` (e.g. `+ ggplot2::coord_cartesian(xlim = c(0, 0.5))`) or
+#' saved with `ggplot2::ggsave()`.
 #'
-#' @param object,x A result of [nb()].
-#' @param y,... More results of [nb()] to draw on the same plot. A named
-#'   result is labelled with its name.
+#' @param x A result of [nb()].
+#' @param ... More results of [nb()] to draw on the same plot. A named result
+#'   is labelled with its name.
 #' @param type `"nb"` (decision curve, default) or `"delta"` (\eqn{\Delta NB}).
 #' @param labels Optional names of the curves, one per result, in order;
 #'   default: the results' labels.
-#' @return A ggplot object (invisibly for `plot()`).
+#' @return A ggplot object.
 #' @examples
 #' dev <- gusto[1:5000, ]
 #' val <- gusto[5001:10000, ]
@@ -37,17 +38,13 @@
 #' z <- seq(0, 0.5, by = 0.01)
 #' res1 <- nb(fit1, val, "day30", thresholds = z, label = "Full model")
 #' res2 <- nb(fit2, val, "day30", thresholds = z, label = "Age only")
-#' plot(res1)
-#' plot(res1, res2)
-#' plot(res1, res2, type = "delta")
-#' @name plot.voipred_nb
-NULL
-
-#' @rdname plot.voipred_nb
+#' plot_dca(res1)
+#' plot_dca(res1, res2)
+#' plot_dca(res1, res2, type = "delta")
 #' @export
-autoplot.voipred_nb <- function(object, ..., type = c("nb", "delta"), labels = NULL) {
+plot_dca <- function(x, ..., type = c("nb", "delta"), labels = NULL) {
   type <- match.arg(type)
-  res <- collect_nb(object, list(...), labels)
+  res <- collect_nb(x, list(...), labels)
   r1 <- res[[1]]
   lab <- names(res)
   # ggplot2's default colours for Treat All, Treat None and the models, so a
@@ -83,15 +80,6 @@ autoplot.voipred_nb <- function(object, ..., type = c("nb", "delta"), labels = N
   p + scale_x_continuous(labels = percent_label) + theme_bw()
 }
 
-#' @rdname plot.voipred_nb
-#' @export
-plot.voipred_nb <- function(x, y, ..., type = c("nb", "delta"), labels = NULL) {
-  more <- if (missing(y)) list(...) else c(list(y), list(...))
-  p <- do.call(autoplot.voipred_nb, c(list(x), more, list(type = type, labels = labels)))
-  print(p)
-  invisible(p)
-}
-
 # ---- internal ----------------------------------------------------------------
 
 curve_data <- function(threshold, label, value)
@@ -109,8 +97,9 @@ collect_nb <- function(object, more, labels) {
   if (is.null(nms)) nms <- rep("", length(more))
   bad <- !vapply(more, inherits, logical(1), "voipred_nb")
   if (any(bad & nzchar(nms)))
-    stop("Unknown argument `", nms[bad & nzchar(nms)][1], "`. The arguments are ",
-         "`type` and `labels`; other arguments must be results of nb().", call. = FALSE)
+    stop("Unknown argument `", nms[bad & nzchar(nms)][1], "`. The arguments of ",
+         "plot_dca() are `type` and `labels`; other arguments must be results of nb().",
+         call. = FALSE)
   if (!inherits(object, "voipred_nb") || any(bad))
     stop("Only results of nb() can be plotted together.", call. = FALSE)
   res <- c(list(object), more)

@@ -106,8 +106,7 @@ cannot be estimated, see Details), \code{NB_all} (treat everyone), \code{NB_none
 (treat no one, always 0) and \code{delta_NB}, the difference in net benefit
 between the model and the best default strategy,
 \eqn{NB_{model} - \max(NB_{all}, NB_{none})}: positive where the model
-is useful. Plot it with \link[=plot.voipred_nb]{plot()} or
-\link[=autoplot.voipred_nb]{autoplot()}. Attributes: \code{label}, \code{n} (rows of \code{data}),
+is useful. Plot the results with \code{\link[=plot_dca]{plot_dca()}}. Attributes: \code{label}, \code{n} (rows of \code{data}),
 \code{prevalence} (binary: the weighted event rate; survival: the estimated
 risk of the event, or of \code{cause}, by the horizon), \code{outcome_type}
 (\code{"binary"}, \code{"survival"} or \code{"competing"}), \code{risk} (the predicted

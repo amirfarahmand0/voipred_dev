@@ -147,8 +147,7 @@
 #'   (treat no one, always 0) and `delta_NB`, the difference in net benefit
 #'   between the model and the best default strategy,
 #'   \eqn{NB_{model} - \max(NB_{all}, NB_{none})}: positive where the model
-#'   is useful. Plot it with [plot()][plot.voipred_nb] or
-#'   [autoplot()][autoplot.voipred_nb]. Attributes: `label`, `n` (rows of `data`),
+#'   is useful. Plot the results with [plot_dca()]. Attributes: `label`, `n` (rows of `data`),
 #'   `prevalence` (binary: the weighted event rate; survival: the estimated
 #'   risk of the event, or of `cause`, by the horizon), `outcome_type`
 #'   (`"binary"`, `"survival"` or `"competing"`), `risk` (the predicted

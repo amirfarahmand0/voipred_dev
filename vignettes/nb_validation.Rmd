@@ -49,11 +49,11 @@ The result is a data frame with one row per threshold:
 - `delta_NB`: $NB_{model} - \max(NB_{all}, NB_{none})$, the gain of the model
   over the best default strategy; positive where the model is useful.
 
-`plot()` draws the decision curve, and `type = "delta"` draws `delta_NB`:
+`plot_dca()` draws the decision curve, and `type = "delta"` draws `delta_NB`:
 
 ```{r plot-glm}
-plot(res_glm)
-plot(res_glm, type = "delta")
+plot_dca(res_glm)
+plot_dca(res_glm, type = "delta")
 ```
 
 ## Example 2: random forest
@@ -69,16 +69,16 @@ res_rf <- nb(fit_rf, data = val, outcome = "day30",
              thresholds = seq(0, 0.30, by = 0.01), label = "Random forest")
 ```
 
-Give several results to `plot()` to draw them together (they must come from
+Give several results to `plot_dca()` to draw them together (they must come from
 the same data, outcome and thresholds):
 
 ```{r plot-rf}
-plot(res_glm, res_rf)
-plot(res_glm, res_rf, type = "delta")
+plot_dca(res_glm, res_rf)
+plot_dca(res_glm, res_rf, type = "delta")
 ```
 
-`autoplot()` returns the same plot without drawing it, as a ggplot object you
-can change with `+`.
+The plot is a ggplot object, so it can be changed with `+` or saved with
+`ggplot2::ggsave()`.
 
 ## Example 3: Bayesian logistic regression (bayespred)
 
@@ -91,7 +91,7 @@ fit_bpm <- bpmfit(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
 
 res_bpm <- nb(fit_bpm, data = val, outcome = "day30",
               thresholds = seq(0, 0.30, by = 0.01), label = "Bayesian logistic")
-plot(res_glm, res_rf, res_bpm, type = "delta")
+plot_dca(res_glm, res_rf, res_bpm, type = "delta")
 ```
 
 ## Options
