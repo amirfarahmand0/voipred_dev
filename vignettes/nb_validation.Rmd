@@ -29,20 +29,6 @@ val <- gusto[i[5001:10000], ]
 mean(val$day30)   # prevalence in the validation sample
 ```
 
-A small function to draw the decision curve from the result of `nb()`:
-
-```{r plot-fun}
-plot_nb <- function(res, main) {
-  plot(res$threshold, res$NB_model, type = "l", lwd = 2, col = "#2a78d6",
-       ylim = c(-0.01, max(res$NB_all)), xlab = "Risk threshold",
-       ylab = "Net benefit", main = main)
-  lines(res$threshold, res$NB_all, lwd = 2, col = "#eb6834", lty = 2)
-  abline(h = 0, lwd = 2)
-  legend("topright", c("Model", "Treat all", "Treat none"), lwd = 2,
-         col = c("#2a78d6", "#eb6834", "black"), lty = c(1, 2, 1), bty = "n")
-}
-```
-
 ## Example 1: logistic regression
 
 ```{r glm}
@@ -50,7 +36,7 @@ fit_glm <- glm(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
                family = binomial, data = dev)
 
 res_glm <- nb(fit_glm, data = val, outcome = "day30",
-              thresholds = seq(0, 0.30, by = 0.01))
+              thresholds = seq(0, 0.30, by = 0.01), label = "Logistic regression")
 head(res_glm, 8)
 ```
 
@@ -59,10 +45,15 @@ The result is a data frame with one row per threshold:
 - `NB_model`: net benefit of treating patients whose predicted risk is at or
   above the threshold,
 - `NB_all`: net benefit of treating everyone,
-- `NB_none`: net benefit of treating no one (always 0).
+- `NB_none`: net benefit of treating no one (always 0),
+- `delta_NB`: $NB_{model} - \max(NB_{all}, NB_{none})$, the gain of the model
+  over the best default strategy; positive where the model is useful.
+
+`plot()` draws the decision curve, and `type = "delta"` draws `delta_NB`:
 
 ```{r plot-glm}
-plot_nb(res_glm, "Logistic regression")
+plot(res_glm)
+plot(res_glm, type = "delta")
 ```
 
 ## Example 2: random forest
@@ -75,9 +66,19 @@ fit_rf <- ranger::ranger(factor(day30) ~ age + Killip + sysbp + pulse + pmi + mi
                          data = dev, probability = TRUE, num.trees = 500, seed = 1)
 
 res_rf <- nb(fit_rf, data = val, outcome = "day30",
-             thresholds = seq(0, 0.30, by = 0.01))
-plot_nb(res_rf, "Random forest")
+             thresholds = seq(0, 0.30, by = 0.01), label = "Random forest")
 ```
+
+Give several results to `plot()` to draw them together (they must come from
+the same data, outcome and thresholds):
+
+```{r plot-rf}
+plot(res_glm, res_rf)
+plot(res_glm, res_rf, type = "delta")
+```
+
+`autoplot()` returns the same plot without drawing it, as a ggplot object you
+can change with `+`.
 
 ## Example 3: Bayesian logistic regression (bayespred)
 
@@ -89,8 +90,8 @@ fit_bpm <- bpmfit(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
                   data = dev, prior = log_f(m = 2))
 
 res_bpm <- nb(fit_bpm, data = val, outcome = "day30",
-              thresholds = seq(0, 0.30, by = 0.01))
-plot_nb(res_bpm, "Bayesian logistic regression (bayespred)")
+              thresholds = seq(0, 0.30, by = 0.01), label = "Bayesian logistic")
+plot(res_glm, res_rf, res_bpm, type = "delta")
 ```
 
 ## Options

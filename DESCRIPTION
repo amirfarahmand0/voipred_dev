@@ -20,9 +20,11 @@ LazyData: true
 Depends: R (>= 3.5.0)
 Imports:
     utils,
+    grDevices,
     survival,
     stats,
     insight,
+    ggplot2 (>= 3.4.0),
     riskRegression (>= 2026.3.11)
 Suggests:
     testthat (>= 3.0.0),

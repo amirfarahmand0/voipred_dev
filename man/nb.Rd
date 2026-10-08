@@ -14,7 +14,8 @@ nb(
   censoring = c("km", "cipcw"),
   cipcw = cipcw_control(),
   weights = NULL,
-  predict_function = NULL
+  predict_function = NULL,
+  label = NULL
 )
 }
 \arguments{
@@ -68,9 +69,9 @@ assumes censoring is independent of the outcome. \code{"cipcw"}: conditional
 inverse probability of censoring weights, which allows censoring to
 depend on covariates; it needs \code{cipcw}.}
 
-\item{cipcw}{With \code{censoring = "cipcw"} only: a censoring model or the
-censoring weights, and optional truncation, made with
-\code{\link[=cipcw_control]{cipcw_control()}}. Giving settings with \code{censoring = "km"} is an error.}
+\item{cipcw}{With \code{censoring = "cipcw"} only: a censoring model (with,
+optionally, your own \code{predict_function} for it) or the censoring
+weights, and optional truncation, made with \code{\link[=cipcw_control]{cipcw_control()}}. Giving settings with \code{censoring = "km"} is an error.}
 
 \item{weights}{Optional case weights, one non-negative number per row of
 \code{data} (with a positive sum), e.g. sampling weights or the weights of a
@@ -92,12 +93,21 @@ event column is taken: \code{"1"} or \code{".pred_1"}, otherwise the second of
 two), or a curve per patient, \verb{list(time = <grid>, surv = <n x grid matrix>)} or \verb{list(time = <grid>, cif = <n x grid matrix>)}, read at the
 last grid time \verb{<= horizon}. A function that ignores some arguments can
 be written \verb{function(model, newdata, ...)}.}
+
+\item{label}{Name of the model in printed output and plots, a single
+string. Default: the name of the object given as \code{model} (e.g. \code{fit}), or
+\code{"Model"} when \code{model} is an expression. \code{"Treat All"} and \code{"Treat None"}
+are reserved.}
 }
 \value{
 A data frame of class \code{voipred_nb} with one row per threshold
 and columns \code{threshold}, \code{NB_model} (using the model; \code{NA} where it
-cannot be estimated, see Details), \code{NB_all} (treat everyone) and
-\code{NB_none} (treat no one, always 0). Attributes: \code{n} (rows of \code{data}),
+cannot be estimated, see Details), \code{NB_all} (treat everyone), \code{NB_none}
+(treat no one, always 0) and \code{delta_NB}, the difference in net benefit
+between the model and the best default strategy,
+\eqn{NB_{model} - \max(NB_{all}, NB_{none})}: positive where the model
+is useful. Plot it with \link[=plot.voipred_nb]{plot()} or
+\link[=autoplot.voipred_nb]{autoplot()}. Attributes: \code{label}, \code{n} (rows of \code{data}),
 \code{prevalence} (binary: the weighted event rate; survival: the estimated
 risk of the event, or of \code{cause}, by the horizon), \code{outcome_type}
 (\code{"binary"}, \code{"survival"} or \code{"competing"}), \code{risk} (the predicted

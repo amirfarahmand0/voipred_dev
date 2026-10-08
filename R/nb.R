@@ -137,10 +137,18 @@
 #'   matrix>)` or `list(time = <grid>, cif = <n x grid matrix>)`, read at the
 #'   last grid time `<= horizon`. A function that ignores some arguments can
 #'   be written `function(model, newdata, ...)`.
+#' @param label Name of the model in printed output and plots, a single
+#'   string. Default: the name of the object given as `model` (e.g. `fit`), or
+#'   `"Model"` when `model` is an expression. `"Treat All"` and `"Treat None"`
+#'   are reserved.
 #' @return A data frame of class `voipred_nb` with one row per threshold
 #'   and columns `threshold`, `NB_model` (using the model; `NA` where it
-#'   cannot be estimated, see Details), `NB_all` (treat everyone) and
-#'   `NB_none` (treat no one, always 0). Attributes: `n` (rows of `data`),
+#'   cannot be estimated, see Details), `NB_all` (treat everyone), `NB_none`
+#'   (treat no one, always 0) and `delta_NB`, the difference in net benefit
+#'   between the model and the best default strategy,
+#'   \eqn{NB_{model} - \max(NB_{all}, NB_{none})}: positive where the model
+#'   is useful. Plot it with [plot()][plot.voipred_nb] or
+#'   [autoplot()][autoplot.voipred_nb]. Attributes: `label`, `n` (rows of `data`),
 #'   `prevalence` (binary: the weighted event rate; survival: the estimated
 #'   risk of the event, or of `cause`, by the horizon), `outcome_type`
 #'   (`"binary"`, `"survival"` or `"competing"`), `risk` (the predicted
@@ -174,7 +182,9 @@
 #' @export
 nb <- function(model, data, outcome, thresholds = seq(0, 0.99, by = 0.01),
                horizon = NULL, cause = NULL, censoring = c("km", "cipcw"),
-               cipcw = cipcw_control(), weights = NULL, predict_function = NULL) {
+               cipcw = cipcw_control(), weights = NULL, predict_function = NULL,
+               label = NULL) {
+  label <- check_label(label, substitute(model))
   if (!is.data.frame(data))
     stop("`data` must be a data frame.", call. = FALSE)
   censoring <- match.arg(censoring)
@@ -204,6 +214,7 @@ nb <- function(model, data, outcome, thresholds = seq(0, 0.99, by = 0.01),
                     NB_model = res$NB_model,
                     NB_all = res$NB_all,
                     NB_none = 0)
+  out$delta_NB <- out$NB_model - pmax(out$NB_all, 0)
   attr(out, "n") <- n
   attr(out, "prevalence") <- res$prevalence
   attr(out, "outcome_type") <- info$type
@@ -213,6 +224,7 @@ nb <- function(model, data, outcome, thresholds = seq(0, 0.99, by = 0.01),
     attr(out, "censoring") <- censoring
   }
   attr(out, "risk") <- p
+  attr(out, "label") <- label
   class(out) <- c("voipred_nb", "data.frame")
   out
 }
@@ -222,11 +234,11 @@ print.voipred_nb <- function(x, ...) {
   type <- attr(x, "outcome_type")
   if (is.null(type)) type <- "binary"
   if (type == "binary") {
-    cat("Net benefit: n = ", attr(x, "n"), ", prevalence = ",
+    cat("Net benefit of ", attr(x, "label"), ": n = ", attr(x, "n"), ", prevalence = ",
         format(attr(x, "prevalence"), digits = 3), ", ", nrow(x),
         " thresholds\n", sep = "")
   } else {
-    cat("Net benefit (", type, if (type == "competing")
+    cat("Net benefit of ", attr(x, "label"), " (", type, if (type == "competing")
           paste0(", cause = ", attr(x, "cause")),
         ", horizon = ", attr(x, "horizon"), ", ", attr(x, "censoring"),
         "): n = ", attr(x, "n"), ", risk by horizon = ",
@@ -235,7 +247,7 @@ print.voipred_nb <- function(x, ...) {
   }
   y <- x
   attr(y, "risk") <- NULL
-  print(as.data.frame(unclass(y))[, c("threshold", "NB_model", "NB_all", "NB_none")],
+  print(as.data.frame(unclass(y))[, c("threshold", "NB_model", "NB_all", "NB_none", "delta_NB")],
         row.names = FALSE, ...)
   invisible(x)
 }
@@ -295,6 +307,17 @@ check_thresholds <- function(thresholds) {
   if (any(thresholds < 0 | thresholds >= 1))
     stop("`thresholds` must lie in [0, 1).", call. = FALSE)
   thresholds
+}
+
+check_label <- function(label, model_expr) {
+  if (is.null(label))
+    label <- if (is.name(model_expr)) as.character(model_expr) else "Model"
+  if (!is.character(label) || length(label) != 1 || is.na(label) || !nzchar(label))
+    stop("`label` must be a single non-empty string.", call. = FALSE)
+  if (tolower(label) %in% c("treat all", "treat none"))
+    stop("`label` cannot be \"", label, "\": \"Treat All\" and \"Treat None\" ",
+         "are the default strategies.", call. = FALSE)
+  label
 }
 
 check_weights <- function(weights, n) {

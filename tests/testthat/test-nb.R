@@ -15,7 +15,7 @@ test_that("nb() returns one row per threshold with the expected columns", {
   res <- nb(fixed_model(toy$p), toy, "y", thresholds = z)
   expect_s3_class(res, "data.frame")
   expect_s3_class(res, "voipred_nb")
-  expect_named(res, c("threshold", "NB_model", "NB_all", "NB_none"))
+  expect_named(res, c("threshold", "NB_model", "NB_all", "NB_none", "delta_NB"))
   expect_equal(res$threshold, z)
   expect_true(all(res$NB_none == 0))
 })
@@ -103,6 +103,6 @@ test_that("a vector of predicted risks is rejected: nb() needs the model", {
 
 test_that("print shows a header and the table", {
   res <- nb(fixed_model(toy$p), toy, "y", thresholds = c(0.1, 0.3))
-  expect_output(print(res), "Net benefit: n = 5")
+  expect_output(print(res), "Net benefit of Model: n = 5")
   expect_output(print(res), "NB_model")
 })
