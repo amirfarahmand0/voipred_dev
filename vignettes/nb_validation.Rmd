@@ -102,6 +102,16 @@ plot_nb(res_bpm, "Bayesian logistic regression (bayespred)")
 | `outcome` | The binary outcome: a column name (`"day30"`), or a vector with one value per row. The event is 1: 0/1, logical (TRUE = 1), or a two-level factor. |
 | `thresholds` | Risk thresholds in [0, 1). Default `seq(0, 0.99, by = 0.01)`. |
 | `weights` | Optional observation weights, e.g. sampling weights. |
+| `predict_function` | Optional `function(model, newdata, ...)` returning the predicted risks. Works for any model (see "Any other model" below). |
+
+**How the risks are obtained.** voipred keeps no list of supported models. It
+uses, in this order: your `predict_function` if given; a `predict_risk()` method for
+the model's class if there is one; otherwise the standard routes,
+`predict(model, newdata, type = "response")`, then `type = "prob"`, then
+`riskRegression::predictRisk()`. voipred ships `predict_risk()` methods only
+for the models these standard routes cannot handle (`svm`, `naiveBayes`,
+`nnet`, `lda`/`qda`, `glmnet`, `xgb.train()`, LightGBM, CatBoost). Whatever the
+route, the result must be probabilities, as checked below.
 
 **Models tested.** For each of the following models, the test suite checks on
 GUSTO-I that `nb()` gives the same net benefit as `dcurves::dca()` (model,
@@ -119,6 +129,26 @@ Models trained on a numeric matrix need the validation data to have columns
 with the same names as the training matrix (e.g. dummy columns such as
 `KillipII`); `xgboost()` and CatBoost also accept factors directly.
 
+**Any other model.** If none of the routes works for a model, `nb()` says so
+and asks for `predict_function`, a function that returns the risks. For example,
+for an SVM (which voipred also handles by itself):
+
+```{r predict-fun}
+fit_svm <- e1071::svm(factor(day30) ~ age + Killip + sysbp + pulse, data = dev,
+                      probability = TRUE)
+vars <- c("age", "Killip", "sysbp", "pulse")
+nb(fit_svm, val, "day30", thresholds = c(0.05, 0.1, 0.2),
+   predict_function = function(model, newdata, ...) {
+     # predict.svm drops rows with missing values in any column, so pass
+     # only the model's covariates
+     pr <- predict(model, newdata[, vars], probability = TRUE)
+     attr(pr, "probabilities")[, "1"]
+   })
+```
+
+The author of a modelling package can instead add one `predict_risk()` method
+for their model class; `nb()` then works with it without `predict_function`.
+
 **Missing covariates.** If the validation data lacks a covariate the model was
 developed with, `nb()` stops and names it:
 
@@ -128,7 +158,8 @@ nb(fit_glm, val[, setdiff(names(val), c("sysbp", "pulse"))], "day30")
 
 **Labels instead of probabilities.** A model that only predicts the class
 (0 or 1) cannot be used. For example, a `ranger` forest fitted without
-`probability = TRUE`:
+`probability = TRUE` has no route to probabilities, and the message says how
+to refit it:
 
 ```{r labels, error = TRUE}
 fit_class <- ranger::ranger(factor(day30) ~ age + Killip + sysbp + pulse,
@@ -136,8 +167,8 @@ fit_class <- ranger::ranger(factor(day30) ~ age + Killip + sysbp + pulse,
 nb(fit_class, val, "day30")
 ```
 
-Any other model whose predictions are only 0s and 1s is stopped in the same
-way, with a message that they look like predicted classes.
+Any model whose predictions are only 0s and 1s is stopped with a message that
+they look like predicted classes (labels).
 
 **Scores instead of probabilities.** Values below 0 or above 1 are not
 probabilities. They may be wrong, or scores from the model that must first be

@@ -19,11 +19,11 @@ Encoding: UTF-8
 LazyData: true
 Depends: R (>= 3.5.0)
 Imports:
-    graphics,
+    utils,
+    survival,
     stats,
-    mvtnorm,
-    glmnet,
-    progress
+    insight,
+    riskRegression (>= 2026.3.11)
 Suggests:
     testthat (>= 3.0.0),
     withr,
@@ -44,7 +44,15 @@ Suggests:
     nnet,
     partykit,
     rpart,
-    xgboost
+    xgboost,
+    aorsf,
+    cmprsk,
+    flexsurv,
+    prodlim,
+    randomForestSRC,
+    rms,
+    rstpm2,
+    glmnet
 Remotes: resplab/bayespred
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)

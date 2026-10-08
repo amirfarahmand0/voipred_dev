@@ -5,9 +5,9 @@ test_that("glm: predict_risk() equals predict(type = 'response')", {
                unname(predict(fit, s$val, type = "response")))
 })
 
-test_that("glm with a non-binomial family is rejected", {
+test_that("a glm whose predictions are not probabilities is rejected", {
   d <- data.frame(y = c(1, 2, 3, 4), x = 1:4)
-  expect_error(predict_risk(glm(y ~ x, data = d), d), "binomial")
+  expect_error(predict_risk(glm(y ~ x, data = d), d), "outside \\[0, 1\\].*not probabilities")
 })
 
 test_that("ranger: the risk is the probability of class 1", {
@@ -33,7 +33,7 @@ test_that("ranger: a class-only forest is rejected with advice", {
   s <- gusto_split()
   rf <- ranger::ranger(factor(day30) ~ age + Killip, data = s$dev,
                        num.trees = 20, seed = 1)
-  expect_error(predict_risk(rf, s$val), "probability = TRUE")
+  expect_error(predict_risk(rf, s$val), "probability ?= ?TRUE")
 })
 
 test_that("randomForest: the risk is the probability of class 1", {

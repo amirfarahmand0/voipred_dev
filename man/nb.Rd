@@ -4,41 +4,183 @@
 \alias{nb}
 \title{Net benefit of a prediction model in a validation sample}
 \usage{
-nb(model, data, outcome, thresholds = seq(0, 0.99, by = 0.01), weights = NULL)
+nb(
+  model,
+  data,
+  outcome,
+  thresholds = seq(0, 0.99, by = 0.01),
+  horizon = NULL,
+  cause = NULL,
+  censoring = c("km", "cipcw"),
+  cipcw = cipcw_control(),
+  weights = NULL,
+  predict_function = NULL
+)
 }
 \arguments{
-\item{model}{A fitted model that \code{\link[=predict_risk]{predict_risk()}} understands (\code{glm},
-\code{ranger}, \code{randomForest}, bayespred). A vector of predicted risks is not
-accepted.}
+\item{model}{A fitted prediction model, used only to predict the risks
+of the patients in \code{data} (once). A vector of predicted risks is not
+accepted: voipred needs the model itself. See "Predicted risks" for the
+models that work automatically and for \code{predict_function}.}
 
-\item{data}{A data frame: the validation sample.}
+\item{data}{A data frame: the validation sample, one row per patient. It
+must contain every covariate the model (and, with \code{censoring = "cipcw"},
+the censoring model) uses, and the outcome columns when \code{outcome} names
+them.}
 
-\item{outcome}{The binary outcome: a column name in \code{data}, or a vector with
-one value per row. The event is 1: accepts 0/1, logical (TRUE = 1), or a
-two-level factor (level \code{"1"}, or the second level if the levels are not
-0/1).}
+\item{outcome}{The observed outcome, one per row of \code{data}:
+\itemize{
+\item binary: a column name (\code{"y"}), a vector, or a one-sided formula
+(\code{~ y}); 0/1, logical (\code{TRUE} is the event) or a two-level factor (the
+event is level \code{"1"} if present, otherwise the second level);
+\item survival: \code{~ Surv(time, status)} (or a \code{Surv} object, or the name of a
+\code{Surv} column), with status 1 = event and 0 = censored;
+\item competing risks: \code{~ Surv(time, status)} where \code{status} is a \strong{factor}
+whose first level is censoring and the other levels are the event
+types, e.g. \code{factor(code, 0:2, c("censored", "relapse", "death"))}.
+Numeric codes 0/1/2 are not accepted (Surv() would turn 2 into \code{NA}).
+}
 
-\item{thresholds}{Risk thresholds in [0, 1).}
+Formulas are evaluated in \code{data}. Only right-censored outcomes are
+supported; missing or negative times and missing statuses are errors.}
 
-\item{weights}{Optional non-negative observation weights.}
+\item{thresholds}{Risk thresholds in [0, 1), in any order (kept as
+given). At threshold \code{z} a patient is treated when the predicted risk is
+\verb{>= z}; a risk of exactly 0 is never treated.}
+
+\item{horizon}{Survival and competing-risks outcomes only (required
+there, an error for a binary outcome): the time by which the risk is
+predicted and the event counted, a single positive number in the units
+of the survival times. It must be within the follow-up of at least one
+patient.}
+
+\item{cause}{Competing-risks outcomes only: the event type of interest,
+one of the event levels of the outcome (default: the first event level).
+The net benefit is for "this cause by the horizon"; patients with
+another cause by then count as not having the event. The cause is passed
+to the model by its label, or by its position among the event levels if
+the model numbers its causes; so a model that numbers its causes must
+number them in the order of the outcome's event levels.}
+
+\item{censoring}{Survival and competing-risks outcomes only: how censoring
+is handled. \code{"km"} (default): Kaplan-Meier / Aalen-Johansen, which
+assumes censoring is independent of the outcome. \code{"cipcw"}: conditional
+inverse probability of censoring weights, which allows censoring to
+depend on covariates; it needs \code{cipcw}.}
+
+\item{cipcw}{With \code{censoring = "cipcw"} only: a censoring model or the
+censoring weights, and optional truncation, made with
+\code{\link[=cipcw_control]{cipcw_control()}}. Giving settings with \code{censoring = "km"} is an error.}
+
+\item{weights}{Optional case weights, one non-negative number per row of
+\code{data} (with a positive sum), e.g. sampling weights or the weights of a
+(Bayesian) bootstrap draw. They weight each patient in the net benefit
+(an integer weight is the same as repeating the row; 0 drops the
+patient). They are not passed to the prediction model or the censoring
+model.}
+
+\item{predict_function}{Optional \verb{function(model, newdata, horizon, cause)}
+that returns the predicted risks, used instead of the automatic routes
+(it always takes precedence). voipred calls it once with
+\code{newdata = data}; \code{horizon} and \code{cause} are those given to \code{nb()}
+(\code{NULL} when not used: \code{horizon} for a binary outcome, \code{cause} unless
+competing risks; \code{cause} is the event level's label). It must return,
+in the row order of \code{newdata}, the probability of the event (binary),
+of the event by \code{horizon} (survival), or of \code{cause} by \code{horizon}
+(competing risks): either a vector, one column per outcome class (the
+event column is taken: \code{"1"} or \code{".pred_1"}, otherwise the second of
+two), or a curve per patient, \verb{list(time = <grid>, surv = <n x grid matrix>)} or \verb{list(time = <grid>, cif = <n x grid matrix>)}, read at the
+last grid time \verb{<= horizon}. A function that ignores some arguments can
+be written \verb{function(model, newdata, ...)}.}
 }
 \value{
-A data frame of class \code{voipred_nb} with one row per threshold and
-columns \code{threshold}, \code{NB_model}, \code{NB_all}, \code{NB_none}. Attributes hold
-\code{n}, \code{prevalence}, and the predicted risks (\code{risk}).
+A data frame of class \code{voipred_nb} with one row per threshold
+and columns \code{threshold}, \code{NB_model} (using the model; \code{NA} where it
+cannot be estimated, see Details), \code{NB_all} (treat everyone) and
+\code{NB_none} (treat no one, always 0). Attributes: \code{n} (rows of \code{data}),
+\code{prevalence} (binary: the weighted event rate; survival: the estimated
+risk of the event, or of \code{cause}, by the horizon), \code{outcome_type}
+(\code{"binary"}, \code{"survival"} or \code{"competing"}), \code{risk} (the predicted
+risks, one per row of \code{data}) and, for survival outcomes, \code{horizon},
+\code{cause} (the event level used) and \code{censoring}.
 }
 \description{
 Computes the net benefit of using the model (treat if predicted risk is at
 or above the threshold), of treating everyone, and of treating no one, at
-each risk threshold. This is the core quantity every other voipred
-validation metric (ΔNB, P(useful), P(best), EVPI, EVSI) is built on.
+each risk threshold, for a binary, survival or competing-risks outcome.
+This is the core quantity every other voipred validation metric (ΔNB,
+P(useful), P(best), EVPI, EVSI) is built on.
 }
 \details{
-With outcome \eqn{Y}, predicted risk \eqn{\hat\pi} and threshold \eqn{z},
+\strong{Binary outcome.} With outcome \eqn{Y}, predicted risk \eqn{\hat\pi} and
+threshold \eqn{z},
 \deqn{NB_{model}(z) = \frac{1}{n}\sum_i Y_i T_i - \frac{1}{n}\sum_i (1-Y_i) T_i \frac{z}{1-z},\quad T_i = 1(\hat\pi_i \ge z)}
 \deqn{NB_{all}(z) = \bar Y - (1-\bar Y)\frac{z}{1-z}, \qquad NB_{none}(z) = 0.}
-With \code{weights}, the means are weighted means. Following dcurves, a patient
-whose predicted risk is exactly 0 is never treated, even at \eqn{z = 0}.
+
+\strong{Survival outcome} (\code{Surv(time, status)}, with a \code{horizon}). The event is
+"the event by the horizon". With \eqn{q} the share treated at threshold
+\eqn{z} and \eqn{F_+} the risk of the event by the horizon among them,
+\eqn{NB_{model} = q F_+ - q (1 - F_+) z/(1-z)}. Two estimators:
+\itemize{
+\item \code{censoring = "km"} (default): \eqn{F_+} and the overall risk are
+Kaplan-Meier estimates (Aalen-Johansen for competing risks), as in
+dcurves. If none of the treated patients is followed up to the horizon,
+the net benefit at that threshold is \code{NA}, with a warning.
+\item \code{censoring = "cipcw"}: conditional inverse probability of censoring
+weighting, which allows censoring to depend on covariates. Patients with
+the event by the horizon are weighted by \eqn{1/\hat G(T_i- \mid X_i)},
+patients event-free at the horizon by \eqn{1/\hat G(\tau \mid X_i)}, and
+patients censored before the horizon get no weight. The risk by the
+horizon is \eqn{\sum_{events} w_i / n}; sensitivity and specificity are
+weighted proportions, and \eqn{NB = \pi Se - (1-\pi)(1-Sp) z/(1-z)}. See
+\code{\link[=cipcw_control]{cipcw_control()}}.
+}
+
+\strong{Competing risks} (\code{Surv(time, status)} with a factor status whose first
+level is censoring). The event is \code{cause} (default: the first event level)
+by the horizon; a patient with a competing event by the horizon counts as
+not having the event. The model must predict the cumulative incidence of
+that cause; for competing risks only true censoring is censoring.
+
+A patient is treated when the predicted risk is at or above the threshold,
+and a predicted risk of exactly 0 is never treated, as in dcurves.
+
+\strong{Predicted risks.} The outcome alone decides the type of analysis
+(binary, survival or competing risks); voipred keeps no list of models.
+There are two ways to get the risks:
+\itemize{
+\item \strong{Automatically}, from the model alone: voipred calls \code{\link[=predict_risk]{predict_risk()}},
+which uses a method for the model's class if there is one (voipred ships
+some, and the author of a modelling package can add one), otherwise the
+standard routes, \code{predict()} with \code{type = "response"} or \code{"prob"} and
+\code{riskRegression::predictRisk()}. This covers the common models, each
+tested against its package's own predictions: e.g. \code{glm}, \code{gam},
+random forests (\code{ranger}, \code{randomForest}), boosting (\code{gbm}, \code{xgboost},
+\code{lightgbm}, \code{catboost}), \code{glmnet}, \code{svm}, bayespred; survival: \code{coxph},
+\code{rms::cph}/\code{psm}, \code{survreg}, \code{flexsurvreg}, \code{rstpm2::stpm2},
+survival forests (\code{ranger}, \code{randomForestSRC}, \code{aorsf}), survival trees;
+competing risks: \code{riskRegression::CSC} and \code{FGR}, \code{cmprsk::crr},
+competing-risks \code{randomForestSRC}, survival's multi-state \code{coxph}. See
+\code{\link[=predict_risk]{predict_risk()}} for the full list. Any other model whose \code{predict()}
+returns probabilities in the usual way, or that has a
+\code{riskRegression::predictRisk()} method, works too.
+\item \strong{With \code{predict_function}}, a function you write that returns the risks.
+It works for any model, and is the way to go when voipred stops with
+"Could not get predicted risks from this ... model". If given, it is
+always used.
+}
+
+Whatever the route, the risks are checked: one per row, no \code{NA}, values in
+[0, 1] (log-odds, relative risks or predicted times are rejected as
+scores), and not only 0s and 1s (rejected as class labels). Where the
+model's own outcome can be read from its formula, voipred also stops or
+warns if it does not match \code{outcome} (e.g. a survival model with a binary
+outcome, or a binary model with a survival outcome), and warns if
+\code{horizon} is beyond the model's own follow-up.
+
+What voipred cannot check is the meaning of valid probabilities. With
+\code{predict_function}, make sure it returns the risk of the event (not the
+survival probability), by \code{horizon} and for \code{cause}.
 }
 \examples{
 dev <- gusto[1:5000, ]
@@ -46,4 +188,23 @@ val <- gusto[5001:10000, ]
 fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
 res <- nb(fit, val, outcome = "day30", thresholds = seq(0, 0.3, by = 0.01))
 head(res)
+
+# Any model, with your own prediction function
+nb(fit, val, "day30", thresholds = c(0.05, 0.1),
+   predict_function = function(model, newdata, ...)
+     predict(model, newdata, type = "response"))
+
+# Survival: death by 5 years (Rotterdam breast cancer data)
+library(survival)
+rott <- rotterdam
+rott$years <- rott$dtime / 365.25
+cox <- coxph(Surv(years, death) ~ age + size + nodes + grade, data = rott[1:1500, ],
+             x = TRUE)
+val_s <- rott[1501:2982, ]
+nb(cox, val_s, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3))
+
+# The same with conditional IPCW: censoring modelled on the validation data
+cens <- coxph(Surv(years, death == 0) ~ age + nodes + grade, data = val_s)
+nb(cox, val_s, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3),
+   censoring = "cipcw", cipcw = cipcw_control(model = cens))
 }

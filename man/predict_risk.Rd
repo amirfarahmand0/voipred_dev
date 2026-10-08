@@ -2,14 +2,9 @@
 % Please edit documentation in R/predict_risk.R
 \name{predict_risk}
 \alias{predict_risk}
-\alias{predict_risk.glm}
-\alias{predict_risk.ranger}
-\alias{predict_risk.randomForest}
-\alias{predict_risk.bpmfit}
-\alias{predict_risk.bpm}
+\alias{predict_risk.default}
 \alias{predict_risk.svm}
 \alias{predict_risk.naiveBayes}
-\alias{predict_risk.naive_bayes}
 \alias{predict_risk.nnet}
 \alias{predict_risk.lda}
 \alias{predict_risk.qda}
@@ -18,90 +13,171 @@
 \alias{predict_risk.xgb.Booster}
 \alias{predict_risk.lgb.Booster}
 \alias{predict_risk.catboost.Model}
-\alias{predict_risk.default}
+\alias{predict_risk.coxph}
+\alias{predict_risk.ObliqueForestSurvival}
+\alias{predict_risk.constparty}
+\alias{predict_risk.stpm2}
+\alias{predict_risk.pstpm2}
+\alias{predict_risk.gam}
+\alias{predict_risk.flexsurvreg}
+\alias{predict_risk.survreg}
+\alias{predict_risk.crr}
+\alias{predict_risk.coxphms}
+\alias{predict_risk.FGR}
 \title{Predicted risks from a fitted model}
 \usage{
-predict_risk(model, newdata, ...)
+predict_risk(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{glm}(model, newdata, ...)
+\method{predict_risk}{default}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{ranger}(model, newdata, ...)
+\method{predict_risk}{svm}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{randomForest}(model, newdata, ...)
+\method{predict_risk}{naiveBayes}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{bpmfit}(model, newdata, ...)
+\method{predict_risk}{nnet}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{bpm}(model, newdata, ...)
+\method{predict_risk}{lda}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{svm}(model, newdata, ...)
+\method{predict_risk}{qda}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{naiveBayes}(model, newdata, ...)
+\method{predict_risk}{glmnet}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{naive_bayes}(model, newdata, ...)
+\method{predict_risk}{cv.glmnet}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{nnet}(model, newdata, ...)
+\method{predict_risk}{xgb.Booster}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{lda}(model, newdata, ...)
+\method{predict_risk}{lgb.Booster}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{qda}(model, newdata, ...)
+\method{predict_risk}{catboost.Model}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{glmnet}(model, newdata, ...)
+\method{predict_risk}{coxph}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{cv.glmnet}(model, newdata, ...)
+\method{predict_risk}{ObliqueForestSurvival}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{xgb.Booster}(model, newdata, ...)
+\method{predict_risk}{constparty}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{lgb.Booster}(model, newdata, ...)
+\method{predict_risk}{stpm2}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{catboost.Model}(model, newdata, ...)
+\method{predict_risk}{pstpm2}(model, newdata, horizon = NULL, cause = NULL, ...)
 
-\method{predict_risk}{default}(model, newdata, ...)
+\method{predict_risk}{gam}(model, newdata, horizon = NULL, cause = NULL, ...)
+
+\method{predict_risk}{flexsurvreg}(model, newdata, horizon = NULL, cause = NULL, ...)
+
+\method{predict_risk}{survreg}(model, newdata, horizon = NULL, cause = NULL, ...)
+
+\method{predict_risk}{crr}(model, newdata, horizon = NULL, cause = NULL, ...)
+
+\method{predict_risk}{coxphms}(model, newdata, horizon = NULL, cause = NULL, ...)
+
+\method{predict_risk}{FGR}(model, newdata, horizon = NULL, cause = NULL, ...)
 }
 \arguments{
-\item{model}{A fitted model.}
+\item{model}{A fitted model. A vector of risks is not accepted.}
 
-\item{newdata}{A data frame with the covariates the model needs.}
+\item{newdata}{A data frame with the covariates the model needs; one risk
+is returned per row, in the same order.}
 
-\item{...}{Not used; for methods.}
+\item{horizon}{For survival and competing-risks outcomes: the time by
+which the risk is predicted. \code{NULL} for a binary outcome.}
+
+\item{cause}{For competing risks: the cause of interest (the outcome's
+event level). \code{NULL} otherwise.}
+
+\item{...}{Passed to methods. voipred also passes \code{cause_index}, the
+position of \code{cause} among the outcome's event levels.}
 }
 \value{
-A numeric vector of length \code{nrow(newdata)} with values in [0, 1].
+A numeric vector of length \code{nrow(newdata)} with values in [0, 1],
+checked as described above. Calling \code{predict_risk()} directly gives the
+risks \code{\link[=nb]{nb()}} uses (without \code{predict_function}).
 }
 \description{
-Turns a fitted model into a numeric vector of predicted risks
-P(Y = 1 | x), one per row of \code{newdata}.
+Turns a fitted model into one predicted risk per row of \code{newdata}: the
+probability of the event (binary outcome), of the event by \code{horizon}
+(survival outcome), or of the event \code{cause} by \code{horizon} (competing risks).
 }
 \details{
-Any model whose \code{predict()} returns probabilities with
-\code{type = "response"} or \code{type = "prob"} works through the default method
-(e.g. \code{glm}, \code{mgcv::gam}, \code{logistf}, \code{rpart}, \code{partykit::ctree}, \code{gbm},
-\code{kknn} (attach it with \code{library(kknn)}), \code{earth} with a binomial glm). Methods are provided for models that return
-probabilities in another way:
+voipred does not keep a list of supported models. Risks are obtained in
+this order:
+\enumerate{
+\item \strong{A \code{predict_risk()} method for the model's class}, if one exists. This
+is an ordinary S3 generic: anyone (a user, or the author of a modelling
+package) can add a method, e.g.
+\verb{predict_risk.mymodel <- function(model, newdata, horizon = NULL, cause = NULL, ...)},
+and voipred then works with that model. \code{horizon = NULL} means a
+binary outcome, \code{cause = NULL} a non-competing outcome; the method may
+return any of the output shapes described below. voipred itself only
+ships methods for models that the standard routes below cannot handle.
+\item \strong{The standard routes} (the default method):
 \itemize{
-\item \code{ranger} (fit with \code{probability = TRUE}), \code{randomForest};
-\item bayespred (\code{bpmfit}, \code{bpm}): the risk is the posterior mean of risk;
-\item \code{e1071::svm} (fit with \code{probability = TRUE}), \code{e1071::naiveBayes},
-\code{naivebayes::naive_bayes}, \code{nnet}, \code{MASS::lda}, \code{MASS::qda};
-\item models fitted to a numeric matrix: \code{glmnet} (one lambda) and
-\code{cv.glmnet} (at \code{lambda.1se}, glmnet's default), \code{xgboost} (objective
-\code{binary:logistic}), \code{lightgbm} (objective \code{binary}) and \code{catboost}
-(loss \code{Logloss}). For these, \code{newdata} must contain columns with the same
-names as the features the model was trained on (e.g. the dummy columns).
+\item binary outcome: \code{predict(model, newdata, type = "response")}, then
+\code{predict(model, newdata, type = "prob")}, then
+\code{riskRegression::predictRisk(model, newdata)};
+\item survival outcome:
+\code{riskRegression::predictRisk(model, newdata, times = horizon)};
+\item competing risks: the same with \code{cause = cause} (the event level's
+label), and if that fails \code{cause = cause_index} (its position among
+the event levels), for models that number their causes.
 }
 
-A vector of predicted risks is not accepted: voipred needs the fitted model
-itself. The event is always Y = 1: when a model predicts one probability per
-outcome level, the risk is the probability of level \code{"1"} (or of the second
-level if the levels are not 0/1).
+If a route fails, it is tried again with only the model's covariate
+columns of \code{newdata} (some \code{predict()} methods trip over other columns).
+}
 
-Before predicting, the covariates the model was fitted with are compared
-with the columns of \code{newdata}. If any are missing, an error lists them.
-The result must be probabilities: values outside [0, 1] (e.g. log-odds or
-other scores) and predictions that are only 0s and 1s (classes) are
-rejected.
+In \code{\link[=nb]{nb()}}, a \code{predict_function} takes precedence over both, and works for any
+model.
+
+Whatever the route, the output is read in a generic way: a vector of
+probabilities; one column per outcome class (the event column is taken:
+column \code{"1"} or \code{".pred_1"}, otherwise the second of two); or a survival
+curve per patient, \verb{list(time = <grid>, surv = <n x grid matrix>)} (or
+\verb{cif =} for a cumulative incidence), read at the horizon. It must then be
+probabilities: values outside [0, 1] (e.g. log-odds, relative risks,
+predicted times) and predictions that are only 0s and 1s (class labels) are
+rejected, as are \code{NA}s and a wrong number of predictions.
+
+\strong{Works through the standard routes} (checked in the tests against each
+package's own predictions): binary: \code{glm}, \code{mgcv::gam}, \code{logistf}, \code{rpart},
+\code{partykit::ctree}, \code{randomForest}, \code{ranger} (\code{probability = TRUE}), \code{gbm},
+\code{xgboost()}, \code{naivebayes::naive_bayes}, \code{earth}, \code{kknn} (attached),
+bayespred \code{bpmfit} and \code{bpm}; survival: \code{coxph} (fitted with \code{x = TRUE}),
+\code{rms::cph}, \code{survreg}, \code{rms::psm}, \code{flexsurvreg}, \code{flexsurvspline},
+\code{ranger}, \code{randomForestSRC}, \code{prodlim}; competing risks:
+\code{riskRegression::CSC}, \code{riskRegression::FGR}, competing-risks
+\code{randomForestSRC}.
+
+\strong{Methods shipped by voipred}, only where the standard routes fail or
+give a wrong answer: binary: \code{e1071::svm}, \code{e1071::naiveBayes}, \code{nnet},
+\code{MASS::lda}/\code{qda}, \code{glmnet}/\code{cv.glmnet}, \code{xgb.train()} boosters (and the
+level order of \code{xgboost()}), \code{lightgbm}, \code{catboost}; survival: \code{coxph}
+without \code{x = TRUE} or with case weights, stratified \code{survreg},
+\code{flexsurvreg} when its formula was passed as a variable, \code{aorsf},
+\code{partykit::ctree} survival trees, \code{rstpm2::stpm2} (attach rstpm2),
+\code{mgcv::gam} with \code{cox.ph()}; competing risks: \code{cmprsk::crr}, survival's
+multi-state \code{coxph} (\code{coxph(Surv(time, factor_status) ~ x, id = id)}:
+cause-specific Cox models combined by Aalen-Johansen, as
+\code{riskRegression::CSC}), and a check that an \code{FGR} model was fitted for the
+requested cause. Models trained on a
+numeric matrix need \code{newdata} columns with the same names as the features.
+
+Models that only give relative risks or times (e.g. \code{xgboost} survival
+objectives, \code{gbm} and \code{glmnet} Cox models, \code{rpart} survival trees) have no
+route to probabilities: voipred stops and asks for \code{predict_function}, or the
+[0, 1] check stops their output.
+
+Before predicting, the covariates the model uses (read with
+\code{insight::find_predictors()}, or from a formula the model keeps) are
+compared with the columns of \code{newdata}; missing ones are listed in an
+error. When they cannot be read (e.g. \code{ranger}), the model's own error is
+shown instead.
 }
 \examples{
 fit <- glm(day30 ~ age + Killip, family = binomial, data = gusto[1:2000, ])
 p <- predict_risk(fit, gusto[2001:3000, ])
 summary(p)
+
+library(survival)
+cox <- coxph(Surv(dtime, death) ~ age + nodes, data = rotterdam[1:1500, ], x = TRUE)
+summary(predict_risk(cox, rotterdam[1501:2000, ], horizon = 1826))
 }

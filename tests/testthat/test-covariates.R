@@ -33,14 +33,15 @@ test_that("a model fitted with y ~ . knows all its covariates", {
   expect_error(predict_risk(fit, drop_cols(s$val, "sex")), "sex")
 })
 
-test_that("ranger: missing covariates are named", {
+test_that("ranger: covariates cannot be read generically, so ranger's own error is shown", {
   skip_if_not_installed("ranger")
   s <- gusto_split()
   rf <- ranger::ranger(factor(day30) ~ age + Killip + sysbp + pulse, data = s$dev,
                        probability = TRUE, num.trees = 50, seed = 1)
   v <- drop_cols(s$val, c("Killip", "pulse"))
-  expect_error(predict_risk(rf, v), "Killip, pulse")
-  expect_error(nb(rf, v, "day30"), "Killip, pulse")
+  expect_error(predict_risk(rf, v),
+               "Could not get predicted risks from this ranger model \\(.+\\)\\. If a covariate is missing")
+  expect_error(nb(rf, v, "day30"), "Could not get predicted risks from this ranger model")
 })
 
 test_that("randomForest (formula and x/y interface): missing covariates are named", {
@@ -50,9 +51,11 @@ test_that("randomForest (formula and x/y interface): missing covariates are name
   rf <- randomForest::randomForest(factor(day30) ~ age + Killip + sysbp,
                                    data = s$dev, ntree = 50)
   expect_error(predict_risk(rf, drop_cols(s$val, "sysbp")), "sysbp")
+  # the x/y interface keeps no formula: randomForest's own error is shown
   rf_xy <- randomForest::randomForest(x = s$dev[, c("age", "sysbp")],
                                       y = factor(s$dev$day30), ntree = 50)
-  expect_error(predict_risk(rf_xy, drop_cols(s$val, "age")), "age")
+  expect_error(predict_risk(rf_xy, drop_cols(s$val, "age")),
+               "Could not get predicted risks from this randomForest model")
 })
 
 test_that("bayespred (bpmfit and bpm): missing covariates are named", {
