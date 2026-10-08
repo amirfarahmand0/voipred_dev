@@ -9,7 +9,8 @@ cipcw_control(
   weight_event = NULL,
   weight_horizon = NULL,
   min_prob = NULL,
-  ties = c("left", "right")
+  ties = c("left", "right"),
+  predict_function = NULL
 )
 }
 \arguments{
@@ -39,6 +40,14 @@ before each patient's own time, so a censoring step at exactly that time
 is not included (the usual convention, as for Kaplan-Meier: an event
 tied with a censoring comes first); \code{"right"} includes it. For smooth
 (parametric) censoring models both give practically the same result.}
+
+\item{predict_function}{Option 1, optional: a \verb{function(model, newdata, times)} returning, for each row of \code{newdata}, the probability of
+\strong{remaining uncensored} at that row's time in \code{times} (the censoring
+survival \eqn{G(t \mid X)}, not a risk). It may instead return a curve
+per row, \verb{list(time = <grid>, surv = <n x grid matrix>)}, which voipred
+reads at each row's own time. Use it for a censoring model voipred cannot
+predict from by itself, or to predict in your own way; it then replaces
+voipred's own prediction. Requires \code{model}.}
 }
 \value{
 An object of class \code{cipcw_control}.
@@ -65,7 +74,8 @@ of \code{\link[=predict_risk]{predict_risk()}}: through \code{riskRegression::pr
 \code{randomForestSRC}, a Kaplan-Meier \code{prodlim} fit), or voipred's own code for
 models riskRegression cannot handle (\code{coxph} without \code{x = TRUE}, \code{aorsf},
 \code{partykit} survival trees, \code{rstpm2::stpm2}, \code{mgcv::gam} with \code{cox.ph()}).
-For any other model, give the weights (option 2). Where the model's
+For any other model, give \code{predict_function} (or the weights, option 2).
+Where the model's
 outcome can be read from its formula, voipred checks it against \code{data}: it
 stops if the model was fitted to the event (for competing risks: to the
 cause of interest, to another cause or to all events together), and warns

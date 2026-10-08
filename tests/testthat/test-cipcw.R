@@ -383,3 +383,108 @@ test_that("print shows the cIPCW estimator", {
   r <- cipcw_nb(cx, s$val, surv_outcome, cipcw_control(model = cens), thresholds = 0.2)
   expect_output(print(r), "survival, horizon = 5, cipcw")
 })
+
+test_that("censoring predict_function: same as the model route, per row or as a curve", {
+  s <- rott_split()
+  cx <- survival::coxph(surv_formula, data = s$dev)
+  v <- s$val
+  cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes + grade,
+                          data = v, model = TRUE)
+  # a curve per patient, read by voipred at each patient's own time
+  curve <- function(model, newdata, times) {
+    sf <- survival::survfit(model, newdata = newdata)
+    list(time = sf$time, surv = t(sf$surv))
+  }
+  for (ties in c("left", "right")) {
+    a <- cipcw_nb(cx, v, surv_outcome, cipcw_control(model = cens, ties = ties))
+    b <- cipcw_nb(cx, v, surv_outcome, cipcw_control(model = cens, ties = ties,
+                                                     predict_function = curve))
+    expect_equal(b$NB_model, a$NB_model, tolerance = 1e-10)
+    expect_equal(attr(b, "prevalence"), attr(a, "prevalence"), tolerance = 1e-10)
+  }
+  # one probability per row, at that row's time
+  sr <- survival::survreg(survival::Surv(dtimey, death == 0) ~ age + nodes + grade, data = v)
+  per_row <- function(model, newdata, times)
+    1 - survival::psurvreg(times, predict(model, newdata, type = "lp"), model$scale, model$dist)
+  a <- cipcw_nb(cx, v, surv_outcome, cipcw_control(model = sr))
+  b <- cipcw_nb(cx, v, surv_outcome, cipcw_control(model = sr, predict_function = per_row))
+  expect_equal(b$NB_model, a$NB_model, tolerance = 1e-8)
+  expect_output(print(cipcw_control(model = sr, predict_function = per_row)),
+                "censoring model \\(survreg, with predict_function\\)")
+})
+
+test_that("censoring predict_function makes any censoring model usable", {
+  s <- rott_split()
+  cx <- survival::coxph(surv_formula, data = s$dev)
+  v <- s$val
+  cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes + grade,
+                          data = v, model = TRUE)
+  # a class voipred knows nothing about
+  mine <- structure(list(inner = cens), class = "my_censoring_model")
+  expect_error(suppress_matching(cipcw_nb(cx, v, surv_outcome, cipcw_control(model = mine)),
+                                 "Could not verify"),
+               "Could not get survival probabilities from this my_censoring_model model.*`predict_function` in cipcw_control\\(\\)")
+  fun <- function(model, newdata, times) {
+    sf <- survival::survfit(model$inner, newdata = newdata)
+    list(time = sf$time, surv = t(sf$surv))
+  }
+  expect_warning(b <- cipcw_nb(cx, v, surv_outcome,
+                               cipcw_control(model = mine, predict_function = fun)),
+                 "Could not verify that the censoring model")
+  a <- cipcw_nb(cx, v, surv_outcome, cipcw_control(model = cens))
+  expect_equal(b$NB_model, a$NB_model, tolerance = 1e-10)
+})
+
+test_that("censoring predict_function: input and output checks", {
+  s <- rott_split()
+  cx <- survival::coxph(surv_formula, data = s$dev)
+  v <- s$val
+  cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes, data = v)
+  expect_error(cipcw_control(model = cens, predict_function = "f"), "must be a function")
+  expect_error(cipcw_control(predict_function = function(...) 1), "needs the censoring `model`")
+  run <- function(f) cipcw_nb(cx, v, surv_outcome, cipcw_control(model = cens, predict_function = f))
+  expect_error(run(function(model, newdata, times) rep(0.9, 3)), "returned 3 values for")
+  expect_error(run(function(model, newdata, times) rep(NA_real_, nrow(newdata))),
+               "invalid censoring probabilities")
+  expect_error(run(function(model, newdata, times) rep(1.2, nrow(newdata))),
+               "invalid censoring probabilities")
+  expect_error(run(function(model, newdata, times) cbind(rep(0.9, nrow(newdata)), 0.1)),
+               "one probability per row")
+  expect_error(run(function(model, newdata, times) list(time = 1:3, surv = matrix(0.9, 2, 3))),
+               "curve of the wrong size")
+  expect_error(run(function(model, newdata, times) ifelse(times > 4, 0, 0.9)),
+               "exactly 0, which gives an infinite weight")
+})
+
+test_that("more censoring model classes: psm, flexsurvspline, stratified survreg, bayespred.dev", {
+  s <- rott_split()
+  cx <- survival::coxph(surv_formula, data = s$dev)
+  v <- s$val
+  nd <- v[1:20, ]
+  cf <- survival::Surv(dtimey, death == 0) ~ age + nodes + grade
+  ps <- rms::psm(cf, data = v, dist = "weibull")
+  expect_equal(surv_at(ps, nd, rep(5, 20)), as.vector(rms::survest(ps, newdata = nd, times = 5)$surv),
+               tolerance = 1e-6)
+  fsp <- flexsurv::flexsurvspline(survival::Surv(dtimey, death == 0) ~ age + nodes + grade,
+                                  data = v, k = 1)
+  expect_equal(surv_at(fsp, nd, rep(5, 20)),
+               predict(fsp, nd, type = "survival", times = 5)$.pred_survival, tolerance = 1e-6)
+  st <- survival::survreg(survival::Surv(dtimey, death == 0) ~ age + nodes + strata(grade), data = v)
+  lp <- predict(st, nd, type = "lp"); sc <- st$scale[paste0("grade=", nd$grade)]
+  expect_equal(surv_at(st, nd, rep(5, 20)), unname(exp(-exp((log(5) - lp) / sc))),
+               tolerance = 1e-10)
+  models <- list(ps, fsp, st)
+  if (requireNamespace("bayespred.dev", quietly = TRUE)) {
+    bw <- bayespred.dev::bpmfit(cf, data = v, family = "weibull", prior = bayespred.dev::flat())
+    expect_equal(surv_at(bw, nd, rep(5, 20)),
+                 1 - as.vector(predict(bayespred.dev::posterior(bw, time = 5), nd)),
+                 tolerance = 1e-12)
+    models <- c(models, list(bw))
+  }
+  for (m in models) {
+    res <- suppress_matching(cipcw_nb(cx, v, surv_outcome, cipcw_control(model = m)),
+                             "Could not verify|below 0.01|No patient treated|fitted to .* patients")
+    expect_true(all(is.finite(res$NB_all)))
+    expect_true(attr(res, "prevalence") > 0.2 && attr(res, "prevalence") < 0.32)
+  }
+})

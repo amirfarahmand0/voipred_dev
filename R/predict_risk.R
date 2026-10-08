@@ -770,7 +770,9 @@ surv_at.default <- function(model, newdata, times, side = "right") {
         model, newdata = newdata[ch, intersect(vars, names(newdata)), drop = FALSE], times = tg))
     if (inherits(r, "error"))
       stop("Could not get survival probabilities from this ", class(model)[1],
-           " model (", trimws(conditionMessage(r)), ").", call. = FALSE)
+           " model (", trimws(conditionMessage(r)), "). As a cIPCW censoring ",
+           "model, give it with `predict_function` in cipcw_control(), or give ",
+           "the censoring weights instead.", call. = FALSE)
     n <- length(ch)
     if (length(r) == length(tg) && n > 1)            # a model without covariates
       r <- matrix(rep(as.vector(r), each = n), nrow = n)

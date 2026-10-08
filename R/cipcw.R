@@ -20,7 +20,8 @@
 #' `randomForestSRC`, a Kaplan-Meier `prodlim` fit), or voipred's own code for
 #' models riskRegression cannot handle (`coxph` without `x = TRUE`, `aorsf`,
 #' `partykit` survival trees, `rstpm2::stpm2`, `mgcv::gam` with `cox.ph()`).
-#' For any other model, give the weights (option 2). Where the model's
+#' For any other model, give `predict_function` (or the weights, option 2).
+#' Where the model's
 #' outcome can be read from its formula, voipred checks it against `data`: it
 #' stops if the model was fitted to the event (for competing risks: to the
 #' cause of interest, to another cause or to all events together), and warns
@@ -70,6 +71,14 @@
 #'   probabilities below `min_prob` (option 1), or weights above
 #'   `1 / min_prob` (option 2), are set to that limit. A single number
 #'   strictly between 0 and 1. Default `NULL`: no truncation.
+#' @param predict_function Option 1, optional: a `function(model, newdata,
+#'   times)` returning, for each row of `newdata`, the probability of
+#'   **remaining uncensored** at that row's time in `times` (the censoring
+#'   survival \eqn{G(t \mid X)}, not a risk). It may instead return a curve
+#'   per row, `list(time = <grid>, surv = <n x grid matrix>)`, which voipred
+#'   reads at each row's own time. Use it for a censoring model voipred cannot
+#'   predict from by itself, or to predict in your own way; it then replaces
+#'   voipred's own prediction. Requires `model`.
 #' @param ties Option 1 only, and only matters for a censoring model whose
 #'   survival curve has steps (e.g. Cox, Kaplan-Meier, forests, trees):
 #'   `"left"` (default) uses the probability of remaining uncensored just
@@ -88,12 +97,20 @@
 #' @export
 cipcw_control <- function(model = NULL, weight_event = NULL,
                           weight_horizon = NULL, min_prob = NULL,
-                          ties = c("left", "right")) {
+                          ties = c("left", "right"), predict_function = NULL) {
   ties <- match.arg(ties)
   has_w <- !is.null(weight_event) || !is.null(weight_horizon)
   if (!is.null(model) && has_w)
     stop("Give either a censoring `model` or the weights, not both.",
          call. = FALSE)
+  if (!is.null(predict_function)) {
+    if (!is.function(predict_function))
+      stop("`predict_function` must be a function(model, newdata, times).",
+           call. = FALSE)
+    if (is.null(model))
+      stop("`predict_function` needs the censoring `model` it predicts from.",
+           call. = FALSE)
+  }
   if (xor(is.null(weight_event), is.null(weight_horizon)))
     stop("`weight_event` and `weight_horizon` must be given together.",
          call. = FALSE)
@@ -114,15 +131,17 @@ cipcw_control <- function(model = NULL, weight_event = NULL,
                              is.na(min_prob) || min_prob <= 0 || min_prob >= 1))
     stop("`min_prob` must be a single number strictly between 0 and 1.",
          call. = FALSE)
-  structure(list(model = model, weight_event = weight_event,
-                 weight_horizon = weight_horizon, min_prob = min_prob,
-                 ties = ties),
+  structure(list(model = model, predict_function = predict_function,
+                 weight_event = weight_event, weight_horizon = weight_horizon,
+                 min_prob = min_prob, ties = ties),
             class = "cipcw_control")
 }
 
 #' @export
 print.cipcw_control <- function(x, ...) {
-  how <- if (!is.null(x$model)) paste0("censoring model (", class(x$model)[1], ")")
+  how <- if (!is.null(x$model)) paste0("censoring model (", class(x$model)[1],
+                                       if (!is.null(x$predict_function))
+                                         ", with predict_function", ")")
          else if (!is.null(x$weight_event)) "given weights" else "not set"
   cat("cIPCW settings: ", how, ", truncation: ",
       if (is.null(x$min_prob)) "off" else paste0("min_prob = ", x$min_prob),
@@ -167,15 +186,21 @@ cipcw_weights <- function(cipcw, data, info, horizon, k) {
   }
 
   model <- cipcw$model
-  check_covariates(model, data, what = "censoring model")
+  fun <- cipcw$predict_function
+  # with predict_function the model may be anything, so its covariates are not
+  # checked; whether it was fitted to censoring is still checked when possible
+  if (is.null(fun)) check_covariates(model, data, what = "censoring model")
   check_censoring_model(model, data, info, k)
+  g_at <- function(rows, times) {
+    nd <- data[rows, , drop = FALSE]
+    if (is.null(fun)) return(surv_at(model, nd, times, cipcw$ties))
+    censoring_from_function(fun, model, nd, times, cipcw$ties)
+  }
   g_event <- rep(1, n); g_horizon <- rep(1, n)
   if (any(needs_event))
-    g_event[needs_event] <- surv_at(model, data[needs_event, , drop = FALSE],
-                                    time[needs_event], cipcw$ties)
+    g_event[needs_event] <- g_at(which(needs_event), time[needs_event])
   if (any(needs_horizon))
-    g_horizon[needs_horizon] <- surv_at(model, data[needs_horizon, , drop = FALSE],
-                                        rep(horizon, sum(needs_horizon)), cipcw$ties)
+    g_horizon[needs_horizon] <- g_at(which(needs_horizon), rep(horizon, sum(needs_horizon)))
   used <- c(g_event[needs_event], g_horizon[needs_horizon])
   if (anyNA(used) || any(used < 0 | used > 1))
     stop("The censoring model returned invalid censoring probabilities ",
@@ -200,6 +225,35 @@ cipcw_weights <- function(cipcw, data, info, horizon, k) {
               "Consider truncation with `min_prob`.", call. = FALSE)
   }
   list(weight_event = 1 / g_event, weight_horizon = 1 / g_horizon)
+}
+
+# Censoring probabilities from a user's predict_function(model, newdata, times):
+# either one probability per row (at that row's time), or a curve per row,
+# list(time = <grid>, surv = <n x grid matrix>), read at each row's own time.
+censoring_from_function <- function(fun, model, newdata, times, ties) {
+  n <- nrow(newdata)
+  eps <- if (ties == "left") 1e-9 * max(1, max(times)) else 0
+  out <- fun(model, newdata, times - eps)
+  if (is.list(out) && !is.data.frame(out) && "time" %in% names(out)) {
+    surv <- as.matrix(out$surv)
+    if (nrow(surv) != n || ncol(surv) != length(out$time))
+      stop("The censoring `predict_function` returned a curve of the wrong ",
+           "size: `surv` must be ", n, " rows by length(time) columns.", call. = FALSE)
+    i <- if (ties == "left") findInterval(times, out$time, left.open = TRUE)
+         else findInterval(times, out$time)
+    return(ifelse(i == 0, 1, surv[cbind(seq_len(n), pmax(i, 1))]))
+  }
+  if (is.data.frame(out) || is.matrix(out)) {
+    if (ncol(as.matrix(out)) != 1)
+      stop("The censoring `predict_function` must return one probability per ",
+           "row (or a curve list(time, surv)).", call. = FALSE)
+    out <- as.matrix(out)[, 1]
+  }
+  if (!is.numeric(out) || length(out) != n)
+    stop("The censoring `predict_function` returned ", length(out),
+         " values for ", n, " rows; it must return one probability of remaining ",
+         "uncensored per row.", call. = FALSE)
+  as.vector(unname(out))
 }
 
 # Stop if a censoring model was clearly fitted to the event rather than to

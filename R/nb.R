@@ -114,9 +114,9 @@
 #'   assumes censoring is independent of the outcome. `"cipcw"`: conditional
 #'   inverse probability of censoring weights, which allows censoring to
 #'   depend on covariates; it needs `cipcw`.
-#' @param cipcw With `censoring = "cipcw"` only: a censoring model or the
-#'   censoring weights, and optional truncation, made with
-#'   [cipcw_control()]. Giving settings with `censoring = "km"` is an error.
+#' @param cipcw With `censoring = "cipcw"` only: a censoring model (with,
+#'   optionally, your own `predict_function` for it) or the censoring
+#'   weights, and optional truncation, made with [cipcw_control()]. Giving settings with `censoring = "km"` is an error.
 #' @param weights Optional case weights, one non-negative number per row of
 #'   `data` (with a positive sum), e.g. sampling weights or the weights of a
 #'   (Bayesian) bootstrap draw. They weight each patient in the net benefit
