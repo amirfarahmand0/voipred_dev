@@ -67,8 +67,8 @@ test_that("bayespred: the risk is the posterior mean of risk", {
 
 test_that("a numeric or logical vector is rejected", {
   d <- data.frame(x = 1:3)
-  expect_error(predict_risk(c(0.1, 0.5, 0.9), d), "fitted model, not a vector")
-  expect_error(predict_risk(c(TRUE, FALSE, TRUE), d), "fitted model, not a vector")
+  expect_error(predict_risk(c(0.1, 0.5, 0.9), d), "give them with `predicted_risk =`")
+  expect_error(predict_risk(c(TRUE, FALSE, TRUE), d), "give them with `predicted_risk =`")
 })
 
 test_that("an object without a usable predict() gets a clear error", {

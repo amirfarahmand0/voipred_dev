@@ -5,7 +5,7 @@
 \title{Net benefit of a prediction model in a validation sample}
 \usage{
 nb(
-  model,
+  predicted_risk = NULL,
   data,
   outcome,
   thresholds = seq(0, 0.99, by = 0.01),
@@ -14,20 +14,25 @@ nb(
   censoring = c("km", "cipcw"),
   cipcw = cipcw_control(),
   weights = NULL,
+  model = NULL,
   predict_function = NULL,
+  bayesian = FALSE,
+  prior = nb_uniform(),
   label = NULL
 )
 }
 \arguments{
-\item{model}{A fitted prediction model, used only to predict the risks
-of the patients in \code{data} (once). A vector of predicted risks is not
-accepted: voipred needs the model itself. See "Predicted risks" for the
-models that work automatically and for \code{predict_function}.}
+\item{predicted_risk}{The predicted risks of the patients in \code{data}: a
+numeric vector, one probability per row of \code{data} (in its row order), or
+the name of the column of \code{data} that holds them. For survival outcomes,
+the risk of the event by \code{horizon} (competing risks: of \code{cause} by
+\code{horizon}). This is all the validation needs. A fitted model can also be
+given here instead; it is then used as \code{model}.}
 
-\item{data}{A data frame: the validation sample, one row per patient. It
-must contain every covariate the model (and, with \code{censoring = "cipcw"},
-the censoring model) uses, and the outcome columns when \code{outcome} names
-them.}
+\item{data}{A data frame: the validation sample, one row per patient, with
+the outcome columns when \code{outcome} names them (and, with a \code{model}, every
+covariate it uses; with \code{censoring = "cipcw"}, every covariate of the
+censoring model).}
 
 \item{outcome}{The observed outcome, one per row of \code{data}:
 \itemize{
@@ -80,7 +85,13 @@ weights, and optional truncation, made with \code{\link[=cipcw_control]{cipcw_co
 patient). They are not passed to the prediction model or the censoring
 model.}
 
-\item{predict_function}{Optional \verb{function(model, newdata, horizon, cause)}
+\item{model}{Optional, instead of \code{predicted_risk}: a fitted prediction
+model, from which voipred predicts the risks of the patients in \code{data},
+once. See "Predicted risks" for the models that work automatically and
+for \code{predict_function}. Give either \code{predicted_risk} or \code{model}.}
+
+\item{predict_function}{Optional, with \code{model} only: a
+\verb{function(model, newdata, horizon, cause)}
 that returns the predicted risks, used instead of the automatic routes
 (it always takes precedence). voipred calls it once with
 \code{newdata = data}; \code{horizon} and \code{cause} are those given to \code{nb()}
@@ -94,10 +105,18 @@ two), or a curve per patient, \verb{list(time = <grid>, surv = <n x grid matrix>
 last grid time \verb{<= horizon}. A function that ignores some arguments can
 be written \verb{function(model, newdata, ...)}.}
 
+\item{bayesian}{Binary outcomes only: \code{TRUE} for the Bayesian net benefit
+(see "Bayesian net benefit"): the net benefit columns are posterior means.
+Default \code{FALSE}. Case weights cannot be used with it.}
+
+\item{prior}{With \code{bayesian = TRUE}: the prior, \code{\link[=nb_uniform]{nb_uniform()}} (default,
+Beta(1, 1) for the prevalence, sensitivity and specificity, as in
+bayesDCA), \code{\link[=nb_jeffreys]{nb_jeffreys()}} or your own Beta priors with \code{\link[=nb_beta]{nb_beta()}}.}
+
 \item{label}{Name of the model in printed output and plots, a single
-string. Default: the name of the object given as \code{model} (e.g. \code{fit}), or
-\code{"Model"} when \code{model} is an expression. \code{"Treat All"} and \code{"Treat None"}
-are reserved.}
+string. Default: the name of the object given as \code{predicted_risk} or
+\code{model} (e.g. \code{p}, the column name, or \code{fit}), or \code{"Model"} for an
+expression. \code{"Treat All"} and \code{"Treat None"} are reserved.}
 }
 \value{
 A data frame of class \code{voipred_nb} with one row per threshold
@@ -110,8 +129,9 @@ is useful. Plot the results with \code{\link[=plot_dca]{plot_dca()}}. Attributes
 \code{prevalence} (binary: the weighted event rate; survival: the estimated
 risk of the event, or of \code{cause}, by the horizon), \code{outcome_type}
 (\code{"binary"}, \code{"survival"} or \code{"competing"}), \code{risk} (the predicted
-risks, one per row of \code{data}) and, for survival outcomes, \code{horizon},
-\code{cause} (the event level used) and \code{censoring}.
+risks, one per row of \code{data}), \code{bayesian} (and with \code{bayesian = TRUE} the
+\code{prior}; \code{prevalence} is then its posterior mean) and, for survival
+outcomes, \code{horizon}, \code{cause} (the event level used) and \code{censoring}.
 }
 \description{
 Computes the net benefit of using the model (treat if predicted risk is at
@@ -154,9 +174,24 @@ that cause; for competing risks only true censoring is censoring.
 A patient is treated when the predicted risk is at or above the threshold,
 and a predicted risk of exactly 0 is never treated, as in dcurves.
 
-\strong{Predicted risks.} The outcome alone decides the type of analysis
-(binary, survival or competing risks); voipred keeps no list of models.
-There are two ways to get the risks:
+\strong{Bayesian net benefit} (binary outcome, \code{bayesian = TRUE}). The prevalence
+\eqn{\pi} and, at each threshold, the sensitivity \eqn{Se} and specificity
+\eqn{Sp} of the model get Beta priors (\code{\link[=nb_uniform]{nb_uniform()}} by default), updated
+with the validation data to Beta posteriors (as in bayesDCA). The net
+benefit columns are then the posterior means,
+\eqn{E[\pi] E[Se] - (1 - E[\pi])(1 - E[Sp]) z/(1-z)} and
+\eqn{E[\pi] - (1 - E[\pi]) z/(1-z)}.
+
+\strong{Predicted risks.} Validation needs only the predicted risks of the
+patients in \code{data}: give them with \code{predicted_risk}, a vector (one per row
+of \code{data}) or the name of the column of \code{data} that holds them. The model
+object is not needed, and the risks can come from anywhere (an R model,
+published coefficients, other software). The outcome alone decides the type
+of analysis (binary, survival or competing risks).
+
+Optionally, voipred can predict the risks itself from the fitted model,
+given as \code{model} (or in place of \code{predicted_risk}, e.g. \code{nb(fit, val, "y")}). It predicts them once, and every later step reuses them. Then
+voipred keeps no list of models; there are two routes:
 \itemize{
 \item \strong{Automatically}, from the model alone: voipred calls \code{\link[=predict_risk]{predict_risk()}},
 which uses a method for the model's class if there is one (voipred ships
@@ -180,10 +215,11 @@ It works for any model, and is the way to go when voipred stops with
 always used.
 }
 
-Whatever the route, the risks are checked: one per row, no \code{NA}, values in
-[0, 1] (log-odds, relative risks or predicted times are rejected as
-scores), and not only 0s and 1s (rejected as class labels). Where the
-model's own outcome can be read from its formula, voipred also stops or
+Whichever way they are given, the risks are checked: one per row, no \code{NA},
+values in [0, 1] (log-odds, relative risks or predicted times are
+rejected as scores), and not only 0s and 1s (rejected as class labels).
+With a model, where the model's own outcome can be read from its formula,
+voipred also stops or
 warns if it does not match \code{outcome} (e.g. a survival model with a binary
 outcome, or a binary model with a survival outcome), and warns if
 \code{horizon} is beyond the model's own follow-up.
@@ -196,11 +232,23 @@ survival probability), by \code{horizon} and for \code{cause}.
 dev <- gusto[1:5000, ]
 val <- gusto[5001:10000, ]
 fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-res <- nb(fit, val, outcome = "day30", thresholds = seq(0, 0.3, by = 0.01))
+
+# The predicted risks are all that is needed
+val$p <- predict(fit, val, type = "response")
+res <- nb(predicted_risk = "p", data = val, outcome = "day30",
+          thresholds = seq(0, 0.3, by = 0.01))
 head(res)
 
+# Or let voipred predict them from the model
+nb(fit, val, "day30", thresholds = c(0.05, 0.1))
+
+# Bayesian net benefit (posterior means), as in bayesDCA
+nb("p", val, "day30", thresholds = c(0.05, 0.1), bayesian = TRUE)
+nb("p", val, "day30", thresholds = c(0.05, 0.1), bayesian = TRUE,
+   prior = nb_jeffreys())
+
 # Any model, with your own prediction function
-nb(fit, val, "day30", thresholds = c(0.05, 0.1),
+nb(model = fit, data = val, outcome = "day30", thresholds = c(0.05, 0.1),
    predict_function = function(model, newdata, ...)
      predict(model, newdata, type = "response"))
 

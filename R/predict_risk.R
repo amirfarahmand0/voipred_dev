@@ -168,8 +168,8 @@ finish_risk <- function(out, newdata, horizon = NULL) {
 
 check_model_object <- function(model) {
   if (is.numeric(model) || is.logical(model))
-    stop("`model` must be a fitted model, not a vector of predicted risks. ",
-         "voipred needs the model itself.", call. = FALSE)
+    stop("`model` must be a fitted model. To use predicted risks, give them ",
+         "with `predicted_risk =` instead.", call. = FALSE)
 }
 
 

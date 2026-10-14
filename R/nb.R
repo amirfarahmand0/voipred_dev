@@ -37,9 +37,25 @@
 #' A patient is treated when the predicted risk is at or above the threshold,
 #' and a predicted risk of exactly 0 is never treated, as in dcurves.
 #'
-#' **Predicted risks.** The outcome alone decides the type of analysis
-#' (binary, survival or competing risks); voipred keeps no list of models.
-#' There are two ways to get the risks:
+#' **Bayesian net benefit** (binary outcome, `bayesian = TRUE`). The prevalence
+#' \eqn{\pi} and, at each threshold, the sensitivity \eqn{Se} and specificity
+#' \eqn{Sp} of the model get Beta priors ([nb_uniform()] by default), updated
+#' with the validation data to Beta posteriors (as in bayesDCA). The net
+#' benefit columns are then the posterior means,
+#' \eqn{E[\pi] E[Se] - (1 - E[\pi])(1 - E[Sp]) z/(1-z)} and
+#' \eqn{E[\pi] - (1 - E[\pi]) z/(1-z)}.
+#'
+#' **Predicted risks.** Validation needs only the predicted risks of the
+#' patients in `data`: give them with `predicted_risk`, a vector (one per row
+#' of `data`) or the name of the column of `data` that holds them. The model
+#' object is not needed, and the risks can come from anywhere (an R model,
+#' published coefficients, other software). The outcome alone decides the type
+#' of analysis (binary, survival or competing risks).
+#'
+#' Optionally, voipred can predict the risks itself from the fitted model,
+#' given as `model` (or in place of `predicted_risk`, e.g. `nb(fit, val,
+#' "y")`). It predicts them once, and every later step reuses them. Then
+#' voipred keeps no list of models; there are two routes:
 #' * **Automatically**, from the model alone: voipred calls [predict_risk()],
 #'   which uses a method for the model's class if there is one (voipred ships
 #'   some, and the author of a modelling package can add one), otherwise the
@@ -61,10 +77,11 @@
 #'   "Could not get predicted risks from this ... model". If given, it is
 #'   always used.
 #'
-#' Whatever the route, the risks are checked: one per row, no `NA`, values in
-#' \[0, 1\] (log-odds, relative risks or predicted times are rejected as
-#' scores), and not only 0s and 1s (rejected as class labels). Where the
-#' model's own outcome can be read from its formula, voipred also stops or
+#' Whichever way they are given, the risks are checked: one per row, no `NA`,
+#' values in \[0, 1\] (log-odds, relative risks or predicted times are
+#' rejected as scores), and not only 0s and 1s (rejected as class labels).
+#' With a model, where the model's own outcome can be read from its formula,
+#' voipred also stops or
 #' warns if it does not match `outcome` (e.g. a survival model with a binary
 #' outcome, or a binary model with a survival outcome), and warns if
 #' `horizon` is beyond the model's own follow-up.
@@ -73,14 +90,16 @@
 #' `predict_function`, make sure it returns the risk of the event (not the
 #' survival probability), by `horizon` and for `cause`.
 #'
-#' @param model A fitted prediction model, used only to predict the risks
-#'   of the patients in `data` (once). A vector of predicted risks is not
-#'   accepted: voipred needs the model itself. See "Predicted risks" for the
-#'   models that work automatically and for `predict_function`.
-#' @param data A data frame: the validation sample, one row per patient. It
-#'   must contain every covariate the model (and, with `censoring = "cipcw"`,
-#'   the censoring model) uses, and the outcome columns when `outcome` names
-#'   them.
+#' @param predicted_risk The predicted risks of the patients in `data`: a
+#'   numeric vector, one probability per row of `data` (in its row order), or
+#'   the name of the column of `data` that holds them. For survival outcomes,
+#'   the risk of the event by `horizon` (competing risks: of `cause` by
+#'   `horizon`). This is all the validation needs. A fitted model can also be
+#'   given here instead; it is then used as `model`.
+#' @param data A data frame: the validation sample, one row per patient, with
+#'   the outcome columns when `outcome` names them (and, with a `model`, every
+#'   covariate it uses; with `censoring = "cipcw"`, every covariate of the
+#'   censoring model).
 #' @param outcome The observed outcome, one per row of `data`:
 #'   * binary: a column name (`"y"`), a vector, or a one-sided formula
 #'     (`~ y`); 0/1, logical (`TRUE` is the event) or a two-level factor (the
@@ -123,7 +142,12 @@
 #'   (an integer weight is the same as repeating the row; 0 drops the
 #'   patient). They are not passed to the prediction model or the censoring
 #'   model.
-#' @param predict_function Optional `function(model, newdata, horizon, cause)`
+#' @param model Optional, instead of `predicted_risk`: a fitted prediction
+#'   model, from which voipred predicts the risks of the patients in `data`,
+#'   once. See "Predicted risks" for the models that work automatically and
+#'   for `predict_function`. Give either `predicted_risk` or `model`.
+#' @param predict_function Optional, with `model` only: a
+#'   `function(model, newdata, horizon, cause)`
 #'   that returns the predicted risks, used instead of the automatic routes
 #'   (it always takes precedence). voipred calls it once with
 #'   `newdata = data`; `horizon` and `cause` are those given to `nb()`
@@ -137,10 +161,16 @@
 #'   matrix>)` or `list(time = <grid>, cif = <n x grid matrix>)`, read at the
 #'   last grid time `<= horizon`. A function that ignores some arguments can
 #'   be written `function(model, newdata, ...)`.
+#' @param bayesian Binary outcomes only: `TRUE` for the Bayesian net benefit
+#'   (see "Bayesian net benefit"): the net benefit columns are posterior means.
+#'   Default `FALSE`. Case weights cannot be used with it.
+#' @param prior With `bayesian = TRUE`: the prior, [nb_uniform()] (default,
+#'   Beta(1, 1) for the prevalence, sensitivity and specificity, as in
+#'   bayesDCA), [nb_jeffreys()] or your own Beta priors with [nb_beta()].
 #' @param label Name of the model in printed output and plots, a single
-#'   string. Default: the name of the object given as `model` (e.g. `fit`), or
-#'   `"Model"` when `model` is an expression. `"Treat All"` and `"Treat None"`
-#'   are reserved.
+#'   string. Default: the name of the object given as `predicted_risk` or
+#'   `model` (e.g. `p`, the column name, or `fit`), or `"Model"` for an
+#'   expression. `"Treat All"` and `"Treat None"` are reserved.
 #' @return A data frame of class `voipred_nb` with one row per threshold
 #'   and columns `threshold`, `NB_model` (using the model; `NA` where it
 #'   cannot be estimated, see Details), `NB_all` (treat everyone), `NB_none`
@@ -151,17 +181,30 @@
 #'   `prevalence` (binary: the weighted event rate; survival: the estimated
 #'   risk of the event, or of `cause`, by the horizon), `outcome_type`
 #'   (`"binary"`, `"survival"` or `"competing"`), `risk` (the predicted
-#'   risks, one per row of `data`) and, for survival outcomes, `horizon`,
-#'   `cause` (the event level used) and `censoring`.
+#'   risks, one per row of `data`), `bayesian` (and with `bayesian = TRUE` the
+#'   `prior`; `prevalence` is then its posterior mean) and, for survival
+#'   outcomes, `horizon`, `cause` (the event level used) and `censoring`.
 #' @examples
 #' dev <- gusto[1:5000, ]
 #' val <- gusto[5001:10000, ]
 #' fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-#' res <- nb(fit, val, outcome = "day30", thresholds = seq(0, 0.3, by = 0.01))
+#'
+#' # The predicted risks are all that is needed
+#' val$p <- predict(fit, val, type = "response")
+#' res <- nb(predicted_risk = "p", data = val, outcome = "day30",
+#'           thresholds = seq(0, 0.3, by = 0.01))
 #' head(res)
 #'
+#' # Or let voipred predict them from the model
+#' nb(fit, val, "day30", thresholds = c(0.05, 0.1))
+#'
+#' # Bayesian net benefit (posterior means), as in bayesDCA
+#' nb("p", val, "day30", thresholds = c(0.05, 0.1), bayesian = TRUE)
+#' nb("p", val, "day30", thresholds = c(0.05, 0.1), bayesian = TRUE,
+#'    prior = nb_jeffreys())
+#'
 #' # Any model, with your own prediction function
-#' nb(fit, val, "day30", thresholds = c(0.05, 0.1),
+#' nb(model = fit, data = val, outcome = "day30", thresholds = c(0.05, 0.1),
 #'    predict_function = function(model, newdata, ...)
 #'      predict(model, newdata, type = "response"))
 #'
@@ -179,11 +222,25 @@
 #' nb(cox, val_s, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3),
 #'    censoring = "cipcw", cipcw = cipcw_control(model = cens))
 #' @export
-nb <- function(model, data, outcome, thresholds = seq(0, 0.99, by = 0.01),
-               horizon = NULL, cause = NULL, censoring = c("km", "cipcw"),
-               cipcw = cipcw_control(), weights = NULL, predict_function = NULL,
-               label = NULL) {
-  label <- check_label(label, substitute(model))
+nb <- function(predicted_risk = NULL, data, outcome,
+               thresholds = seq(0, 0.99, by = 0.01), horizon = NULL, cause = NULL,
+               censoring = c("km", "cipcw"), cipcw = cipcw_control(), weights = NULL,
+               model = NULL, predict_function = NULL, bayesian = FALSE,
+               prior = nb_uniform(), label = NULL) {
+  # a fitted model given in place of the risks (e.g. nb(fit, val, "y")) is the model
+  risk_expr <- substitute(predicted_risk)
+  model_expr <- substitute(model)
+  if (!is.null(predicted_risk) && !is_risk_input(predicted_risk)) {
+    if (!is.null(model))
+      stop("Give either `predicted_risk` or `model`, not both.", call. = FALSE)
+    model <- predicted_risk
+    model_expr <- risk_expr
+    predicted_risk <- NULL
+  }
+  if (is.null(label))
+    label <- if (!is.null(predicted_risk)) risk_label(risk_expr, predicted_risk)
+             else if (is.name(model_expr)) as.character(model_expr)
+  label <- check_label(label, NULL)
   if (!is.data.frame(data))
     stop("`data` must be a data frame.", call. = FALSE)
   censoring <- match.arg(censoring)
@@ -195,10 +252,25 @@ nb <- function(model, data, outcome, thresholds = seq(0, 0.99, by = 0.01),
   thresholds <- check_thresholds(thresholds)
   n <- nrow(data)
   w <- check_weights(weights, n)
+  check_bayesian(bayesian, prior, info, weights)
 
-  p <- get_risk(model, data, info, horizon, predict_function)
+  # the risks: given, or predicted once from the model
+  p <- if (!is.null(predicted_risk)) {
+    if (!is.null(model))
+      stop("Give either `predicted_risk` or `model`, not both.", call. = FALSE)
+    if (!is.null(predict_function))
+      stop("`predict_function` predicts from `model`; it is not used with ",
+           "`predicted_risk`.", call. = FALSE)
+    given_risk(predicted_risk, data)
+  } else {
+    if (is.null(model))
+      stop("Give the predicted risks with `predicted_risk` (or a fitted `model`).",
+           call. = FALSE)
+    get_risk(model, data, info, horizon, predict_function)
+  }
   if (info$type == "binary") {
-    res <- nb_core(info$y, p, thresholds, w)
+    res <- if (bayesian) bayes_nb_mean(info$y, p, thresholds, prior)
+           else nb_core(info$y, p, thresholds, w)
   } else {
     if (censoring == "km") {
       res <- nb_core_km(info$time, info$status, k, p, thresholds, horizon, w)
@@ -217,6 +289,8 @@ nb <- function(model, data, outcome, thresholds = seq(0, 0.99, by = 0.01),
   attr(out, "n") <- n
   attr(out, "prevalence") <- res$prevalence
   attr(out, "outcome_type") <- info$type
+  attr(out, "bayesian") <- bayesian
+  if (bayesian) attr(out, "prior") <- prior
   if (info$type != "binary") {
     attr(out, "horizon") <- horizon
     attr(out, "cause") <- info$states[k]
@@ -233,7 +307,9 @@ print.voipred_nb <- function(x, ...) {
   type <- attr(x, "outcome_type")
   if (is.null(type)) type <- "binary"
   if (type == "binary") {
-    cat("Net benefit of ", attr(x, "label"), ": n = ", attr(x, "n"), ", prevalence = ",
+    cat("Net benefit of ", attr(x, "label"),
+        if (isTRUE(attr(x, "bayesian"))) " (Bayesian, posterior means)",
+        ": n = ", attr(x, "n"), ", prevalence = ",
         format(attr(x, "prevalence"), digits = 3), ", ", nrow(x),
         " thresholds\n", sep = "")
   } else {
@@ -560,4 +636,65 @@ nb_core_cipcw <- function(time, status, k, p, thresholds, horizon,
   list(NB_model = prev * se - (1 - prev) * (1 - sp) * odds,
        NB_all = prev - (1 - prev) * odds,
        prevalence = prev)
+}
+
+# ---- internal: predicted risks given directly -------------------------------
+
+# Risks (a vector, or a column name) rather than a fitted model.
+is_risk_input <- function(x) is.atomic(x)
+
+# Predicted risks given with `predicted_risk`: a vector, or the name of a
+# column of `data`.
+given_risk <- function(risk, data) {
+  n <- nrow(data)
+  if (is.character(risk) && length(risk) == 1) {
+    if (!risk %in% names(data))
+      stop("`predicted_risk` names a column (\"", risk, "\") that is not in `data`.",
+           call. = FALSE)
+    risk <- data[[risk]]
+  }
+  if (!is.numeric(risk) || (is.matrix(risk) && ncol(risk) != 1))
+    stop("`predicted_risk` must be numeric: one predicted probability per row of ",
+         "`data`, or the name of the column that holds them.", call. = FALSE)
+  risk <- as.vector(risk)
+  if (length(risk) != n)
+    stop("`predicted_risk` has ", length(risk), " values but `data` has ", n, " rows.",
+         call. = FALSE)
+  if (anyNA(risk))
+    stop(sum(is.na(risk)), " of the risks in `predicted_risk` are NA.", call. = FALSE)
+  if (any(risk < 0 | risk > 1))
+    stop("`predicted_risk` has values outside [0, 1] (from ", signif(min(risk), 3),
+         " to ", signif(max(risk), 3), "), so these are not probabilities (e.g. ",
+         "log-odds must be turned into probabilities first).", call. = FALSE)
+  if (all(risk == 0 | risk == 1))
+    stop("`predicted_risk` has only 0s and 1s. These look like predicted classes, ",
+         "not probabilities.", call. = FALSE)
+  unname(risk)
+}
+
+# Default label for given risks: the column name, or the name of the vector
+# (`p`, or `p` in `val$p`).
+risk_label <- function(expr, risk) {
+  if (is.character(risk) && length(risk) == 1) return(risk)
+  if (is.name(expr)) return(as.character(expr))
+  if (is.call(expr) && identical(expr[[1]], as.name("$"))) return(as.character(expr[[3]]))
+  "Model"
+}
+
+check_bayesian <- function(bayesian, prior, info, weights) {
+  if (!is.logical(bayesian) || length(bayesian) != 1 || is.na(bayesian))
+    stop("`bayesian` must be TRUE or FALSE.", call. = FALSE)
+  if (!inherits(prior, "nb_prior"))
+    stop("`prior` must be nb_uniform(), nb_jeffreys() or nb_beta().", call. = FALSE)
+  if (!bayesian) {
+    if (!identical(prior, nb_uniform()))
+      stop("`prior` is only used with `bayesian = TRUE`.", call. = FALSE)
+    return(invisible())
+  }
+  if (info$type != "binary")
+    stop("The Bayesian net benefit (`bayesian = TRUE`) is available for binary ",
+         "outcomes only.", call. = FALSE)
+  if (!is.null(weights))
+    stop("Case weights cannot be used with `bayesian = TRUE`.", call. = FALSE)
+  invisible()
 }

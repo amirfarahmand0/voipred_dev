@@ -96,9 +96,13 @@ test_that("bad inputs give clear errors", {
   expect_error(nb(fixed_model(toy$p), toy, "y", weights = c(1, 1, -1, 1, 1)), "non-negative")
 })
 
-test_that("a vector of predicted risks is rejected: nb() needs the model", {
-  expect_error(nb(toy$p, toy, "y"), "fitted model, not a vector")
-  expect_error(nb(as.integer(toy$y), toy, "y"), "fitted model, not a vector")
+test_that("the predicted risks can be given directly, without the model", {
+  ref <- nb(fixed_model(toy$p), toy, "y", thresholds = c(0.1, 0.5))
+  expect_equal(nb(toy$p, toy, "y", thresholds = c(0.1, 0.5))$NB_model, ref$NB_model)
+  expect_equal(nb("p", toy, "y", thresholds = c(0.1, 0.5))$NB_model, ref$NB_model)
+  expect_equal(nb(predicted_risk = toy$p, data = toy, outcome = "y",
+                  thresholds = c(0.1, 0.5))$NB_model, ref$NB_model)
+  expect_error(nb(as.integer(toy$y), toy, "y"), "only 0s and 1s")
 })
 
 test_that("print shows a header and the table", {

@@ -48,7 +48,7 @@ test_that("predict_function gets horizon and cause; it is checked like any model
                "returned classes, not probabilities")
   expect_error(nb(m, d, "y", predict_function = function(...) as.character(p0)),
                "returned classes, not probabilities")
-  expect_error(nb(p0, d, "y", predict_function = function(...) p0), "fitted model, not a vector")
+  expect_error(nb(p0, d, "y", predict_function = function(...) p0), "not used with `predicted_risk`")
 })
 
 test_that("output shapes are read generically", {

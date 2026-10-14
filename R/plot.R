@@ -130,6 +130,10 @@ check_comparable <- function(a, b, la, lb) {
     "horizon" = !same_attr("horizon"),
     "cause" = !same_attr("cause"),
     "censoring method" = !same_attr("censoring"),
+    "estimator (Bayesian or not)" = !identical(isTRUE(attr(a, "bayesian")),
+                                               isTRUE(attr(b, "bayesian"))),
+    "prior" = isTRUE(attr(a, "bayesian")) && isTRUE(attr(b, "bayesian")) &&
+      !same_attr("prior"),
     "number of patients" = !same_attr("n"),
     "thresholds" = !isTRUE(all.equal(a$threshold, b$threshold)))
   if (!any(what))
