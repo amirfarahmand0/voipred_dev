@@ -391,16 +391,22 @@ model_max_time <- function(model) {
 }
 
 # A Surv / Hist object kept inside a model object (e.g. its outcome), found
-# without knowing the class.
+# without knowing the class: the shallowest one (breadth first, up to 4 levels
+# down), so the model's own outcome comes before those of sub-models it keeps
+# (e.g. the cause-specific models of a competing-risks model).
 stored_surv <- function(model) {
-  found <- NULL
-  visit <- function(x, depth) {
-    if (!is.null(found)) return(invisible())
-    if (inherits(x, c("Surv", "Hist"))) { found <<- x; return(invisible()) }
-    if (depth < 3 && is.list(x)) for (el in x) visit(el, depth + 1)
+  if (!is.list(model)) return(NULL)
+  level <- list(unclass(model))
+  for (depth in 1:4) {
+    nxt <- list()
+    for (x in level) {
+      if (inherits(x, c("Surv", "Hist"))) return(x)
+      if (is.list(x)) nxt <- c(nxt, unclass(x))
+    }
+    level <- nxt
   }
-  if (is.list(model)) visit(unclass(model), 1)
-  found
+  for (x in level) if (inherits(x, c("Surv", "Hist"))) return(x)
+  NULL
 }
 
 

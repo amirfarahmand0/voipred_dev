@@ -106,7 +106,9 @@ last grid time \verb{<= horizon}. A function that ignores some arguments can
 be written \verb{function(model, newdata, ...)}.}
 
 \item{bayesian}{Binary outcomes only: \code{TRUE} for the Bayesian net benefit
-(see "Bayesian net benefit"): the net benefit columns are posterior means.
+(see "Bayesian net benefit"): the net benefit columns are posterior means,
+and the value-of-information functions (\code{\link[=evpi]{evpi()}}, \code{\link[=evsi]{evsi()}}, \code{\link[=p_useful]{p_useful()}},
+\code{\link[=p_best]{p_best()}}) draw from the posterior instead of resampling the patients.
 Default \code{FALSE}. Case weights cannot be used with it.}
 
 \item{prior}{With \code{bayesian = TRUE}: the prior, \code{\link[=nb_uniform]{nb_uniform()}} (default,
@@ -190,7 +192,8 @@ published coefficients, other software). The outcome alone decides the type
 of analysis (binary, survival or competing risks).
 
 Optionally, voipred can predict the risks itself from the fitted model,
-given as \code{model} (or in place of \code{predicted_risk}, e.g. \code{nb(fit, val, "y")}). It predicts them once, and every later step reuses them. Then
+given as \code{model} (or in place of \code{predicted_risk}, e.g. \code{nb(fit, val, "y")}). It predicts them once, and every later step (the
+value-of-information functions, plots) reuses them. Then
 voipred keeps no list of models; there are two routes:
 \itemize{
 \item \strong{Automatically}, from the model alone: voipred calls \code{\link[=predict_risk]{predict_risk()}},

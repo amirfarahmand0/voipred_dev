@@ -25,7 +25,10 @@ Imports:
     stats,
     insight,
     ggplot2 (>= 3.4.0),
+    Rcpp,
     riskRegression (>= 2026.3.11)
+LinkingTo:
+    Rcpp
 Suggests:
     testthat (>= 3.0.0),
     withr,
@@ -55,6 +58,10 @@ Suggests:
     rms,
     rstpm2,
     glmnet,
+    mvtnorm,
+    patchwork,
+    plotly,
+    htmlwidgets,
     bayespred.dev
 Remotes:
     resplab/bayespred

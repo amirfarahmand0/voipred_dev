@@ -256,6 +256,11 @@ test_that("survival models with a binary outcome are rejected", {
   # ranger keeps no readable formula: the standard binary routes fail instead
   rg <- ranger::ranger(surv_formula, data = s$dev, num.trees = 20)
   expect_error(nb(rg, s$val, "death", thresholds = 0.1), "Could not get predicted risks")
+  # a model whose formula can no longer be found (fitted inside a function):
+  # the Surv outcome it keeps is used
+  fit_in <- function(d) { f <- surv_formula; flexsurv::flexsurvreg(f, data = d, dist = "weibull") }
+  expect_error(nb(fit_in(s$dev), s$val, "death", thresholds = 0.1),
+               "fitted to a survival outcome: use it with a survival outcome")
 })
 
 test_that("a horizon beyond the model's own follow-up gives a warning", {

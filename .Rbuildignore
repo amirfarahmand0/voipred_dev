@@ -4,3 +4,5 @@
 ^_pkgdown\.yml$
 ^README\.md$
 ^reports$
+^src/.*\.o$
+^src/.*\.so$

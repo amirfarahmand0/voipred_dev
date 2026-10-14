@@ -31,7 +31,7 @@ treated among patients with the event, and of not being treated among
 patients without it). The net benefit at threshold \eqn{z} is
 \deqn{NB = \pi \, Se - (1 - \pi)(1 - Sp) \frac{z}{1 - z},}
 and that of treating all \eqn{\pi - (1 - \pi) z / (1 - z)}. The posteriors
-are Beta distributions (conjugate), so no MCMC is needed.
+are Beta distributions (conjugate), so their draws are exact (no MCMC).
 }
 \details{
 \itemize{
@@ -49,7 +49,9 @@ nb_beta(prevalence = c(7, 93))
 }
 \references{
 Cruz GNF, Korthauer K. Bayesian decision curve analysis with
-bayesDCA. arXiv 2023.
+bayesDCA. arXiv 2023. Sadatsafavi M, et al. Expected value of sample
+information calculations for risk prediction model validation. Medical
+Decision Making 2025; 45(3): 232-244.
 }
 \seealso{
 \code{\link[=nb]{nb()}}

@@ -40,7 +40,8 @@
 #' evaluated on the same patients overfits their censoring times, and its
 #' weights are biased. Use cross-fitting: split `data` into folds, fit the
 #' censoring model on all folds but one, predict the censoring probabilities
-#' for the held-out fold, and give the resulting weights through option 2.
+#' for the held-out fold, and give the resulting weights through option 2 (in
+#' [nb()] only: see "Uncertainty").
 #'
 #' **Truncation** is off by default. With `min_prob`, censoring probabilities
 #' below it (option 1) or weights above `1 / min_prob` (option 2) are
@@ -49,10 +50,32 @@
 #' above 100), a sign of near-violations of positivity, and stops if a
 #' probability is exactly 0.
 #'
-#' **Uncertainty.** The censoring model or weights are taken as fixed: in
-#' resampling (e.g. bootstrap draws for the value of information) the same
-#' weights are used in every draw, which ignores the uncertainty in the
-#' censoring model.
+#' **Uncertainty (value of information).** The censoring model is estimated
+#' from the validation data, so its uncertainty is part of the uncertainty
+#' about the net benefit. The value-of-information functions ([evpi()],
+#' [evsi()], [p_useful()], [p_best()]) therefore refit the censoring
+#' model in every draw, on that draw's data, and recompute the censoring
+#' weights from it, as a bootstrap that refits the censoring model on each
+#' resampled data set. The refit is done:
+#' * with `refit_function`, if given;
+#' * otherwise automatically for the censoring models whose case weights
+#'   voipred knows: `survival::coxph`, `survival::survreg`, `rms::cph`,
+#'   `rms::psm`, `flexsurv::flexsurvreg` (also `flexsurvspline`) and
+#'   `prodlim::prodlim`: the model's own call, with the draw's data and the
+#'   draw's weights as case weights;
+#' * otherwise, for draws with whole-number weights (`method = "ordinary"`),
+#'   by refitting the model's own call on the resampled patients (each repeated
+#'   as many times as it is drawn), which needs no case weights;
+#' * otherwise (`method = "bayesian"`, whose weights are not whole
+#'   numbers, with a model voipred does not know) it stops and asks for
+#'   `refit_function`: other models take weights under other names or with
+#'   another meaning (e.g. `ranger`'s `case.weights` are sampling
+#'   probabilities), so voipred does not guess.
+#'
+#' Patients with a weight of 0 in a draw are left out of the refit. Given
+#' weights (option 2) cannot be refitted, so they can be used in [nb()] but not
+#' in the value-of-information functions. `nb()` itself always uses the model
+#' as given.
 #'
 #' @param model Option 1: a survival model fitted to the censoring times of
 #'   the validation data `data` passed to [nb()] (same patients), with
@@ -86,6 +109,17 @@
 #'   is not included (the usual convention, as for Kaplan-Meier: an event
 #'   tied with a censoring comes first); `"right"` includes it. For smooth
 #'   (parametric) censoring models both give practically the same result.
+#' @param refit_function Option 1, optional: a `function(data, weights)`
+#'   returning the censoring model fitted to `data` (the validation data given
+#'   to [nb()], restricted to the patients with a positive weight in a draw)
+#'   with case weights `weights` (with `method = "ordinary"`, the number of
+#'   times each patient is drawn; with the Bayesian bootstrap, positive
+#'   weights averaging 1, times the case weights of [nb()] if any), e.g.
+#'   `function(data, weights)
+#'   coxph(Surv(time, status == 0) ~ x, data = data, weights = weights)`. Used
+#'   by the value-of-information functions to refit the censoring model in
+#'   every draw (see "Uncertainty"). Needed for a Bayesian bootstrap with a
+#'   censoring model voipred cannot refit with case weights by itself.
 #' @return An object of class `cipcw_control`.
 #' @examples
 #' \dontrun{
@@ -97,8 +131,19 @@
 #' @export
 cipcw_control <- function(model = NULL, weight_event = NULL,
                           weight_horizon = NULL, min_prob = NULL,
-                          ties = c("left", "right"), predict_function = NULL) {
+                          ties = c("left", "right"), predict_function = NULL,
+                          refit_function = NULL) {
   ties <- match.arg(ties)
+  if (is.logical(refit_function))
+    stop("There is no `refit` setting: the value-of-information functions always ",
+         "refit the censoring model in each draw. `refit_function` is an optional ",
+         "function(data, weights) returning the refitted censoring model.", call. = FALSE)
+  if (!is.null(refit_function) && !is.function(refit_function))
+    stop("`refit_function` must be a function(data, weights) returning the ",
+         "refitted censoring model.", call. = FALSE)
+  if (!is.null(refit_function) && is.null(model))
+    stop("`refit_function` needs the censoring `model` it refits; given weights ",
+         "cannot be refitted.", call. = FALSE)
   has_w <- !is.null(weight_event) || !is.null(weight_horizon)
   if (!is.null(model) && has_w)
     stop("Give either a censoring `model` or the weights, not both.",
@@ -133,7 +178,7 @@ cipcw_control <- function(model = NULL, weight_event = NULL,
          call. = FALSE)
   structure(list(model = model, predict_function = predict_function,
                  weight_event = weight_event, weight_horizon = weight_horizon,
-                 min_prob = min_prob, ties = ties),
+                 min_prob = min_prob, ties = ties, refit_function = refit_function),
             class = "cipcw_control")
 }
 
@@ -141,7 +186,9 @@ cipcw_control <- function(model = NULL, weight_event = NULL,
 print.cipcw_control <- function(x, ...) {
   how <- if (!is.null(x$model)) paste0("censoring model (", class(x$model)[1],
                                        if (!is.null(x$predict_function))
-                                         ", with predict_function", ")")
+                                         ", with predict_function",
+                                       if (!is.null(x$refit_function))
+                                         ", with refit_function", ")")
          else if (!is.null(x$weight_event)) "given weights" else "not set"
   cat("cIPCW settings: ", how, ", truncation: ",
       if (is.null(x$min_prob)) "off" else paste0("min_prob = ", x$min_prob),
@@ -151,7 +198,8 @@ print.cipcw_control <- function(x, ...) {
 
 is_default_cipcw <- function(cipcw) {
   is.null(cipcw$model) && is.null(cipcw$weight_event) &&
-    is.null(cipcw$min_prob) && identical(cipcw$ties, "left")
+    is.null(cipcw$min_prob) && identical(cipcw$ties, "left") &&
+    is.null(cipcw$refit_function)
 }
 
 # The two cIPCW weight vectors for `data`. Only the weights that the estimator

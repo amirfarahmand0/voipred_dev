@@ -4,7 +4,15 @@
 \alias{plot_dca}
 \title{Plot decision curves}
 \usage{
-plot_dca(x, ..., type = c("nb", "delta"), labels = NULL)
+plot_dca(
+  x,
+  ...,
+  type = c("nb", "delta"),
+  labels = NULL,
+  evpi = NULL,
+  evsi = NULL,
+  interactive = FALSE
+)
 }
 \arguments{
 \item{x}{A result of \code{\link[=nb]{nb()}}.}
@@ -16,14 +24,25 @@ is labelled with its name.}
 
 \item{labels}{Optional names of the curves, one per result, in order;
 default: the results' labels.}
+
+\item{evpi, evsi}{Optional results of \code{\link[=evpi]{evpi()}} and \code{\link[=evsi]{evsi()}}, drawn in a panel
+below the decision curve: EVPI, and EVSI for each future sample size,
+against the threshold. The static version needs the patchwork package.}
+
+\item{interactive}{\code{TRUE} for an interactive plot (needs the plotly
+package). Default \code{FALSE}.}
 }
 \value{
-A ggplot object.
+A ggplot object, a patchwork object (with \code{evpi} or \code{evsi}), or a
+plotly widget (\code{interactive = TRUE}).
 }
 \description{
 Plots the results of \code{\link[=nb]{nb()}}: the decision curve (\code{type = "nb"}), or the
 difference in net benefit between the model and the best default strategy
 (\code{type = "delta"}). Give several results to draw their curves together.
+Optionally, the expected value of perfect and sample information (from
+\code{\link[=evpi]{evpi()}} and \code{\link[=evsi]{evsi()}}) is drawn in a panel below, on the same threshold
+axis.
 }
 \details{
 \itemize{
@@ -43,9 +62,13 @@ where the net benefit is \code{NA} are left out. Each curve is named by its
 \code{label} (see \code{\link[=nb]{nb()}}), unless \code{labels} is given; a model has the same colour
 in both types of plot.
 
-The plot is a ggplot object: it is drawn when printed, and can be changed
+The static plot is a ggplot object (a patchwork object with the
+value-of-information panel): it is drawn when printed, and can be changed
 with the usual \code{+} (e.g. \code{+ ggplot2::coord_cartesian(xlim = c(0, 0.5))}) or
-saved with \code{ggplot2::ggsave()}.
+saved with \code{ggplot2::ggsave()}. With \code{interactive = TRUE} it is a plotly
+widget: hovering shows the values of every curve at a threshold, the panels
+zoom together, and clicking a legend entry hides or shows a curve; save it
+with \code{htmlwidgets::saveWidget()}.
 }
 \examples{
 dev <- gusto[1:5000, ]
@@ -58,4 +81,13 @@ res2 <- nb(fit2, val, "day30", thresholds = z, label = "Age only")
 plot_dca(res1)
 plot_dca(res1, res2)
 plot_dca(res1, res2, type = "delta")
+\donttest{
+set.seed(1)
+e <- evpi(res1, n_sim = 200)
+if (requireNamespace("patchwork", quietly = TRUE)) plot_dca(res1, evpi = e)
+if (requireNamespace("plotly", quietly = TRUE)) plot_dca(res1, evpi = e, interactive = TRUE)
+}
+}
+\seealso{
+\code{\link[=plot_evpi]{plot_evpi()}}, \code{\link[=plot_evsi]{plot_evsi()}}, \code{\link[=plot_p_useful]{plot_p_useful()}}, \code{\link[=plot_p_best]{plot_p_best()}}
 }

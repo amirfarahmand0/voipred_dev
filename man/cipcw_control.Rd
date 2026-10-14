@@ -10,7 +10,8 @@ cipcw_control(
   weight_horizon = NULL,
   min_prob = NULL,
   ties = c("left", "right"),
-  predict_function = NULL
+  predict_function = NULL,
+  refit_function = NULL
 )
 }
 \arguments{
@@ -48,6 +49,17 @@ per row, \verb{list(time = <grid>, surv = <n x grid matrix>)}, which voipred
 reads at each row's own time. Use it for a censoring model voipred cannot
 predict from by itself, or to predict in your own way; it then replaces
 voipred's own prediction. Requires \code{model}.}
+
+\item{refit_function}{Option 1, optional: a \verb{function(data, weights)}
+returning the censoring model fitted to \code{data} (the validation data given
+to \code{\link[=nb]{nb()}}, restricted to the patients with a positive weight in a draw)
+with case weights \code{weights} (with \code{method = "ordinary"}, the number of
+times each patient is drawn; with the Bayesian bootstrap, positive
+weights averaging 1, times the case weights of \code{\link[=nb]{nb()}} if any), e.g.
+\code{function(data, weights) coxph(Surv(time, status == 0) ~ x, data = data, weights = weights)}. Used
+by the value-of-information functions to refit the censoring model in
+every draw (see "Uncertainty"). Needed for a Bayesian bootstrap with a
+censoring model voipred cannot refit with case weights by itself.}
 }
 \value{
 An object of class \code{cipcw_control}.
@@ -94,7 +106,8 @@ patients event-free at the horizon (\code{weight_horizon}) are used. They must b
 evaluated on the same patients overfits their censoring times, and its
 weights are biased. Use cross-fitting: split \code{data} into folds, fit the
 censoring model on all folds but one, predict the censoring probabilities
-for the held-out fold, and give the resulting weights through option 2.
+for the held-out fold, and give the resulting weights through option 2 (in
+\code{\link[=nb]{nb()}} only: see "Uncertainty").
 
 \strong{Truncation} is off by default. With \code{min_prob}, censoring probabilities
 below it (option 1) or weights above \code{1 / min_prob} (option 2) are
@@ -103,10 +116,34 @@ it, voipred warns when some used probabilities are below 0.01 (weights
 above 100), a sign of near-violations of positivity, and stops if a
 probability is exactly 0.
 
-\strong{Uncertainty.} The censoring model or weights are taken as fixed: in
-resampling (e.g. bootstrap draws for the value of information) the same
-weights are used in every draw, which ignores the uncertainty in the
-censoring model.
+\strong{Uncertainty (value of information).} The censoring model is estimated
+from the validation data, so its uncertainty is part of the uncertainty
+about the net benefit. The value-of-information functions (\code{\link[=evpi]{evpi()}},
+\code{\link[=evsi]{evsi()}}, \code{\link[=p_useful]{p_useful()}}, \code{\link[=p_best]{p_best()}}) therefore refit the censoring
+model in every draw, on that draw's data, and recompute the censoring
+weights from it, as a bootstrap that refits the censoring model on each
+resampled data set. The refit is done:
+\itemize{
+\item with \code{refit_function}, if given;
+\item otherwise automatically for the censoring models whose case weights
+voipred knows: \code{survival::coxph}, \code{survival::survreg}, \code{rms::cph},
+\code{rms::psm}, \code{flexsurv::flexsurvreg} (also \code{flexsurvspline}) and
+\code{prodlim::prodlim}: the model's own call, with the draw's data and the
+draw's weights as case weights;
+\item otherwise, for draws with whole-number weights (\code{method = "ordinary"}),
+by refitting the model's own call on the resampled patients (each repeated
+as many times as it is drawn), which needs no case weights;
+\item otherwise (\code{method = "bayesian"}, whose weights are not whole
+numbers, with a model voipred does not know) it stops and asks for
+\code{refit_function}: other models take weights under other names or with
+another meaning (e.g. \code{ranger}'s \code{case.weights} are sampling
+probabilities), so voipred does not guess.
+}
+
+Patients with a weight of 0 in a draw are left out of the refit. Given
+weights (option 2) cannot be refitted, so they can be used in \code{\link[=nb]{nb()}} but not
+in the value-of-information functions. \code{nb()} itself always uses the model
+as given.
 }
 \examples{
 \dontrun{

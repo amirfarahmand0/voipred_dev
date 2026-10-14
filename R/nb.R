@@ -54,7 +54,8 @@
 #'
 #' Optionally, voipred can predict the risks itself from the fitted model,
 #' given as `model` (or in place of `predicted_risk`, e.g. `nb(fit, val,
-#' "y")`). It predicts them once, and every later step reuses them. Then
+#' "y")`). It predicts them once, and every later step (the
+#' value-of-information functions, plots) reuses them. Then
 #' voipred keeps no list of models; there are two routes:
 #' * **Automatically**, from the model alone: voipred calls [predict_risk()],
 #'   which uses a method for the model's class if there is one (voipred ships
@@ -162,7 +163,9 @@
 #'   last grid time `<= horizon`. A function that ignores some arguments can
 #'   be written `function(model, newdata, ...)`.
 #' @param bayesian Binary outcomes only: `TRUE` for the Bayesian net benefit
-#'   (see "Bayesian net benefit"): the net benefit columns are posterior means.
+#'   (see "Bayesian net benefit"): the net benefit columns are posterior means,
+#'   and the value-of-information functions ([evpi()], [evsi()], [p_useful()],
+#'   [p_best()]) draw from the posterior instead of resampling the patients.
 #'   Default `FALSE`. Case weights cannot be used with it.
 #' @param prior With `bayesian = TRUE`: the prior, [nb_uniform()] (default,
 #'   Beta(1, 1) for the prevalence, sensitivity and specificity, as in
@@ -268,16 +271,25 @@ nb <- function(predicted_risk = NULL, data, outcome,
            call. = FALSE)
     get_risk(model, data, info, horizon, predict_function)
   }
+  # what the VoI functions need to recompute the net benefit with other weights
+  voi <- list(type = info$type, thresholds = thresholds, risk = p, weights = w)
   if (info$type == "binary") {
     res <- if (bayesian) bayes_nb_mean(info$y, p, thresholds, prior)
            else nb_core(info$y, p, thresholds, w)
+    voi$y <- info$y
+    if (bayesian) voi$prior <- prior
   } else {
+    voi[c("time", "status", "k", "horizon", "censoring")] <-
+      list(info$time, info$status, k, horizon, censoring)
     if (censoring == "km") {
       res <- nb_core_km(info$time, info$status, k, p, thresholds, horizon, w)
     } else {
       cw <- cipcw_weights(cipcw, data, info, horizon, k)
       res <- nb_core_cipcw(info$time, info$status, k, p, thresholds, horizon,
                            cw$weight_event, cw$weight_horizon, w)
+      voi[c("weight_event", "weight_horizon")] <- list(cw$weight_event, cw$weight_horizon)
+      # what refitting the censoring model in each draw needs
+      voi[c("cipcw", "data", "info")] <- list(cipcw, data, info)
     }
   }
 
@@ -298,6 +310,7 @@ nb <- function(predicted_risk = NULL, data, outcome,
   }
   attr(out, "risk") <- p
   attr(out, "label") <- label
+  attr(out, "voi") <- voi
   class(out) <- c("voipred_nb", "data.frame")
   out
 }
@@ -546,34 +559,26 @@ check_survival_args <- function(info, horizon, cause, censoring, cipcw) {
 
 nb_core_km <- function(time, status, k, p, thresholds, horizon, w = NULL) {
   if (is.null(w)) w <- rep(1, length(time))
-  sw <- sum(w)
   odds <- thresholds / (1 - thresholds)
-  risk_all <- km_cuminc(time, status, k, w, horizon)
-  treated_any <- p > 0
-  nb_model <- numeric(length(thresholds))
-  undefined <- logical(length(thresholds))
-  for (j in seq_along(thresholds)) {
-    tr <- treated_any & p >= thresholds[j] & w > 0
-    q <- sum(w[tr]) / sw
-    if (q == 0) { nb_model[j] <- 0; next }
-    if (max(time[tr]) < horizon) {          # no follow-up to the horizon
-      nb_model[j] <- NA_real_; undefined[j] <- TRUE; next
-    }
-    f <- km_cuminc(time[tr], status[tr], k, w[tr], horizon)
-    nb_model[j] <- q * f - q * (1 - f) * odds[j]
-  }
+  # compiled loop over the thresholds (src/km_nb.cpp): the same arithmetic,
+  # in the same order, as km_cuminc() applied to the treated patients
+  o <- order(time)
+  r <- km_nb_sorted(as.numeric(time[o]), as.integer(status[o]), as.integer(k),
+                    as.numeric(p[o]), as.numeric(w[o]), as.numeric(thresholds),
+                    as.numeric(horizon))
+  undefined <- r$undefined
   if (any(undefined))
     warning("No patient treated at ", if (sum(undefined) == 1) "threshold " else
               "thresholds ", format_thresholds(thresholds[undefined]),
             " is followed up to the horizon (", horizon, "), so the risk among ",
             "them cannot be estimated: NB_model is NA there.", call. = FALSE)
-  list(NB_model = nb_model,
-       NB_all = risk_all - (1 - risk_all) * odds,
-       prevalence = risk_all)
+  list(NB_model = r$NB_model,
+       NB_all = r$risk_all - (1 - r$risk_all) * odds,
+       prevalence = r$risk_all)
 }
 
-# Cumulative incidence of cause k by `tau`: 1 - Kaplan-Meier for a single
-# event type, Aalen-Johansen when there are competing events. Weighted.
+# Kaplan-Meier / Aalen-Johansen cumulative incidence of cause k by tau
+# (the R version of the compiled code used by nb_core_km()).
 km_cuminc <- function(time, status, k, w, tau) {
   keep <- w > 0
   time <- time[keep]; status <- status[keep]; w <- w[keep]

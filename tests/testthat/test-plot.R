@@ -112,7 +112,7 @@ test_that("results that cannot be drawn together are refused", {
   cx <- survival::coxph(surv_formula, data = s$dev)
   a <- quiet_nb(cx, s$val, surv_outcome, horizon = 5, thresholds = surv_z, label = "A")
   b <- quiet_nb(cx, s$val, surv_outcome, horizon = 3, thresholds = surv_z, label = "B")
-  expect_error(plot_dca(a, b), "\"A\" and \"B\" cannot be plotted together: different horizon")
+  expect_error(plot_dca(a, b), "\"A\" and \"B\" cannot be used together: different horizon")
   expect_error(plot_dca(r1, b), "different outcome type")
   # same label twice, unknown argument, other objects
   expect_error(plot_dca(r1, r1), "same label \\(\"A\"\\)")
