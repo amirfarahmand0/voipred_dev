@@ -25,8 +25,9 @@ several together.
   Kaplan-Meier / Aalen-Johansen estimates or with conditional inverse
   probability of censoring weights (cIPCW), which allow censoring to depend on
   covariates.
-- Only the predicted risks are needed (`predicted_risk`, a vector or a column
-  of the data), from any model or software. Optionally, voipred.dev predicts
+- Only the predicted risks are needed (`predicted_risk`, a vector such as
+  `val$p`, or the name of a column of the data such as `"p"`), from any model
+  or software. Optionally, voipred.dev predicts
   them once from a fitted model: the common binary, survival and
   competing-risks models in R work automatically, including bayespred and
   bayespred.dev Bayesian models, and any other model with a function that
@@ -66,8 +67,9 @@ fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = gusto
 val <- gusto[5001:10000, ]
 val$p <- predict(fit, val, type = "response")
 
-res <- nb(predicted_risk = "p", data = val, outcome = "day30",
+res <- nb(predicted_risk = val$p, data = val, outcome = "day30",
           thresholds = seq(0.01, 0.3, by = 0.01))
+# or by column name: nb(predicted_risk = "p", data = val, ...)
 plot_dca(res)
 plot_dca(res, type = "delta")
 
@@ -83,7 +85,8 @@ plot_dca(res, evpi = e, evsi = o, interactive = TRUE)
 nb(model = fit, data = val, outcome = "day30")       # or let voipred.dev predict from the model
 
 # Bayesian net benefit, with draws from its posterior
-res_b <- nb("p", val, "day30", thresholds = seq(0.01, 0.3, by = 0.01), bayesian = TRUE)
+res_b <- nb(predicted_risk = val$p, data = val, outcome = "day30",
+            thresholds = seq(0.01, 0.3, by = 0.01), bayesian = TRUE)
 evpi(res_b)
 ```
 

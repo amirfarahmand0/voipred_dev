@@ -46,8 +46,10 @@
 #' \eqn{E[\pi] - (1 - E[\pi]) z/(1-z)}.
 #'
 #' **Predicted risks.** Validation needs only the predicted risks of the
-#' patients in `data`: give them with `predicted_risk`, a vector (one per row
-#' of `data`) or the name of the column of `data` that holds them. The model
+#' patients in `data`: give them with `predicted_risk`, a numeric vector with
+#' one risk per row of `data`, e.g. `predicted_risk = val$p`. The name of the
+#' column of `data` that holds them works too: `predicted_risk = "p"` is the
+#' same as `predicted_risk = val$p` when `data = val`. The model
 #' object is not needed, and the risks can come from anywhere (an R model,
 #' published coefficients, other software). The outcome alone decides the type
 #' of analysis (binary, survival or competing risks).
@@ -92,8 +94,9 @@
 #' survival probability), by `horizon` and for `cause`.
 #'
 #' @param predicted_risk The predicted risks of the patients in `data`: a
-#'   numeric vector, one probability per row of `data` (in its row order), or
-#'   the name of the column of `data` that holds them. For survival outcomes,
+#'   numeric vector, one probability per row of `data` (in its row order),
+#'   e.g. `val$p`. Alternatively, the name of the column of `data` that holds
+#'   them, e.g. `"p"`. For survival outcomes,
 #'   the risk of the event by `horizon` (competing risks: of `cause` by
 #'   `horizon`). This is all the validation needs. A fitted model can also be
 #'   given here instead; it is then used as `model`.
@@ -194,17 +197,21 @@
 #'
 #' # The predicted risks are all that is needed
 #' val$p <- predict(fit, val, type = "response")
-#' res <- nb(predicted_risk = "p", data = val, outcome = "day30",
+#' res <- nb(predicted_risk = val$p, data = val, outcome = "day30",
 #'           thresholds = seq(0, 0.3, by = 0.01))
 #' head(res)
+#'
+#' # The same, with the name of the column of `data` that holds the risks
+#' nb(predicted_risk = "p", data = val, outcome = "day30", thresholds = c(0.05, 0.1))
 #'
 #' # Or let voipred predict them from the model
 #' nb(fit, val, "day30", thresholds = c(0.05, 0.1))
 #'
 #' # Bayesian net benefit (posterior means), as in bayesDCA
-#' nb("p", val, "day30", thresholds = c(0.05, 0.1), bayesian = TRUE)
-#' nb("p", val, "day30", thresholds = c(0.05, 0.1), bayesian = TRUE,
-#'    prior = nb_jeffreys())
+#' nb(predicted_risk = val$p, data = val, outcome = "day30",
+#'    thresholds = c(0.05, 0.1), bayesian = TRUE)
+#' nb(predicted_risk = val$p, data = val, outcome = "day30",
+#'    thresholds = c(0.05, 0.1), bayesian = TRUE, prior = nb_jeffreys())
 #'
 #' # Any model, with your own prediction function
 #' nb(model = fit, data = val, outcome = "day30", thresholds = c(0.05, 0.1),
