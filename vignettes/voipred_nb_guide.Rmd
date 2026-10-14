@@ -14,14 +14,16 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height
 
 voipred.dev evaluates a prediction model in a validation sample in two steps:
 
-1. `nb()` computes the net benefit of the model, of treating everyone and of
-   treating no one, at each risk threshold;
+1. `nb()` computes, from the predicted risks of the validation patients, the
+   net benefit of the model, of treating everyone and of treating no one, at
+   each risk threshold;
 2. `plot_dca()` draws the decision curve, or the gain of the model over the
    best default strategy ($\Delta NB$).
 
 The outcome decides the analysis: a binary outcome (part 1), or a survival or
-competing-risks outcome (part 2). Part 3 lists the models voipred can use by
-itself, and shows how to use any other model.
+competing-risks outcome (part 2). Part 3 lists the models voipred can
+predict from by itself, when the fitted model is given instead of the risks,
+and shows how to use any other model.
 
 This vignette explains each option briefly, with examples. The help pages
 give the full details: `?nb`, `?plot_dca`, `?cipcw_control` and
@@ -67,14 +69,27 @@ mean(val$day30)   # prevalence in the validation sample
 
 ## Net benefit of one model
 
+`nb()` needs only the predicted risks of the validation patients, given with
+`predicted_risk`: one risk per row of `data`. They can come from any model or
+software.
+
 ```{r glm}
 fit_glm <- glm(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
                family = binomial, data = dev)
+val$p_glm <- predict(fit_glm, val, type = "response")
 
-res_glm <- nb(fit_glm, data = val, outcome = "day30",
+res_glm <- nb(predicted_risk = val$p_glm, data = val, outcome = "day30",
               thresholds = seq(0, 0.30, by = 0.01), label = "Logistic")
 res_glm
 ```
+
+The name of the column of `data` that holds the risks works too:
+`predicted_risk = "p_glm"` gives the same result.
+
+Instead of the risks, the fitted model can be given, as `model = fit_glm` or
+in place of the risks (`nb(fit_glm, val, "day30")`). voipred then predicts
+the risks from the model itself, once (part 3). The rest of this guide gives
+the models this way.
 
 The result has one row per threshold:
 
@@ -122,13 +137,14 @@ For the bayespred model the risk is the posterior mean of risk.
 
 | Argument | What it does |
 |---|---|
-| `model` | The fitted model. voipred gets the predicted risks from it (part 3). A vector of risks is not accepted. |
-| `data` | The validation sample. It must contain every covariate the model uses. |
+| `predicted_risk` | The predicted risks of the patients in `data`: a vector, one per row (e.g. `val$p_glm`), or the name of the column of `data` that holds them (`"p_glm"`). This is all the validation needs. |
+| `model` | Optional, instead of `predicted_risk`: the fitted model. voipred predicts the risks from it, once (part 3). Give either `predicted_risk` or `model`. |
+| `data` | The validation sample. With a `model`, it must contain every covariate the model uses. |
 | `outcome` | The binary outcome: a column name (`"day30"`), a vector, or a formula (`~ day30`); 0/1, logical, or a two-level factor. |
 | `thresholds` | Risk thresholds in [0, 1). Default `seq(0, 0.99, by = 0.01)`. A patient is treated when the risk is at or above the threshold. |
 | `weights` | Optional case weights, one per patient (sampling weights, or a bootstrap draw). |
-| `predict_function` | Optional: your own function that returns the predicted risks (part 3). |
-| `label` | Name of the model in printed output and plots. Default: the name of the model object. |
+| `predict_function` | Optional, with `model` only: your own function that returns the predicted risks (part 3). |
+| `label` | Name of the model in printed output and plots. Default: the name of the risks (e.g. `p_glm`) or of the model object. |
 
 See `?nb` for the details of each argument.
 
@@ -165,6 +181,9 @@ nb(fit_class, val, "day30")
 
 # predictions outside [0, 1] are not probabilities
 nb(lm(day30 ~ age + Killip, data = dev), val, "day30")
+
+# log-odds given as predicted risks are not probabilities either
+nb(predicted_risk = qlogis(val$p_glm), data = val, outcome = "day30")
 ```
 
 ## Options of `plot_dca()`
@@ -213,7 +232,9 @@ head(res_cox)
 ```
 
 The columns are the same as for a binary outcome; the event is "death by 5
-years". The prevalence is the estimated risk of death by 5 years.
+years". The prevalence is the estimated risk of death by 5 years. Predicted
+risks given with `predicted_risk` must be the risks of the event by the
+horizon (for competing risks, of the cause by the horizon).
 
 ## Plots
 
@@ -343,11 +364,11 @@ plot_dca(res_csc_cipcw, type = "delta")
 
 ## Models voipred supports
 
-voipred gets the predicted risks from the fitted model itself: the
-probability of the event (binary), of the event by the horizon (survival), or
-of the cause by the horizon (competing risks). For the following models this
-works without anything else, and each is tested against the model's own
-predictions:
+When the fitted model is given instead of the predicted risks, voipred
+predicts the risks from it, once: the probability of the event (binary), of
+the event by the horizon (survival), or of the cause by the horizon
+(competing risks). For the following models this works without anything
+else, and each is tested against the model's own predictions:
 
 - **Binary:** `glm` (logit, probit, cloglog), `logistf`, `mgcv::gam`,
   `earth`, `rpart`, `partykit::ctree`, `randomForest`, `ranger`
@@ -375,7 +396,9 @@ the risks are obtained.
 
 ## Any other model: `predict_function`
 
-For a model voipred cannot predict from, give `predict_function`: a function
+For a model voipred cannot predict from, either compute the risks yourself
+and give them with `predicted_risk`, or give the model with
+`predict_function`: a function
 of `(model, newdata, horizon, cause)` that returns one predicted risk per row
 of `newdata`. voipred calls it once, with `newdata = data`. It is optional:
 voipred uses its own route by default, and `predict_function` only when you
