@@ -101,8 +101,7 @@ evpi(res_b)
 
 - [Net benefit guide](vignettes/voipred_nb_guide.Rmd): binary, survival and
   competing-risks examples, predicted risks or a fitted model, Bayesian net
-  benefit, every option explained, plots, and the list of supported models
-  ([rendered HTML](reports/voipred_nb_guide.html)).
+  benefit, every option explained, plots, and the list of supported models.
 - [Tests and messages](reports/voipred_nb_tests_and_messages.pdf): every
   test (checked against `dcurves`, each modelling package's own predictions,
   predtools, the EVSI paper's code and bayesDCA) and every error and warning
