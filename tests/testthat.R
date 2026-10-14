@@ -1,4 +1,4 @@
 library(testthat)
-library(voipred)
+library(voipred.dev)
 
-test_check("voipred")
+test_check("voipred.dev")

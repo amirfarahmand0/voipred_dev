@@ -11,7 +11,7 @@
 
 <meta name="author" content="Amirhosein Farahmand Piruz" />
 
-<meta name="date" content="2026-10-08" />
+<meta name="date" content="2026-10-14" />
 
 <title>Net benefit and decision curves in a validation sample</title>
 
@@ -353,7 +353,7 @@ display: none;
 <h1 class="title toc-ignore">Net benefit and decision curves in a
 validation sample</h1>
 <h4 class="author">Amirhosein Farahmand Piruz</h4>
-<h4 class="date">October 08, 2026</h4>
+<h4 class="date">October 14, 2026</h4>
 
 </div>
 
@@ -394,8 +394,8 @@ risks</a></li>
 </ul>
 </div>
 
-<p>voipred evaluates a prediction model in a validation sample in two
-steps:</p>
+<p>voipred.dev evaluates a prediction model in a validation sample in
+two steps:</p>
 <ol style="list-style-type: decimal">
 <li><code>nb()</code> computes the net benefit of the model, of treating
 everyone and of treating no one, at each risk threshold;</li>
@@ -411,13 +411,17 @@ pages give the full details: <code>?nb</code>, <code>?plot_dca</code>,
 <code>?cipcw_control</code> and <code>?predict_risk</code>.</p>
 <div id="installation" class="section level2">
 <h2>Installation</h2>
-<p>voipred and bayespred are installed from GitHub; the other packages
-used in this vignette are on CRAN (survival and ggplot2 come with
-voipred):</p>
-<pre class="r"><code>install.packages(c(&quot;remotes&quot;, &quot;ranger&quot;, &quot;e1071&quot;, &quot;riskRegression&quot;, &quot;prodlim&quot;))
-remotes::install_github(&quot;amirfarahmand0/voipred_dev&quot;)   # voipred
-remotes::install_github(&quot;resplab/bayespred&quot;)            # bayespred</code></pre>
-<pre class="r"><code>library(voipred)
+<p>voipred.dev and bayespred are installed from GitHub; the other
+packages used in this vignette are on CRAN (survival and ggplot2 come
+with voipred.dev). Packages you already have are not installed again;
+voipred.dev is always reinstalled, to get its latest version:</p>
+<pre class="r"><code>pkgs &lt;- c(&quot;remotes&quot;, &quot;ranger&quot;, &quot;e1071&quot;, &quot;riskRegression&quot;, &quot;prodlim&quot;)
+new &lt;- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+if (length(new)) install.packages(new)
+if (!requireNamespace(&quot;bayespred&quot;, quietly = TRUE))
+  remotes::install_github(&quot;resplab/bayespred&quot;)
+remotes::install_github(&quot;amirfarahmand0/voipred_dev&quot;, force = TRUE)   # voipred.dev</code></pre>
+<pre class="r"><code>library(voipred.dev)
 library(survival)</code></pre>
 </div>
 <div id="part-1-binary-outcome" class="section level1">

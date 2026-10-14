@@ -6,7 +6,7 @@
 toy <- function(cls, ...) structure(list(...), class = cls)
 reg_predict <- function(cls, f) registerS3method("predict", cls, f)
 reg_method <- function(cls, f) registerS3method("predict_risk", cls, f,
-                                                envir = asNamespace("voipred"))
+                                                envir = asNamespace("voipred.dev"))
 reg_predictrisk <- function(cls, f) registerS3method("predictRisk", cls, f,
                                                      envir = asNamespace("riskRegression"))
 

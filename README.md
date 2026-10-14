@@ -1,12 +1,14 @@
-# voipred
+# voipred.dev
 
-Value of information (VoI) analysis for clinical prediction models.
+Value of information (VoI) analysis for clinical prediction models
+(development version of voipred).
 
 ## Installation
 
 ```r
 # install.packages("remotes")
 remotes::install_github("amirfarahmand0/voipred_dev")
+library(voipred.dev)
 ```
 
 ## Current scope
@@ -31,7 +33,7 @@ decision curve and the ΔNB curve, for one model or several together.
   and the validation data must contain every covariate the model uses.
 
 ```r
-library(voipred)
+library(voipred.dev)
 fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = gusto[1:5000, ])
 res <- nb(fit, gusto[5001:10000, ], outcome = "day30", thresholds = seq(0, 0.3, by = 0.01))
 plot_dca(res)

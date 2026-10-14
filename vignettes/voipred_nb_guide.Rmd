@@ -1,7 +1,7 @@
 ---
 title: "Net benefit and decision curves in a validation sample"
 author: "Amirhosein Farahmand Piruz"
-date: "`r format(Sys.Date(), '%B %d, %Y')`"
+date: "October 14, 2026"
 output:
   html_document:
     toc: yes
@@ -12,7 +12,7 @@ output:
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4.2)
 ```
 
-voipred evaluates a prediction model in a validation sample in two steps:
+voipred.dev evaluates a prediction model in a validation sample in two steps:
 
 1. `nb()` computes the net benefit of the model, of treating everyone and of
    treating no one, at each risk threshold;
@@ -29,17 +29,22 @@ give the full details: `?nb`, `?plot_dca`, `?cipcw_control` and
 
 ## Installation
 
-voipred and bayespred are installed from GitHub; the other packages used in
-this vignette are on CRAN (survival and ggplot2 come with voipred):
+voipred.dev and bayespred are installed from GitHub; the other packages used
+in this vignette are on CRAN (survival and ggplot2 come with voipred.dev).
+Packages you already have are not installed again; voipred.dev is always
+reinstalled, to get its latest version:
 
 ```{r install, eval = FALSE}
-install.packages(c("remotes", "ranger", "e1071", "riskRegression", "prodlim"))
-remotes::install_github("amirfarahmand0/voipred_dev")   # voipred
-remotes::install_github("resplab/bayespred")            # bayespred
+pkgs <- c("remotes", "ranger", "e1071", "riskRegression", "prodlim")
+new <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+if (length(new)) install.packages(new)
+if (!requireNamespace("bayespred", quietly = TRUE))
+  remotes::install_github("resplab/bayespred")
+remotes::install_github("amirfarahmand0/voipred_dev", force = TRUE)   # voipred.dev
 ```
 
 ```{r library}
-library(voipred)
+library(voipred.dev)
 library(survival)
 ```
 

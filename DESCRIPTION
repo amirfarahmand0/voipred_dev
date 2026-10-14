@@ -1,4 +1,4 @@
-Package: voipred
+Package: voipred.dev
 Title: Value of Information Analysis for Clinical Prediction Models
 Version: 0.0.1.9000
 Authors@R: c(

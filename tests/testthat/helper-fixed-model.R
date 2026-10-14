@@ -15,4 +15,4 @@ predict_risk.fixed_risk <- function(model, newdata, horizon = NULL, cause = NULL
   model$p
 }
 registerS3method("predict_risk", "fixed_risk", predict_risk.fixed_risk,
-                 envir = asNamespace("voipred"))
+                 envir = asNamespace("voipred.dev"))

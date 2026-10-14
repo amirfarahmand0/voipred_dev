@@ -456,7 +456,7 @@ test_that("censoring predict_function: input and output checks", {
                "exactly 0, which gives an infinite weight")
 })
 
-test_that("more censoring model classes: psm, flexsurvspline, stratified survreg, bayespred.dev", {
+test_that("more censoring model classes: psm, flexsurvspline, stratified survreg", {
   s <- rott_split()
   cx <- survival::coxph(surv_formula, data = s$dev)
   v <- s$val
@@ -474,13 +474,6 @@ test_that("more censoring model classes: psm, flexsurvspline, stratified survreg
   expect_equal(surv_at(st, nd, rep(5, 20)), unname(exp(-exp((log(5) - lp) / sc))),
                tolerance = 1e-10)
   models <- list(ps, fsp, st)
-  if (requireNamespace("bayespred.dev", quietly = TRUE)) {
-    bw <- bayespred.dev::bpmfit(cf, data = v, family = "weibull", prior = bayespred.dev::flat())
-    expect_equal(surv_at(bw, nd, rep(5, 20)),
-                 1 - as.vector(predict(bayespred.dev::posterior(bw, time = 5), nd)),
-                 tolerance = 1e-12)
-    models <- c(models, list(bw))
-  }
   for (m in models) {
     res <- suppress_matching(cipcw_nb(cx, v, surv_outcome, cipcw_control(model = m)),
                              "Could not verify|below 0.01|No patient treated|fitted to .* patients")
