@@ -7,9 +7,16 @@ Value of information (VoI) analysis for clinical prediction models
 
 ```r
 # install.packages("remotes")
-remotes::install_github("amirfarahmand0/voipred_dev")
+remotes::install_github("amirfarahmand0/voipred_dev", upgrade = "never")
 library(voipred.dev)
 ```
+
+`upgrade = "never"` installs only the missing dependencies and does not stop
+to offer updates of packages you already have. voipred.dev needs
+riskRegression 2026.3.11 or later: if yours is older, update it first with
+`install.packages("riskRegression")`. The
+[guide](vignettes/voipred_nb_guide.Rmd) has an installation script that
+also installs the packages its examples use.
 
 ## Current scope
 

@@ -38,18 +38,36 @@ give the full details: `?nb`, `?plot_dca`, `?cipcw_control`,
 
 voipred.dev and bayespred are installed from GitHub; the other packages used
 in this vignette are on CRAN (survival and ggplot2 come with voipred.dev).
-plotly (interactive plots) and patchwork (EVPI and EVSI in a panel below the
-decision curve) are optional: voipred.dev asks for them only when they are
-used. Packages you already have are not installed again; voipred.dev is
-always reinstalled, to get its latest version:
+plotly (interactive plots), patchwork (EVPI and EVSI in a panel below the
+decision curve) and mvtnorm (asymptotic EVPI) are optional: voipred.dev asks
+for them only when they are used.
+
+The code below installs what is missing (or too old) and nothing else, and
+asks nothing in the console: it sets the CRAN mirror, installs into your
+personal library, uses binary packages where they exist (no "install from
+sources?" question), and does not offer to update packages you already have.
+voipred.dev is always reinstalled, to get its latest version:
 
 ```{r install, eval = FALSE}
-pkgs <- c("remotes", "ranger", "e1071", "riskRegression", "prodlim", "plotly", "patchwork")
-new <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
-if (length(new)) install.packages(new)
+options(repos = c(CRAN = "https://cloud.r-project.org"),
+        install.packages.compile.from.source = "never")
+lib <- Sys.getenv("R_LIBS_USER")
+dir.create(lib, recursive = TRUE, showWarnings = FALSE)
+.libPaths(c(lib, .libPaths()))
+
+# CRAN packages, with the minimum versions voipred.dev needs
+pkgs <- c(remotes = "0", ranger = "0", e1071 = "0", prodlim = "0", plotly = "0",
+          patchwork = "0", mvtnorm = "0", insight = "0", Rcpp = "0",
+          ggplot2 = "3.4.0", riskRegression = "2026.3.11")
+missing_or_old <- function(p)
+  !requireNamespace(p, quietly = TRUE) || utils::packageVersion(p) < pkgs[[p]]
+new <- names(pkgs)[vapply(names(pkgs), missing_or_old, logical(1))]
+if (length(new)) install.packages(new, lib = lib)
+
 if (!requireNamespace("bayespred", quietly = TRUE))
-  remotes::install_github("resplab/bayespred")
-remotes::install_github("amirfarahmand0/voipred_dev", force = TRUE)   # voipred.dev
+  remotes::install_github("resplab/bayespred", upgrade = "never", lib = lib)
+remotes::install_github("amirfarahmand0/voipred_dev", force = TRUE,   # voipred.dev
+                        upgrade = "never", lib = lib)
 ```
 
 ```{r library}
