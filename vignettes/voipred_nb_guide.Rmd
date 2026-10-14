@@ -1,5 +1,5 @@
 ---
-title: "Net benefit, decision curves and value of information in a validation sample"
+title: "Net benefit and decision curves in a validation sample"
 author: "Amirhosein Farahmand Piruz"
 date: "October 14, 2026"
 output:
@@ -12,17 +12,13 @@ output:
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4.2)
 ```
 
-voipred.dev evaluates a prediction model in a validation sample in three
-steps:
+voipred.dev evaluates a prediction model in a validation sample in two steps:
 
 1. `nb()` computes, from the predicted risks of the validation patients, the
    net benefit of the model, of treating everyone and of treating no one, at
    each risk threshold;
 2. `plot_dca()` draws the decision curve, or the gain of the model over the
-   best default strategy ($\Delta NB$);
-3. the value-of-information functions measure how much the uncertainty of a
-   finite validation sample matters: `evpi()`, `evsi()`, `p_useful()` and
-   `p_best()`, with their plots.
+   best default strategy ($\Delta NB$).
 
 The outcome decides the analysis: a binary outcome (part 1), or a survival or
 competing-risks outcome (part 2). Part 3 lists the models voipred can
@@ -31,16 +27,15 @@ and shows how to use any other model.
 
 This vignette explains each option briefly, with examples. The help pages
 give the full details: `?nb`, `?plot_dca`, `?cipcw_control`,
-`?predict_risk`, `?nb_priors`, `?evpi`, `?evsi`, `?p_useful`, `?p_best`,
-`?plot_evpi`, `?plot_evsi`, `?plot_p_useful` and `?plot_p_best`.
+`?predict_risk` and `?nb_priors`.
 
 ## Installation
 
 voipred.dev and bayespred are installed from GitHub; the other packages used
 in this vignette are on CRAN (survival and ggplot2 come with voipred.dev).
-plotly (interactive plots), patchwork (EVPI and EVSI in a panel below the
-decision curve) and mvtnorm (asymptotic EVPI) are optional: voipred.dev asks
-for them only when they are used.
+voipred.dev has compiled (C++) code, so installing it needs a C++ compiler:
+Rtools on Windows, the Xcode command line tools on macOS
+(`xcode-select --install`); Linux has one already.
 
 The code below installs what is missing (or too old) and nothing else, and
 asks nothing in the console: it sets the CRAN mirror, installs into your
@@ -56,9 +51,8 @@ dir.create(lib, recursive = TRUE, showWarnings = FALSE)
 .libPaths(c(lib, .libPaths()))
 
 # CRAN packages, with the minimum versions voipred.dev needs
-pkgs <- c(remotes = "0", ranger = "0", e1071 = "0", prodlim = "0", plotly = "0",
-          patchwork = "0", mvtnorm = "0", insight = "0", Rcpp = "0",
-          ggplot2 = "3.4.0", riskRegression = "2026.3.11")
+pkgs <- c(remotes = "0", ranger = "0", e1071 = "0", prodlim = "0", insight = "0",
+          Rcpp = "0", ggplot2 = "3.4.0", riskRegression = "2026.3.11")
 missing_or_old <- function(p)
   !requireNamespace(p, quietly = TRUE) || utils::packageVersion(p) < pkgs[[p]]
 new <- names(pkgs)[vapply(names(pkgs), missing_or_old, logical(1))]
@@ -96,7 +90,9 @@ mean(val$day30)   # prevalence in the validation sample
 
 `nb()` needs only the predicted risks of the validation patients, given with
 `predicted_risk`: one risk per row of `data`. They can come from any model or
-software.
+software, so the model object is not needed: when it is not available (e.g.
+a published model given as coefficients, or risks computed in other
+software), `predicted_risk` is all you need.
 
 ```{r glm}
 fit_glm <- glm(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
@@ -194,7 +190,38 @@ colnames(draws) <- paste("z =", z)
 round(draws, 4)
 ```
 
-**Checks.** voipred stops with a clear message when the risks cannot be
+## Bayesian net benefit
+
+With `bayesian = TRUE`, `nb()` gives the Bayesian net benefit of bayesDCA
+(binary outcome only): the prevalence, and the sensitivity and specificity
+of the model at each threshold, have conjugate Beta posteriors, and the net
+benefit columns are the posterior means,
+$E[\pi] E[Se] - (1 - E[\pi])(1 - E[Sp]) \frac{z}{1-z}$ for the model and
+$E[\pi] - (1 - E[\pi]) \frac{z}{1-z}$ for treating everyone. The prior is
+`nb_uniform()` (Beta(1, 1) for all three, the default), `nb_jeffreys()`
+(Beta(0.5, 0.5)) or your own with `nb_beta()`:
+
+```{r bayes-nb}
+res_glm_b <- nb(predicted_risk = val$p_glm, data = val, outcome = "day30",
+                thresholds = seq(0, 0.30, by = 0.01), bayesian = TRUE,
+                label = "Logistic")
+head(res_glm_b)
+plot_dca(res_glm_b)
+
+# Jeffreys prior, or your own Beta priors (here for the prevalence only)
+nb(predicted_risk = val$p_glm, data = val, outcome = "day30",
+   thresholds = c(0.05, 0.1), bayesian = TRUE, prior = nb_jeffreys())
+nb_beta(prevalence = c(2, 20))
+```
+
+With 5000 patients the posterior means are close to the ordinary estimates;
+the prior matters more in small samples. Bayesian and ordinary results are
+different estimates, so `plot_dca()` does not draw them together. Case
+weights cannot be used with `bayesian = TRUE`.
+
+## Checks
+
+voipred stops with a clear message when the risks cannot be
 right. Some examples:
 
 ```{r checks, error = TRUE}
@@ -220,8 +247,6 @@ nb(predicted_risk = qlogis(val$p_glm), data = val, outcome = "day30")
 | `x`, `...` | One or more results of `nb()`. Results drawn together must come from the same data, outcome and thresholds (voipred checks this). |
 | `type` | `"nb"`: decision curve with Treat All and Treat None (default). `"delta"`: $\Delta NB$ of each model, with a dashed line at 0. |
 | `labels` | Names of the curves, one per result. Default: the `label` of each result. |
-| `evpi`, `evsi` | Optional results of `evpi()` and `evsi()`, drawn in a panel below the decision curve (see "Value of information"). The static version needs patchwork. |
-| `interactive` | `TRUE` for an interactive plot (needs plotly). Default `FALSE`. |
 
 See `?plot_dca` for details. The plot is a ggplot object, so it can be
 changed with `+` or saved with `ggplot2::ggsave()`:
@@ -230,177 +255,6 @@ changed with `+` or saved with `ggplot2::ggsave()`:
 p <- plot_dca(res_glm, res_rf, labels = c("Logistic regression", "Forest"))
 p + ggplot2::coord_cartesian(xlim = c(0, 0.2), ylim = c(-0.005, 0.07))
 ```
-
-## Interactive plots
-
-Every plot function of voipred takes `interactive = TRUE`, for an
-interactive (plotly) version of the same plot: hovering shows the values of
-all the curves at that threshold, and clicking a legend entry hides or shows
-its curve.
-
-```{r interactive}
-plot_dca(res_glm, res_rf, res_bpm, interactive = TRUE)
-plot_dca(res_glm, res_rf, res_bpm, type = "delta", interactive = TRUE)
-```
-
-## Bayesian net benefit
-
-With `bayesian = TRUE`, `nb()` gives the Bayesian net benefit of bayesDCA
-(binary outcome only): the prevalence, the sensitivity and the specificity
-of the model at each threshold have conjugate Beta posteriors, and the net
-benefit columns are the posterior means. The prior is `nb_uniform()`
-(Beta(1, 1), the default), `nb_jeffreys()` (Beta(0.5, 0.5)) or your own
-with `nb_beta()`:
-
-```{r bayes-nb}
-res_glm_b <- nb(predicted_risk = val$p_glm, data = val, outcome = "day30",
-                thresholds = seq(0, 0.30, by = 0.01), bayesian = TRUE,
-                label = "Logistic")
-head(res_glm_b)
-
-nb_beta(prevalence = c(2, 20))   # a prior for the prevalence, uniform for the rest
-```
-
-With 5000 patients the posterior means are close to the ordinary estimates.
-The difference is in the uncertainty: the value-of-information functions
-below draw from the posterior of a Bayesian result.
-
-## Value of information
-
-The net benefit of a validation sample is an estimate, so the strategy that
-looks best may not be the best. The value-of-information functions measure
-how much this uncertainty matters (Sadatsafavi et al. 2023, 2025):
-
-- `evpi()`: the expected value of perfect information, the expected loss in
-  net benefit from not knowing which strategy (each model, treat all, treat
-  none) is best. It is in net benefit units; 0 means the best strategy is
-  certain. The relative EVPI is the gain from perfect information relative to
-  the gain from using the model now.
-- `evsi()`: the expected value of sample information, the expected gain from
-  a future validation study of a given size. It is between 0 and EVPI.
-- `p_useful()`: the probability that a model is better than both treat all
-  and treat none ($\Delta NB > 0$).
-- `p_best()`: the probability that each strategy is the best.
-
-They take one or more results of `nb()` for the same data, outcome and
-thresholds. The uncertainty is represented by `n_sim` draws (default 1000):
-a Bayesian bootstrap (`method = "bayesian"`, the default) or an ordinary
-bootstrap (`method = "ordinary"`) of the validation sample, in which the net
-benefit of every strategy is recomputed with the same estimator as `nb()`.
-The predicted risks stay fixed.
-
-The uncertainty is small with 5000 patients, so here we use a validation
-sample of 500, the size of the case study of Sadatsafavi et al. (2023):
-
-```{r voi-data}
-small <- val[1:500, ]
-z <- seq(0.01, 0.30, by = 0.01)
-v_glm <- nb(predicted_risk = small$p_glm, data = small, outcome = "day30",
-            thresholds = z, label = "Logistic")
-v_rf  <- nb(fit_rf, small, "day30", thresholds = z, label = "Random forest")
-```
-
-### EVPI
-
-```{r evpi}
-set.seed(10)
-e <- evpi(v_glm, v_rf)
-head(e)
-plot_evpi(e)
-plot_evpi(e, type = "relative")
-```
-
-`ENB_current` is the expected net benefit of the strategy that is best on
-average, and `ENB_perfect` the expected net benefit if the best strategy
-were known in each draw. A relative EVPI of 1.2 means that perfect
-information would give 20% more net benefit than using the best model now.
-
-### P(useful) and P(best)
-
-```{r p-useful}
-set.seed(10)
-pu <- p_useful(v_glm, v_rf)
-head(pu)
-plot_p_useful(pu)
-
-set.seed(10)
-pb <- p_best(v_glm, v_rf)
-plot_p_best(pb)
-```
-
-`evpi()`, `p_useful()` and `p_best()` called with the same seed (and the same
-results, `n_sim` and `method`) use the same draws.
-
-### EVSI
-
-`future_n` gives the sizes of the future validation study:
-
-```{r evsi}
-set.seed(11)
-o <- evsi(v_glm, v_rf, future_n = c(250, 500, 1000, 2000, 4000))
-head(o)
-plot_evsi(o[round(o$threshold, 2) %in% c(0.02, 0.05, 0.1, 0.2), ])
-```
-
-`plot_evsi()` draws EVSI against the future sample size, one curve per
-threshold (here four of them), with the EVPI of that threshold as a dashed
-line: EVSI approaches EVPI as the future sample grows. Comparing EVSI,
-multiplied by the number of patients the decision concerns, with the cost of
-the study helps decide whether more validation data are worth collecting.
-
-### The decision curve with EVPI and EVSI
-
-`plot_dca()` draws EVPI and EVSI (one curve per future sample size) in a
-panel below the decision curve:
-
-```{r dca-voi, fig.height = 6.5}
-plot_dca(v_glm, v_rf, evpi = e, evsi = o)
-plot_dca(v_glm, v_rf, evpi = e, evsi = o, interactive = TRUE)
-```
-
-### Methods
-
-`method = "ordinary"` uses the ordinary bootstrap instead of the Bayesian
-bootstrap. For one model and a binary outcome, `evpi()` also has
-`method = "asymptotic"`, a closed form that needs no draws (and the mvtnorm
-package):
-
-```{r voi-methods}
-set.seed(10)
-head(evpi(v_glm, v_rf, method = "ordinary"), 3)
-head(evpi(v_glm, method = "asymptotic"), 3)
-```
-
-For Bayesian results (`nb(bayesian = TRUE)`), the draws are from the
-posterior of the prevalence, sensitivity and specificity instead (as in
-bayesDCA), and `method` is not used. Several models are drawn jointly, so
-their correlation on the same patients is kept. `evsi()` then uses the
-conjugate algorithm of Sadatsafavi et al. (2025):
-
-```{r voi-bayes}
-b_glm <- nb(predicted_risk = small$p_glm, data = small, outcome = "day30",
-            thresholds = z, bayesian = TRUE, label = "Logistic")
-set.seed(12)
-e_b <- evpi(b_glm)
-set.seed(13)
-o_b <- evsi(b_glm, future_n = c(250, 500, 1000, 2000, 4000))
-plot_dca(b_glm, evpi = e_b, evsi = o_b)
-```
-
-The options of the value-of-information functions:
-
-| Argument | What it does |
-|---|---|
-| `x`, `...` | One or more results of `nb()`, for models evaluated on the same data, outcome and thresholds (and horizon, cause and censoring). A named result is labelled with its name. |
-| `n_sim` | Number of draws. Default 1000. |
-| `method` | `"bayesian"` (Bayesian bootstrap, default) or `"ordinary"` (ordinary bootstrap); `evpi()` also `"asymptotic"`. Not used for Bayesian results. |
-| `future_n` | `evsi()` only: the sizes of the future validation sample. |
-| `labels` | Optional names of the models, one per result. |
-
-The plot functions `plot_evpi()` (with `type = "evpi"` or `"relative"`),
-`plot_evsi()`, `plot_p_useful()` and `plot_p_best()` all take
-`interactive = TRUE`. See `?evpi`, `?evsi`, `?p_useful` and `?p_best` for
-the details.
 
 # Part 2: survival outcome
 
@@ -507,7 +361,6 @@ The options of `cipcw_control()`:
 |---|---|
 | `model` | A survival model fitted to the censoring times of the validation data: any of the survival models voipred supports (part 3). |
 | `predict_function` | Optional: your own function giving the probability of remaining uncensored, for a censoring model voipred cannot predict from. |
-| `refit_function` | Optional: your own function that refits the censoring model with case weights, used by the value-of-information functions (see below). |
 | `weight_event`, `weight_horizon` | Instead of a model: the censoring weights themselves, e.g. from a cross-fitted flexible model. |
 | `min_prob` | Optional truncation of small censoring probabilities (large weights). Off by default. |
 | `ties` | `"left"` (default) or `"right"`: whether a censoring at exactly a patient's own time counts. |
@@ -560,56 +413,6 @@ res_csc_cipcw <- nb(fit_csc, sval, ~ Surv(cr_time, cr_status), horizon = 5,
 plot_dca(res_csc_cipcw)
 plot_dca(res_csc_cipcw, type = "delta")
 ```
-
-## Value of information
-
-The value-of-information functions work for survival and competing-risks
-outcomes in the same way, with the same estimator as `nb()` (Kaplan-Meier,
-Aalen-Johansen or cIPCW) in every draw:
-
-```{r surv-voi, fig.height = 6.5}
-set.seed(20)
-e_s <- evpi(res_cox, res_aft)
-set.seed(21)
-o_s <- evsi(res_cox, res_aft, future_n = c(500, 1000, 2000, 4000))
-plot_dca(res_cox, res_aft, evpi = e_s, evsi = o_s)
-
-set.seed(22)
-plot_p_best(p_best(res_csc))
-```
-
-With `censoring = "cipcw"`, the censoring model is refitted in every draw,
-so the uncertainty of the censoring weights is included. This is automatic
-for `coxph`, `survreg`, `rms::cph`, `rms::psm`, `flexsurvreg` and `prodlim`
-censoring models:
-
-```{r surv-voi-cipcw}
-set.seed(23)
-e_c <- evpi(res_cipcw, n_sim = 500)
-e_c[seq(11, 51, by = 10), ]   # thresholds 0.1, 0.2, ..., 0.5
-```
-
-For any other censoring model, give `refit_function` in `cipcw_control()`: a
-`function(data, weights)` that returns the censoring model fitted to `data`
-with case weights `weights`. (With `method = "ordinary"`, a model that does
-not take case weights is refitted to the resampled patients instead.)
-Censoring weights given directly cannot be refitted, so they can be used in
-`nb()` but not in the value-of-information functions.
-
-```{r surv-voi-refit}
-cipcw_rf <- cipcw_control(
-  model = cens,
-  refit_function = function(data, weights)
-    coxph(Surv(years, death == 0) ~ age + nodes + grade, data = data, weights = weights))
-res_cipcw2 <- nb(fit_cox, sval, ~ Surv(years, death), horizon = 5,
-                 thresholds = seq(0, 0.6, by = 0.01),
-                 censoring = "cipcw", cipcw = cipcw_rf, label = "Cox")
-set.seed(23)
-evpi(res_cipcw2, n_sim = 500)[seq(11, 51, by = 10), ]
-```
-
-Here the refit is the same as voipred's own refit of a `coxph` model, so the
-results are the same.
 
 # Part 3: which models work
 

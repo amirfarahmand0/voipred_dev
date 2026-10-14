@@ -99,10 +99,9 @@ evpi(res_b)
 
 ## Documentation
 
-- [Guide](vignettes/voipred_nb_guide.Rmd): binary, survival and
-  competing-risks examples of the net benefit, Bayesian net benefit, value of
-  information (EVPI, EVSI, P(useful), P(best)), static and interactive plots,
-  every option explained, and the list of supported models
+- [Net benefit guide](vignettes/voipred_nb_guide.Rmd): binary, survival and
+  competing-risks examples, predicted risks or a fitted model, Bayesian net
+  benefit, every option explained, plots, and the list of supported models
   ([rendered HTML](reports/voipred_nb_guide.html)).
 - [Tests and messages](reports/voipred_nb_tests_and_messages.pdf): every
   test (checked against `dcurves`, each modelling package's own predictions,
