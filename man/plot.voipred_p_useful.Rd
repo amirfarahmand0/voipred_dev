@@ -22,11 +22,15 @@ The plot of a result of \code{\link[=p_useful]{p_useful()}}: P(useful) against t
 curve per model, in the colours of \code{\link[=plot.voipred_nb]{plot.voipred_nb()}}.
 }
 \examples{
-dev <- gusto[1:5000, ]
-val <- gusto[5001:5500, ]
-fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-val$p <- predict(fit, val, type = "response")
-res <- nb(val, val$p, "day30", thresholds = seq(0.01, 0.3, by = 0.01))
+df_dev_binary <- gusto[1:5000, ]
+df_val_binary <- gusto[5001:5500, ]
+fit <- glm(day30 ~ age + Killip + sysbp + pulse,
+           family = binomial, data = df_dev_binary)
+df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
+res <- nb(data = df_val_binary,
+          predicted_risk = df_val_binary$p,
+          outcome = "day30",
+          thresholds = seq(0.01, 0.3, by = 0.01))
 set.seed(1)
 plot(p_useful(res, n_sim = 500))
 }

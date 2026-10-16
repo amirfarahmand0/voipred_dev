@@ -1,8 +1,9 @@
-# The prior of nb(): the net benefit is the posterior mean of the conjugate
-# Beta model of bayesDCA (binary outcome); the default improper prior,
-# Beta(0, 0), gives exactly the frequentist net benefit.
+# The prior of nb(): by default (improper prior, Beta(0, 0)) the data only,
+# which gives exactly the usual net benefit; with another prior (binary
+# outcome) the net benefit is the posterior mean of the conjugate Beta model
+# of bayesDCA.
 
-test_that("the net benefit is the posterior mean of the Beta model", {
+test_that("with another prior, the net benefit is the posterior mean of the Beta model", {
   g <- gusto_split()
   f <- glm(gusto_formula, family = binomial, data = g$dev)
   val <- g$val

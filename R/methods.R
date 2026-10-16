@@ -27,11 +27,15 @@
 #'   observed proportions with the default improper prior).
 #' @seealso [nb()], [plot.voipred_nb()]
 #' @examples
-#' dev <- gusto[1:5000, ]
-#' val <- gusto[5001:5500, ]
-#' fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-#' val$p <- predict(fit, val, type = "response")
-#' res <- nb(val, val$p, "day30", thresholds = seq(0.01, 0.3, by = 0.01))
+#' df_dev_binary <- gusto[1:5000, ]
+#' df_val_binary <- gusto[5001:5500, ]
+#' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
+#'            family = binomial, data = df_dev_binary)
+#' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
+#' res <- nb(data = df_val_binary,
+#'           predicted_risk = df_val_binary$p,
+#'           outcome = "day30",
+#'           thresholds = seq(0.01, 0.3, by = 0.01))
 #' res
 #' summary(res)
 #' summary(res, thresholds = c(0.05, 0.1, 0.2))
@@ -122,15 +126,24 @@ as.data.frame.voipred_nb <- function(x, row.names = NULL, optional = FALSE, ...)
 #'   `as.data.frame()`: the `estimates` data frame.
 #' @seealso [p_useful()], [p_best()], [evpi()], [evsi()]
 #' @examples
-#' dev <- gusto[1:5000, ]
-#' val <- gusto[5001:5500, ]
-#' fit1 <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-#' val$p1 <- predict(fit1, val, type = "response")
-#' fit2 <- glm(day30 ~ age, family = binomial, data = dev)
-#' val$p2 <- predict(fit2, val, type = "response")
+#' df_dev_binary <- gusto[1:5000, ]
+#' df_val_binary <- gusto[5001:5500, ]
+#' fit1 <- glm(day30 ~ age + Killip + sysbp + pulse,
+#'             family = binomial, data = df_dev_binary)
+#' df_val_binary$p1 <- predict(fit1, newdata = df_val_binary, type = "response")
+#' fit2 <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
+#' df_val_binary$p2 <- predict(fit2, newdata = df_val_binary, type = "response")
 #' z <- seq(0.01, 0.3, by = 0.01)
-#' res1 <- nb(val, val$p1, "day30", thresholds = z, label = "Full")
-#' res2 <- nb(val, val$p2, "day30", thresholds = z, label = "Age only")
+#' res1 <- nb(data = df_val_binary,
+#'            predicted_risk = df_val_binary$p1,
+#'            outcome = "day30",
+#'            thresholds = z,
+#'            label = "Full")
+#' res2 <- nb(data = df_val_binary,
+#'            predicted_risk = df_val_binary$p2,
+#'            outcome = "day30",
+#'            thresholds = z,
+#'            label = "Age only")
 #' set.seed(1)
 #' e <- evpi(res1, res2)
 #' e

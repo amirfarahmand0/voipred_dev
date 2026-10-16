@@ -144,16 +144,31 @@ as given.
 library(survival)
 rott <- rotterdam
 rott$years <- rott$dtime / 365.25
-cox <- coxph(Surv(years, death) ~ age + size + nodes + grade, data = rott[1:1500, ])
-val <- rott[1501:2982, ]
-val$p5 <- 1 - summary(survfit(cox, newdata = val), times = 5)$surv[1, ]
+df_dev_survival <- rott[1:1500, ]
+df_val_survival <- rott[1501:2982, ]
+cox <- coxph(Surv(years, death) ~ age + size + nodes + grade,
+             data = df_dev_survival)
+# the predicted risks of death by 5 years
+sf <- survfit(cox, newdata = df_val_survival)
+df_val_survival$p5 <- 1 - summary(sf, times = 5)$surv[1, ]
 
 # the censoring model: fitted on the validation data, censoring as the event
-cens_fit <- coxph(Surv(years, death == 0) ~ age + nodes + grade, data = val)
-nb(val, val$p5, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3),
-   censoring = "cipcw", cipcw = cipcw_control(model = cens_fit))
+cens_fit <- coxph(Surv(years, death == 0) ~ age + nodes + grade,
+                  data = df_val_survival)
+nb(data = df_val_survival,
+   predicted_risk = df_val_survival$p5,
+   outcome = ~ Surv(years, death),
+   horizon = 5,
+   thresholds = c(0.1, 0.2, 0.3),
+   censoring = "cipcw",
+   cipcw = cipcw_control(model = cens_fit))
 
 # truncating small probabilities of remaining uncensored
-nb(val, val$p5, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3),
-   censoring = "cipcw", cipcw = cipcw_control(model = cens_fit, min_prob = 0.05))
+nb(data = df_val_survival,
+   predicted_risk = df_val_survival$p5,
+   outcome = ~ Surv(years, death),
+   horizon = 5,
+   thresholds = c(0.1, 0.2, 0.3),
+   censoring = "cipcw",
+   cipcw = cipcw_control(model = cens_fit, min_prob = 0.05))
 }

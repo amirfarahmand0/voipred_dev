@@ -26,6 +26,10 @@ competing-risks outcome (part 2). Only the predicted risks are needed, and
 this guide gives them that way throughout. Giving the fitted model instead,
 which is optional, is explained once for each part.
 
+The value-of-information functions (`p_useful()`, `p_best()`, `evpi()`,
+`evsi()`), which take the results of `nb()`, are in a separate guide,
+`voipred_voi_guide.Rmd`.
+
 This vignette explains each option briefly, with examples. The help pages
 give the full details: `?nb`, `?summary.voipred_nb`, `?plot.voipred_nb`,
 `?cipcw_control` and `?nb_priors`.
@@ -81,10 +85,10 @@ them on a separate validation sample.
 ```{r data}
 set.seed(1)
 i   <- sample(nrow(gusto))
-dev <- gusto[i[1:5000], ]
-val <- gusto[i[5001:10000], ]
+df_dev_binary <- gusto[i[1:5000], ]
+df_val_binary <- gusto[i[5001:10000], ]
 
-mean(val$day30)   # prevalence in the validation sample
+mean(df_val_binary$day30)   # prevalence in the validation sample
 ```
 
 ## Net benefit of one model
@@ -96,18 +100,25 @@ coefficients, or risks computed in other software).
 
 ```{r glm}
 fit_glm <- glm(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
-               family = binomial, data = dev)
-val$p_glm <- predict(fit_glm, val, type = "response")
+               family = binomial, data = df_dev_binary)
+df_val_binary$p_glm <- predict(fit_glm, newdata = df_val_binary, type = "response")
 
-res_glm <- nb(val, predicted_risk = val$p_glm, outcome = "day30",
-              thresholds = seq(0, 0.30, by = 0.01), label = "Logistic")
-res_glm
+res_glm <- nb(data = df_val_binary,
+              predicted_risk = df_val_binary$p_glm,
+              outcome = "day30",
+              thresholds = seq(0, 0.30, by = 0.01),
+              label = "Logistic")
 ```
 
-The name of the column of `data` that holds the risks works too:
-`nb(val, "p_glm", "day30")` gives the same result.
+**`print()`** shows what was evaluated (the model, the outcome, the number
+of patients and events, and the prior) and the first rows of the table
+(`print(res_glm, n = 30)` shows more):
 
-Printing the result shows what was evaluated and the first rows of its
+```{r print-glm}
+print(res_glm)
+```
+
+The table what was evaluated and the first rows of its
 table, which has one row per threshold:
 
 - `NB_model`: net benefit of treating the patients whose predicted risk is at
@@ -122,12 +133,55 @@ whole table is `res_glm$estimates` (or `as.data.frame(res_glm)`), and
 `res_glm$risk`, `res_glm$outcome` and `res_glm$counts` hold the predicted
 risks, the outcome and the counts of true and false positives and negatives.
 `summary()` gives the best strategy along the thresholds, and, at each
-threshold, the sensitivity and specificity of the model and the best
-strategy (`summary(res_glm, thresholds = c(0.05, 0.1))` for chosen
-thresholds):
+**`summary()`** gives the best strategy along the thresholds and the
+largest gain of the model, and, at each threshold, the sensitivity and
+specificity of the model and the best strategy; `thresholds` picks some:
 
 ```{r summary-glm}
 summary(res_glm)
+summary(res_glm, thresholds = c(0.05, 0.1, 0.2))
+```
+
+## All the ways to give the risks and the binary outcome
+
+**`predicted_risk =`** takes the risks as
+
+- a numeric vector, one risk per row of `data`: `predicted_risk = df_val_binary$p_glm`;
+- or the name of the column of `data` that holds them: `predicted_risk = "p_glm"`.
+
+**`outcome =`** takes the binary outcome as
+
+- the name of a column of `data`: `outcome = "day30"`;
+- a one-sided formula, evaluated in `data`: `outcome = ~ day30`;
+- a vector, one value per row of `data`: `outcome = df_val_binary$day30`.
+
+The values can be coded 0/1 (1 is the event), logical (`TRUE` is the event),
+or a two-level factor (the event is level `"1"` if there is one, otherwise
+the second level). All of these give the same result:
+
+```{r binary-inputs}
+z <- seq(0, 0.30, by = 0.01)
+df_val_binary$died    <- df_val_binary$day30 == 1                       # logical
+df_val_binary$status  <- factor(df_val_binary$day30, levels = 0:1,      # factor: the
+                                labels = c("alive", "dead"))           # event is "dead"
+
+r_vector  <- nb(data = df_val_binary, predicted_risk = df_val_binary$p_glm,
+                outcome = "day30", thresholds = z)
+r_column  <- nb(data = df_val_binary, predicted_risk = "p_glm",
+                outcome = "day30", thresholds = z)
+r_formula <- nb(data = df_val_binary, predicted_risk = "p_glm",
+                outcome = ~ day30, thresholds = z)
+r_outvec  <- nb(data = df_val_binary, predicted_risk = "p_glm",
+                outcome = df_val_binary$day30, thresholds = z)
+r_logical <- nb(data = df_val_binary, predicted_risk = "p_glm",
+                outcome = "died", thresholds = z)
+r_factor  <- nb(data = df_val_binary, predicted_risk = "p_glm",
+                outcome = "status", thresholds = z)
+
+same <- function(a, b) isTRUE(all.equal(a$estimates, b$estimates))
+c(column = same(r_column, r_vector), formula = same(r_formula, r_vector),
+  vector = same(r_outvec, r_vector), logical = same(r_logical, r_vector),
+  factor = same(r_factor, r_vector))
 ```
 
 ## Plots
@@ -147,16 +201,23 @@ the results to `plot()`:
 
 ```{r compare}
 fit_rf <- ranger::ranger(factor(day30) ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
-                         data = dev, probability = TRUE, num.trees = 500, seed = 1)
-val$p_rf <- predict(fit_rf, val)$predictions[, "1"]
-res_rf <- nb(val, val$p_rf, "day30", thresholds = seq(0, 0.30, by = 0.01),
+                         data = df_dev_binary, probability = TRUE, num.trees = 500, seed = 1)
+df_val_binary$p_rf <- predict(fit_rf, df_val_binary)$predictions[, "1"]
+res_rf <- nb(data = df_val_binary,
+             predicted_risk = df_val_binary$p_rf,
+             outcome = "day30",
+             thresholds = seq(0, 0.30, by = 0.01),
              label = "Random forest")
 
 library(bayespred)
 fit_bpm <- bpmfit(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
-                  data = dev, prior = log_f(m = 2))
-val$p_bpm <- predict(fit_bpm, val, type = "response")   # posterior mean of risk
-res_bpm <- nb(val, val$p_bpm, "day30", thresholds = seq(0, 0.30, by = 0.01),
+                  data = df_dev_binary, prior = log_f(m = 2))
+# the risk is the posterior mean of risk
+df_val_binary$p_bpm <- predict(fit_bpm, newdata = df_val_binary, type = "response")
+res_bpm <- nb(data = df_val_binary,
+              predicted_risk = df_val_binary$p_bpm,
+              outcome = "day30",
+              thresholds = seq(0, 0.30, by = 0.01),
               label = "Bayesian logistic")
 
 plot(res_glm, res_rf, res_bpm)
@@ -168,11 +229,11 @@ plot(res_glm, res_rf, res_bpm, type = "delta")
 | Argument | What it does |
 |---|---|
 | `data` | The validation sample (first argument). |
-| `predicted_risk` | The predicted risks of the patients in `data`: a vector, one per row (e.g. `val$p_glm`), or the name of the column of `data` that holds them (`"p_glm"`). This is all the validation needs. |
+| `predicted_risk` | The predicted risks of the patients in `data`: a vector, one per row (e.g. `df_val_binary$p_glm`), or the name of the column of `data` that holds them (`"p_glm"`). This is all the validation needs. |
 | `outcome` | The binary outcome: a column name (`"day30"`), a vector, or a formula (`~ day30`); 0/1, logical, or a two-level factor. |
 | `thresholds` | Risk thresholds in [0, 1). Default `seq(0, 0.99, by = 0.01)`. A patient is treated when the risk is at or above the threshold. |
 | `weights` | Optional case weights, one per patient (sampling weights, or a bootstrap draw). Only with the default prior. |
-| `prior` | The prior of the Bayesian net benefit (see below): `nb_improper()` (default, the usual net benefit), `nb_uniform()`, `nb_jeffreys()` or your own Beta priors with `nb_beta()`. |
+| `prior` | Default `nb_improper()`: no prior information, the data only, which gives the usual net benefit. Prior information can be added with `nb_uniform()`, `nb_jeffreys()` or your own Beta priors with `nb_beta()` (see below). |
 | `model`, `predict_function` | Optional, instead of `predicted_risk`: the fitted model, and your own function to predict from it (see "The model instead of the risks" below). |
 | `label` | Name of the model in printed output and plots. Default: the name of the risks (e.g. `p_glm`). |
 
@@ -184,48 +245,83 @@ ordinary bootstrap are the number of times each patient is drawn; those of a
 Bayesian bootstrap are Dirichlet(1, ..., 1):
 
 ```{r weights}
-n <- nrow(val)
-z <- c(0.02, 0.05, 0.10, 0.20)
+n  <- nrow(df_val_binary)
+z4 <- c(0.02, 0.05, 0.10, 0.20)
 set.seed(2)
-w_boot <- tabulate(sample(n, replace = TRUE), nbins = n)
-w_bb   <- rexp(n); w_bb <- n * w_bb / sum(w_bb)
+w_boot <- tabulate(sample(n, replace = TRUE), nbins = n)    # ordinary bootstrap
+w_bb   <- rexp(n); w_bb <- n * w_bb / sum(w_bb)             # Bayesian bootstrap
 
-draws <- rbind(original  = nb(val, val$p_glm, "day30", z)$estimates$NB_model,
-               bootstrap = nb(val, val$p_glm, "day30", z, weights = w_boot)$estimates$NB_model,
-               bayesian  = nb(val, val$p_glm, "day30", z, weights = w_bb)$estimates$NB_model)
-colnames(draws) <- paste("z =", z)
+res_original <- nb(data = df_val_binary, predicted_risk = "p_glm", outcome = "day30",
+                   thresholds = z4)
+res_boot     <- nb(data = df_val_binary, predicted_risk = "p_glm", outcome = "day30",
+                   thresholds = z4, weights = w_boot)
+res_bb       <- nb(data = df_val_binary, predicted_risk = "p_glm", outcome = "day30",
+                   thresholds = z4, weights = w_bb)
+
+draws <- rbind(original  = res_original$estimates$NB_model,
+               bootstrap = res_boot$estimates$NB_model,
+               bayesian  = res_bb$estimates$NB_model)
+colnames(draws) <- paste("z =", z4)
 round(draws, 4)
 ```
 
-## Bayesian net benefit
+## The prior
 
-The net benefit of `nb()` is the Bayesian net benefit of bayesDCA: the
-prevalence, and the sensitivity and specificity of the model at each
-threshold, have conjugate Beta posteriors, and the net benefit columns are
-the posterior means,
-$E[\pi] E[Se] - (1 - E[\pi])(1 - E[Sp]) \frac{z}{1-z}$ for the model and
-$E[\pi] - (1 - E[\pi]) \frac{z}{1-z}$ for treating everyone. The default
-prior, `nb_improper()` (Beta(0, 0) for all three), gives exactly the usual
-(frequentist) net benefit, so all the results above are the usual ones. For
-a binary outcome the prior can also be `nb_uniform()` (Beta(1, 1)),
-`nb_jeffreys()` (Beta(0.5, 0.5)) or your own with `nb_beta()`:
+`nb()` works in a Bayesian framework, which the value-of-information
+functions use to represent the uncertainty of the net benefit. By default it
+uses no prior information: the prior is `nb_improper()` (Beta(0, 0)), so only
+the data are used, and the net benefit is exactly the usual one,
+$TP/n - FP/n \cdot z/(1-z)$. All the results above are computed this way:
 
-```{r bayes-nb}
-res_glm_u <- nb(val, val$p_glm, "day30", thresholds = seq(0, 0.30, by = 0.01),
-                prior = nb_uniform(), label = "Logistic")
-res_glm_u
-plot(res_glm_u)
-
-# Jeffreys prior, or your own Beta priors (here for the prevalence only)
-nb(val, val$p_glm, "day30", thresholds = c(0.05, 0.1), prior = nb_jeffreys())
-nb_beta(prevalence = c(2, 20))
+```{r prior-improper}
+res_glm$prior
+y <- df_val_binary$day30
+p <- df_val_binary$p_glm
+usual <- sapply(seq(0, 0.30, by = 0.01), function(t)
+  mean(y == 1 & p >= t & p > 0) - mean(y == 0 & p >= t & p > 0) * t / (1 - t))
+all.equal(res_glm$estimates$NB_model, usual)
 ```
 
-With 5000 patients the posterior means are close to the usual estimates;
-the prior matters more in small samples. Results with different priors are
-different estimates, so `plot()` does not draw them together. Case weights
-can only be used with the default prior, and survival and competing-risks
-outcomes use the default prior.
+For a binary outcome, prior information can be added with another prior.
+The prevalence, and the sensitivity and specificity of the model at each
+threshold, then have Beta priors, updated with the data (the conjugate model
+of bayesDCA), and the net benefit columns are the posterior means,
+$E[\pi] E[Se] - (1 - E[\pi])(1 - E[Sp]) \frac{z}{1-z}$ for the model and
+$E[\pi] - (1 - E[\pi]) \frac{z}{1-z}$ for treating everyone. For example,
+the uniform prior, Beta(1, 1) for all three:
+
+```{r prior-uniform}
+res_glm_u <- nb(data = df_val_binary,
+                predicted_risk = df_val_binary$p_glm,
+                outcome = "day30",
+                thresholds = seq(0, 0.30, by = 0.01),
+                prior = nb_uniform(),
+                label = "Logistic")
+res_glm_u
+```
+
+Other priors are `nb_jeffreys()` (Beta(0.5, 0.5)) or your own Beta priors
+with `nb_beta()`, e.g. prior information on the prevalence from earlier
+studies:
+
+```{r prior-other}
+nb(data = df_val_binary,
+   predicted_risk = df_val_binary$p_glm,
+   outcome = "day30",
+   thresholds = c(0.05, 0.1),
+   prior = nb_jeffreys())
+nb(data = df_val_binary,
+   predicted_risk = df_val_binary$p_glm,
+   outcome = "day30",
+   thresholds = c(0.05, 0.1),
+   prior = nb_beta(prevalence = c(7, 93)))   # prevalence ~7%, worth 100 patients
+```
+
+With 5000 patients the prior changes little; it matters more in small
+samples. Results with different priors are different estimates, so `plot()`
+does not draw them together. Case weights can only be used with the default
+prior, and survival and competing-risks outcomes use only the default
+prior.
 
 ## Checks
 
@@ -234,13 +330,17 @@ examples:
 
 ```{r checks, error = TRUE}
 # log-odds given as predicted risks are not probabilities
-nb(val, qlogis(val$p_glm), "day30")
+nb(data = df_val_binary,
+   predicted_risk = qlogis(df_val_binary$p_glm),
+   outcome = "day30")
 
 # predicted classes are not probabilities either
-nb(val, as.numeric(val$p_glm > 0.1), "day30")
+nb(data = df_val_binary,
+   predicted_risk = as.numeric(df_val_binary$p_glm > 0.1),
+   outcome = "day30")
 
 # one risk per patient
-nb(val, val$p_glm[-1], "day30")
+nb(data = df_val_binary, predicted_risk = df_val_binary$p_glm[-1], outcome = "day30")
 ```
 
 ## Options of `plot()`
@@ -266,7 +366,10 @@ in place of the risks. voipred then predicts the risks from it itself, once,
 and every later step reuses them. The result is the same:
 
 ```{r model-binary}
-res_glm_m <- nb(val, fit_glm, "day30", thresholds = seq(0, 0.30, by = 0.01),
+res_glm_m <- nb(data = df_val_binary,
+                model = fit_glm,
+                outcome = "day30",
+                thresholds = seq(0, 0.30, by = 0.01),
                 label = "Logistic")
 all.equal(res_glm_m$estimates, res_glm$estimates)
 ```
@@ -293,10 +396,13 @@ always replaces voipred's own route. An SVM, which voipred also handles by
 itself:
 
 ```{r pf-binary}
-fit_svm <- e1071::svm(factor(day30) ~ age + Killip + sysbp + pulse, data = dev,
+fit_svm <- e1071::svm(factor(day30) ~ age + Killip + sysbp + pulse, data = df_dev_binary,
                       probability = TRUE)
 vars <- c("age", "Killip", "sysbp", "pulse")
-nb(val, fit_svm, "day30", thresholds = c(0.05, 0.1, 0.2),
+nb(data = df_val_binary,
+   model = fit_svm,
+   outcome = "day30",
+   thresholds = c(0.05, 0.1, 0.2),
    predict_function = function(model, newdata, ...) {
      pr <- predict(model, newdata[, vars], probability = TRUE)
      attr(pr, "probabilities")[, "1"]
@@ -308,15 +414,19 @@ when the model cannot give them:
 
 ```{r checks-model, error = TRUE}
 # a covariate is missing from the validation data
-nb(val[, setdiff(names(val), "sysbp")], fit_glm, "day30")
+nb(data = df_val_binary[, setdiff(names(df_val_binary), "sysbp")],
+   model = fit_glm,
+   outcome = "day30")
 
 # a forest that only predicts classes (fitted without probability = TRUE)
 fit_class <- ranger::ranger(factor(day30) ~ age + Killip + sysbp + pulse,
-                            data = dev, num.trees = 100, seed = 1)
-nb(val, fit_class, "day30")
+                            data = df_dev_binary, num.trees = 100, seed = 1)
+nb(data = df_val_binary, model = fit_class, outcome = "day30")
 
 # predictions outside [0, 1] are not probabilities
-nb(val, lm(day30 ~ age + Killip, data = dev), "day30")
+nb(data = df_val_binary,
+   model = lm(day30 ~ age + Killip, data = df_dev_binary),
+   outcome = "day30")
 ```
 
 # Part 2: survival outcome
@@ -331,8 +441,8 @@ rott <- rotterdam
 rott$years <- rott$dtime / 365.25
 set.seed(1)
 j <- sample(nrow(rott))
-sdev <- rott[j[1:1500], ]
-sval <- rott[j[1501:nrow(rott)], ]
+df_dev_survival <- rott[j[1:1500], ]
+df_val_survival <- rott[j[1501:nrow(rott)], ]
 ```
 
 ## Net benefit of one model
@@ -342,21 +452,72 @@ outcome is given with `Surv()` and the `horizon` is required:
 
 ```{r cox}
 fit_cox <- coxph(Surv(years, death) ~ age + size + nodes + grade + hormon + chemo,
-                 data = sdev, x = TRUE)
-sval$p_cox <- as.vector(riskRegression::predictRisk(fit_cox, sval, times = 5))
+                 data = df_dev_survival, x = TRUE)
+df_val_survival$p_cox <- as.vector(riskRegression::predictRisk(
+  fit_cox, newdata = df_val_survival, times = 5))
 
-res_cox <- nb(sval, sval$p_cox, ~ Surv(years, death), horizon = 5,
-              thresholds = seq(0, 0.6, by = 0.01), label = "Cox")
-res_cox
+res_cox <- nb(data = df_val_survival,
+              predicted_risk = df_val_survival$p_cox,
+              outcome = ~ Surv(years, death),
+              horizon = 5,
+              thresholds = seq(0, 0.6, by = 0.01),
+              label = "Cox")
 ```
 
-The columns are the same as for a binary outcome; the event is "death by 5
-years". The header gives the estimated risk of death by 5 years and the
-censoring method. `summary()` gives the share of patients treated instead of
-the sensitivity and specificity.
+**`print()`**: the header gives the outcome, the horizon, the number of
+patients, the estimated risk of death by 5 years, the censoring method and
+the prior; the columns are the same as for a binary outcome, with the event
+"death by 5 years":
 
-The outcome can also be a `Surv` object (`Surv(sval$years, sval$death)`) or
-the name of a column of `data` that holds one.
+```{r print-cox}
+print(res_cox)
+```
+
+**`summary()`** gives the best strategy along the thresholds and the largest
+gain of the model, and, at each threshold, the share of patients treated
+(`treated`) instead of the sensitivity and specificity, and the best
+strategy:
+
+```{r summary-cox}
+summary(res_cox)
+summary(res_cox, thresholds = c(0.1, 0.2, 0.3, 0.4, 0.5))
+```
+
+## All the ways to give the survival outcome
+
+**`outcome =`** takes the survival outcome, always made with `Surv(time,
+status)` (status 1 = event, 0 = censored), as
+
+- a one-sided formula, evaluated in `data`: `outcome = ~ Surv(years, death)`;
+- a `Surv` object, one row per row of `data`:
+  `outcome = Surv(df_val_survival$years, df_val_survival$death)`;
+- or the name of a column of `data` that holds a `Surv` object:
+  `outcome = "surv_death"`.
+
+**`predicted_risk =`** is the risk of the event by `horizon`, given as a
+vector or as the name of a column of `data`, as for a binary outcome. All of
+these give the same result:
+
+```{r survival-inputs}
+df_val_survival$surv_death <- Surv(df_val_survival$years, df_val_survival$death)
+zs <- seq(0, 0.6, by = 0.01)
+
+r_formula <- nb(data = df_val_survival, predicted_risk = "p_cox",
+                outcome = ~ Surv(years, death), horizon = 5, thresholds = zs)
+r_object  <- nb(data = df_val_survival, predicted_risk = "p_cox",
+                outcome = Surv(df_val_survival$years, df_val_survival$death),
+                horizon = 5, thresholds = zs)
+r_column  <- nb(data = df_val_survival, predicted_risk = "p_cox",
+                outcome = "surv_death", horizon = 5, thresholds = zs)
+c(object = same(r_object, r_formula), column = same(r_column, r_formula))
+
+# drop the Surv column again: some prediction functions (e.g. riskRegression's)
+# do not accept a Surv column among the covariates
+df_val_survival$surv_death <- NULL
+```
+
+For competing risks the same three forms are used, with a status that is a
+factor whose first level is censoring (see "Competing risks" below).
 
 ## Plots
 
@@ -371,11 +532,16 @@ plot(res_cox, type = "delta")
 ## Comparing models
 
 ```{r surv-plot}
-fit_aft <- survreg(Surv(years, death) ~ age + size + nodes, data = sdev,
+fit_aft <- survreg(Surv(years, death) ~ age + size + nodes, data = df_dev_survival,
                    dist = "weibull")
-sval$p_aft <- as.vector(riskRegression::predictRisk(fit_aft, sval, times = 5))
-res_aft <- nb(sval, sval$p_aft, ~ Surv(years, death), horizon = 5,
-              thresholds = seq(0, 0.6, by = 0.01), label = "Weibull AFT")
+df_val_survival$p_aft <- as.vector(riskRegression::predictRisk(
+  fit_aft, newdata = df_val_survival, times = 5))
+res_aft <- nb(data = df_val_survival,
+              predicted_risk = df_val_survival$p_aft,
+              outcome = ~ Surv(years, death),
+              horizon = 5,
+              thresholds = seq(0, 0.6, by = 0.01),
+              label = "Weibull AFT")
 
 plot(res_cox, res_aft)
 plot(res_cox, res_aft, type = "delta")
@@ -383,7 +549,7 @@ plot(res_cox, res_aft, type = "delta")
 
 ## Options of `nb()` for a survival outcome
 
-All the options of part 1 apply. In addition:
+All the options of part 1 apply, except `prior` (below). In addition:
 
 | Argument | What it does |
 |---|---|
@@ -393,6 +559,7 @@ All the options of part 1 apply. In addition:
 | `censoring` | How censoring is handled: `"km"` (default) or `"cipcw"` (see below). |
 | `cipcw` | With `censoring = "cipcw"`: the censoring model or weights, made with `cipcw_control()`. |
 | `cause` | Competing risks only: the event type of interest (default: the first event level). |
+| `prior` | Only the default, `nb_improper()`: the net benefit is calculated from the data only, with no prior information, which gives the usual Kaplan-Meier, Aalen-Johansen or cIPCW net benefit. Other priors are for binary outcomes. It can be left out. |
 
 See `?nb` for the details of each argument.
 
@@ -412,11 +579,15 @@ forest; for any other model, give its `predict_function` in
 `cipcw_control()`, or give the weights directly.
 
 ```{r cipcw}
-cens <- coxph(Surv(years, death == 0) ~ age + nodes + grade, data = sval)
+cens <- coxph(Surv(years, death == 0) ~ age + nodes + grade, data = df_val_survival)
 
-res_cipcw <- nb(sval, sval$p_cox, ~ Surv(years, death), horizon = 5,
+res_cipcw <- nb(data = df_val_survival,
+                predicted_risk = df_val_survival$p_cox,
+                outcome = ~ Surv(years, death),
+                horizon = 5,
                 thresholds = seq(0, 0.6, by = 0.01),
-                censoring = "cipcw", cipcw = cipcw_control(model = cens),
+                censoring = "cipcw",
+                cipcw = cipcw_control(model = cens),
                 label = "Cox")
 plot(res_cipcw)
 plot(res_cipcw, type = "delta")
@@ -451,16 +622,34 @@ crdat <- function(d) {
   d$cr_status <- factor(d$cr_code, 0:2, c("censored", "recurrence", "death"))
   d
 }
-sdev <- crdat(sdev)
-sval <- crdat(sval)
+df_dev_survival <- crdat(df_dev_survival)
+df_val_survival <- crdat(df_val_survival)
 
 fit_csc <- riskRegression::CSC(prodlim::Hist(cr_time, cr_code) ~ age + size + nodes + grade,
-                               data = sdev)
-sval$p_csc <- as.vector(riskRegression::predictRisk(fit_csc, sval, times = 5, cause = 1))
-res_csc <- nb(sval, sval$p_csc, ~ Surv(cr_time, cr_status), horizon = 5,
-              cause = "recurrence", thresholds = seq(0, 0.6, by = 0.01),
+                               data = df_dev_survival)
+df_val_survival$p_csc <- as.vector(riskRegression::predictRisk(
+  fit_csc, newdata = df_val_survival, times = 5, cause = 1))
+res_csc <- nb(data = df_val_survival,
+              predicted_risk = df_val_survival$p_csc,
+              outcome = ~ Surv(cr_time, cr_status),
+              horizon = 5,
+              cause = "recurrence",
+              thresholds = seq(0, 0.6, by = 0.01),
               label = "Cause-specific Cox")
-res_csc
+print(res_csc)
+summary(res_csc, thresholds = c(0.1, 0.2, 0.3, 0.4, 0.5))
+
+# the outcome as a Surv object, or as a column of data holding one, gives the same
+df_val_survival$surv_cr <- Surv(df_val_survival$cr_time, df_val_survival$cr_status)
+r_cr_object <- nb(data = df_val_survival, predicted_risk = "p_csc",
+                  outcome = Surv(df_val_survival$cr_time, df_val_survival$cr_status),
+                  horizon = 5, cause = "recurrence", thresholds = seq(0, 0.6, by = 0.01))
+r_cr_column <- nb(data = df_val_survival, predicted_risk = "p_csc",
+                  outcome = "surv_cr", horizon = 5, cause = "recurrence",
+                  thresholds = seq(0, 0.6, by = 0.01))
+c(object = same(r_cr_object, res_csc), column = same(r_cr_column, res_csc))
+df_val_survival$surv_cr <- NULL
+
 plot(res_csc)
 plot(res_csc, type = "delta")
 ```
@@ -476,11 +665,16 @@ causes instead.
 
 ```{r competing-cipcw}
 cens_cr <- coxph(Surv(cr_time, cr_status == "censored") ~ age + nodes + grade,
-                 data = sval)
+                 data = df_val_survival)
 
-res_csc_cipcw <- nb(sval, sval$p_csc, ~ Surv(cr_time, cr_status), horizon = 5,
-                    cause = "recurrence", thresholds = seq(0, 0.6, by = 0.01),
-                    censoring = "cipcw", cipcw = cipcw_control(model = cens_cr),
+res_csc_cipcw <- nb(data = df_val_survival,
+                    predicted_risk = df_val_survival$p_csc,
+                    outcome = ~ Surv(cr_time, cr_status),
+                    horizon = 5,
+                    cause = "recurrence",
+                    thresholds = seq(0, 0.6, by = 0.01),
+                    censoring = "cipcw",
+                    cipcw = cipcw_control(model = cens_cr),
                     label = "Cause-specific Cox")
 plot(res_csc_cipcw)
 plot(res_csc_cipcw, type = "delta")
@@ -494,11 +688,19 @@ competing risks, of `cause` by the horizon) from it, once. The result is the
 same:
 
 ```{r model-survival}
-res_cox_m <- nb(sval, fit_cox, ~ Surv(years, death), horizon = 5,
-                thresholds = seq(0, 0.6, by = 0.01), label = "Cox")
+res_cox_m <- nb(data = df_val_survival,
+                model = fit_cox,
+                outcome = ~ Surv(years, death),
+                horizon = 5,
+                thresholds = seq(0, 0.6, by = 0.01),
+                label = "Cox")
 all.equal(res_cox_m$estimates, res_cox$estimates)
-res_csc_m <- nb(sval, fit_csc, ~ Surv(cr_time, cr_status), horizon = 5,
-                cause = "recurrence", thresholds = seq(0, 0.6, by = 0.01),
+res_csc_m <- nb(data = df_val_survival,
+                model = fit_csc,
+                outcome = ~ Surv(cr_time, cr_status),
+                horizon = 5,
+                cause = "recurrence",
+                thresholds = seq(0, 0.6, by = 0.01),
                 label = "Cause-specific Cox")
 all.equal(res_csc_m$estimates, res_csc$estimates)
 ```
@@ -525,7 +727,11 @@ censoring model can be given its own `predict_function` in the same way, in
 `cipcw_control()`.
 
 ```{r pf-survival}
-nb(sval, fit_cox, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3),
+nb(data = df_val_survival,
+   model = fit_cox,
+   outcome = ~ Surv(years, death),
+   horizon = 5,
+   thresholds = c(0.1, 0.2, 0.3),
    predict_function = function(model, newdata, horizon, ...) {
      sf <- survfit(model, newdata = newdata)
      1 - as.vector(summary(sf, times = horizon)$surv)

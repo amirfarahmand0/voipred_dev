@@ -37,18 +37,22 @@
 #' A patient is treated when the predicted risk is at or above the threshold,
 #' and a predicted risk of exactly 0 is never treated, as in dcurves.
 #'
-#' **Prior.** The net benefit is Bayesian, so that its uncertainty, used by
-#' the value-of-information functions ([p_useful()], [p_best()], [evpi()],
-#' [evsi()]), is a posterior. For a binary outcome the prevalence \eqn{\pi}
-#' and, at each threshold, the sensitivity \eqn{Se} and specificity \eqn{Sp}
-#' of the model have Beta priors, updated with the validation data to Beta
-#' posteriors (as in bayesDCA); the net benefit columns are the posterior
-#' means, \eqn{E[\pi] E[Se] - (1 - E[\pi])(1 - E[Sp]) z/(1-z)} and
-#' \eqn{E[\pi] - (1 - E[\pi]) z/(1-z)}. The default prior, [nb_improper()]
-#' (Beta(0, 0): the data only), gives exactly the frequentist net benefit; see
-#' [nb_priors] for the others. Survival and competing-risks outcomes use the
-#' improper prior: their net benefit is the frequentist estimate, and its
-#' posterior is sampled with the Bayesian bootstrap.
+#' **Prior.** `nb()` works in a Bayesian framework, which the
+#' value-of-information functions ([p_useful()], [p_best()], [evpi()],
+#' [evsi()]) use to represent the uncertainty of the net benefit. By default
+#' it uses no prior information: with the improper prior [nb_improper()]
+#' (Beta(0, 0)) only the data are used, and the net benefit is exactly the
+#' usual one, \eqn{TP/n - FP/n \cdot z/(1-z)}. For a binary outcome, prior
+#' information can be added with another prior ([nb_uniform()],
+#' [nb_jeffreys()], or your own with [nb_beta()]; see [nb_priors]): the
+#' prevalence \eqn{\pi} and, at each threshold, the sensitivity \eqn{Se}
+#' and specificity \eqn{Sp} of the model then have Beta priors, updated with
+#' the validation data (as in bayesDCA), and the net benefit columns are the
+#' posterior means, \eqn{E[\pi] E[Se] - (1 - E[\pi])(1 - E[Sp]) z/(1-z)} and
+#' \eqn{E[\pi] - (1 - E[\pi]) z/(1-z)}. Survival and competing-risks
+#' outcomes use only the improper prior: their net benefit is the usual
+#' Kaplan-Meier, Aalen-Johansen or cIPCW estimate, and its uncertainty is
+#' represented with the Bayesian bootstrap.
 #'
 #' **Predicted risks.** Validation needs only the predicted risks of the
 #' patients in `data`: give them with `predicted_risk`, a numeric vector with
@@ -163,11 +167,11 @@
 #'   row; 0 drops the patient), and the value-of-information functions then
 #'   use the Bayesian bootstrap of the weighted sample. They are not passed to
 #'   the prediction model or the censoring model. Only with the improper prior.
-#' @param prior The prior of the net benefit (see "Prior" and [nb_priors]):
-#'   [nb_improper()] (default: Beta(0, 0), the data only, which gives the
-#'   frequentist net benefit), [nb_uniform()], [nb_jeffreys()] or your own Beta
-#'   priors with [nb_beta()]. Survival and competing-risks outcomes: only
-#'   [nb_improper()].
+#' @param prior The prior (see "Prior" and [nb_priors]). Default
+#'   [nb_improper()]: no prior information, the data only, which gives the
+#'   usual net benefit. For a binary outcome, prior information can be added
+#'   with [nb_uniform()], [nb_jeffreys()] or your own Beta priors with
+#'   [nb_beta()]. Survival and competing-risks outcomes: only [nb_improper()].
 #' @param model Optional, instead of `predicted_risk`: a fitted prediction
 #'   model, from which voipred predicts the risks of the patients in `data`,
 #'   once. See "Predicting the risks from a model" for the models that work
@@ -223,53 +227,94 @@
 #'   [cipcw_control()], and the value-of-information functions [p_useful()],
 #'   [p_best()], [evpi()] and [evsi()].
 #' @examples
-#' dev <- gusto[1:5000, ]
-#' val <- gusto[5001:10000, ]
-#' fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
+#' df_dev_binary <- gusto[1:5000, ]
+#' df_val_binary <- gusto[5001:10000, ]
+#' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
+#'            family = binomial, data = df_dev_binary)
 #'
 #' # Binary outcome: the predicted risks are all that is needed
-#' val$p <- predict(fit, val, type = "response")
-#' res <- nb(val, predicted_risk = val$p, outcome = "day30",
+#' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
+#' res <- nb(data = df_val_binary,
+#'           predicted_risk = df_val_binary$p,
+#'           outcome = "day30",
 #'           thresholds = seq(0, 0.3, by = 0.01))
 #' res
 #' summary(res)
 #' plot(res)
 #'
 #' # The same, with the name of the column of `data` that holds the risks
-#' nb(val, "p", "day30", thresholds = c(0.05, 0.1))
+#' nb(data = df_val_binary,
+#'    predicted_risk = "p",
+#'    outcome = "day30",
+#'    thresholds = c(0.05, 0.1))
 #'
 #' # Optionally, the model instead of the risks: by default, or with your own
 #' # prediction function
-#' nb(val, fit, "day30", thresholds = c(0.05, 0.1))
-#' nb(val, model = fit, outcome = "day30", thresholds = c(0.05, 0.1),
+#' nb(data = df_val_binary,
+#'    model = fit,
+#'    outcome = "day30",
+#'    thresholds = c(0.05, 0.1))
+#' nb(data = df_val_binary,
+#'    model = fit,
+#'    outcome = "day30",
+#'    thresholds = c(0.05, 0.1),
 #'    predict_function = function(model, newdata, ...)
 #'      predict(model, newdata, type = "response"))
 #'
-#' # Other priors (binary outcome)
-#' nb(val, val$p, "day30", thresholds = c(0.05, 0.1), prior = nb_uniform())
-#' nb(val, val$p, "day30", thresholds = c(0.05, 0.1), prior = nb_beta(prevalence = c(7, 93)))
+#' # Optional prior information (binary outcome); the default uses the data only
+#' nb(data = df_val_binary,
+#'    predicted_risk = df_val_binary$p,
+#'    outcome = "day30",
+#'    thresholds = c(0.05, 0.1),
+#'    prior = nb_uniform())
+#' nb(data = df_val_binary,
+#'    predicted_risk = df_val_binary$p,
+#'    outcome = "day30",
+#'    thresholds = c(0.05, 0.1),
+#'    prior = nb_beta(prevalence = c(7, 93)))
 #'
 #' # Survival: death by 5 years (Rotterdam breast cancer data)
 #' library(survival)
 #' rott <- rotterdam
 #' rott$years <- rott$dtime / 365.25
-#' cox <- coxph(Surv(years, death) ~ age + size + nodes + grade, data = rott[1:1500, ])
-#' val_s <- rott[1501:2982, ]
-#' val_s$p5 <- 1 - summary(survfit(cox, newdata = val_s), times = 5)$surv[1, ]
-#' nb(val_s, val_s$p5, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3))
+#' df_dev_survival <- rott[1:1500, ]
+#' df_val_survival <- rott[1501:2982, ]
+#' cox <- coxph(Surv(years, death) ~ age + size + nodes + grade,
+#'              data = df_dev_survival)
+#' # the predicted risks of death by 5 years
+#' sf <- survfit(cox, newdata = df_val_survival)
+#' df_val_survival$p5 <- 1 - summary(sf, times = 5)$surv[1, ]
+#' nb(data = df_val_survival,
+#'    predicted_risk = df_val_survival$p5,
+#'    outcome = ~ Surv(years, death),
+#'    horizon = 5,
+#'    thresholds = c(0.1, 0.2, 0.3))
 #'
 #' # Optionally, the model instead of the risks: by default, or with your own
 #' # prediction function (here the same risks as above)
-#' nb(val_s, cox, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3))
-#' nb(val_s, model = cox, outcome = ~ Surv(years, death), horizon = 5,
+#' nb(data = df_val_survival,
+#'    model = cox,
+#'    outcome = ~ Surv(years, death),
+#'    horizon = 5,
+#'    thresholds = c(0.1, 0.2, 0.3))
+#' nb(data = df_val_survival,
+#'    model = cox,
+#'    outcome = ~ Surv(years, death),
+#'    horizon = 5,
 #'    thresholds = c(0.1, 0.2, 0.3),
 #'    predict_function = function(model, newdata, horizon, ...)
 #'      1 - summary(survfit(model, newdata = newdata), times = horizon)$surv[1, ])
 #'
 #' # The same with conditional IPCW: censoring modelled on the validation data
-#' cens <- coxph(Surv(years, death == 0) ~ age + nodes + grade, data = val_s)
-#' nb(val_s, val_s$p5, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3),
-#'    censoring = "cipcw", cipcw = cipcw_control(model = cens))
+#' cens <- coxph(Surv(years, death == 0) ~ age + nodes + grade,
+#'               data = df_val_survival)
+#' nb(data = df_val_survival,
+#'    predicted_risk = df_val_survival$p5,
+#'    outcome = ~ Surv(years, death),
+#'    horizon = 5,
+#'    thresholds = c(0.1, 0.2, 0.3),
+#'    censoring = "cipcw",
+#'    cipcw = cipcw_control(model = cens))
 #' @export
 nb <- function(data, predicted_risk = NULL, outcome,
                thresholds = seq(0, 0.99, by = 0.01), horizon = NULL, cause = NULL,

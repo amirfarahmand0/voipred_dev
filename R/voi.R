@@ -75,15 +75,24 @@
 #'   Bayesian bootstrap. Annals of Statistics 1981; 9(1): 130-134.
 #' @seealso [evsi()], [p_useful()], [p_best()], [plot.voipred_evpi()], [summary.voipred_voi()]
 #' @examples
-#' dev <- gusto[1:5000, ]
-#' val <- gusto[5001:5500, ]
-#' fit1 <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-#' val$p1 <- predict(fit1, val, type = "response")
-#' fit2 <- glm(day30 ~ age, family = binomial, data = dev)
-#' val$p2 <- predict(fit2, val, type = "response")
+#' df_dev_binary <- gusto[1:5000, ]
+#' df_val_binary <- gusto[5001:5500, ]
+#' fit1 <- glm(day30 ~ age + Killip + sysbp + pulse,
+#'             family = binomial, data = df_dev_binary)
+#' df_val_binary$p1 <- predict(fit1, newdata = df_val_binary, type = "response")
+#' fit2 <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
+#' df_val_binary$p2 <- predict(fit2, newdata = df_val_binary, type = "response")
 #' z <- seq(0.01, 0.3, by = 0.01)
-#' res1 <- nb(val, val$p1, "day30", thresholds = z, label = "Full")
-#' res2 <- nb(val, val$p2, "day30", thresholds = z, label = "Age only")
+#' res1 <- nb(data = df_val_binary,
+#'            predicted_risk = df_val_binary$p1,
+#'            outcome = "day30",
+#'            thresholds = z,
+#'            label = "Full")
+#' res2 <- nb(data = df_val_binary,
+#'            predicted_risk = df_val_binary$p2,
+#'            outcome = "day30",
+#'            thresholds = z,
+#'            label = "Age only")
 #' set.seed(1)
 #' e <- evpi(res1, res2)
 #' e
@@ -117,11 +126,15 @@ evpi <- function(x, ..., n_sim = 1000, labels = NULL) {
 #'   methods.
 #' @seealso [p_best()], [evpi()], [plot.voipred_p_useful()], [summary.voipred_voi()]
 #' @examples
-#' dev <- gusto[1:5000, ]
-#' val <- gusto[5001:5500, ]
-#' fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-#' val$p <- predict(fit, val, type = "response")
-#' res <- nb(val, val$p, "day30", thresholds = seq(0.01, 0.3, by = 0.01))
+#' df_dev_binary <- gusto[1:5000, ]
+#' df_val_binary <- gusto[5001:5500, ]
+#' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
+#'            family = binomial, data = df_dev_binary)
+#' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
+#' res <- nb(data = df_val_binary,
+#'           predicted_risk = df_val_binary$p,
+#'           outcome = "day30",
+#'           thresholds = seq(0.01, 0.3, by = 0.01))
 #' set.seed(1)
 #' pu <- p_useful(res)
 #' pu
@@ -152,15 +165,24 @@ p_useful <- function(x, ..., n_sim = 1000, labels = NULL) {
 #'   `as.data.frame()` methods.
 #' @seealso [p_useful()], [evpi()], [plot.voipred_p_best()], [summary.voipred_voi()]
 #' @examples
-#' dev <- gusto[1:5000, ]
-#' val <- gusto[5001:5500, ]
-#' fit1 <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-#' val$p1 <- predict(fit1, val, type = "response")
-#' fit2 <- glm(day30 ~ age, family = binomial, data = dev)
-#' val$p2 <- predict(fit2, val, type = "response")
+#' df_dev_binary <- gusto[1:5000, ]
+#' df_val_binary <- gusto[5001:5500, ]
+#' fit1 <- glm(day30 ~ age + Killip + sysbp + pulse,
+#'             family = binomial, data = df_dev_binary)
+#' df_val_binary$p1 <- predict(fit1, newdata = df_val_binary, type = "response")
+#' fit2 <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
+#' df_val_binary$p2 <- predict(fit2, newdata = df_val_binary, type = "response")
 #' z <- seq(0.01, 0.3, by = 0.01)
-#' res1 <- nb(val, val$p1, "day30", thresholds = z, label = "Full")
-#' res2 <- nb(val, val$p2, "day30", thresholds = z, label = "Age only")
+#' res1 <- nb(data = df_val_binary,
+#'            predicted_risk = df_val_binary$p1,
+#'            outcome = "day30",
+#'            thresholds = z,
+#'            label = "Full")
+#' res2 <- nb(data = df_val_binary,
+#'            predicted_risk = df_val_binary$p2,
+#'            outcome = "day30",
+#'            thresholds = z,
+#'            label = "Age only")
 #' set.seed(1)
 #' pb <- p_best(res1, res2)
 #' pb
@@ -317,11 +339,15 @@ p_best_from_draws <- function(d, res = NULL, call = NULL) {
 #'   Making 2025; 45(3): 232-244.
 #' @seealso [evpi()], [plot.voipred_evsi()], [summary.voipred_voi()]
 #' @examples
-#' dev <- gusto[1:5000, ]
-#' val <- gusto[5001:5500, ]
-#' fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-#' val$p <- predict(fit, val, type = "response")
-#' res <- nb(val, val$p, "day30", thresholds = c(0.02, 0.05, 0.1))
+#' df_dev_binary <- gusto[1:5000, ]
+#' df_val_binary <- gusto[5001:5500, ]
+#' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
+#'            family = binomial, data = df_dev_binary)
+#' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
+#' res <- nb(data = df_val_binary,
+#'           predicted_risk = df_val_binary$p,
+#'           outcome = "day30",
+#'           thresholds = c(0.02, 0.05, 0.1))
 #' set.seed(1)
 #' o <- evsi(res, future_n = c(250, 500, 1000, 4000))
 #' o

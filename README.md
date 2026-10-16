@@ -41,11 +41,12 @@ several together.
   bayespred.dev Bayesian models, and any other model with a
   `predict_function` that returns its predicted risks (see `?nb`).
 - The predictions must be probabilities: scores and class labels are rejected.
-- **Bayesian net benefit**: the net benefit is the posterior mean of the
-  conjugate Beta model of bayesDCA. The default prior, `nb_improper()`
-  (Beta(0, 0)), gives exactly the usual (frequentist) net benefit; for a
-  binary outcome the prior can also be `nb_uniform()`, `nb_jeffreys()` or
-  `nb_beta()`.
+- **Prior information (optional)**: `nb()` works in a Bayesian framework.
+  By default (`nb_improper()`, Beta(0, 0)) it uses the data only, with no
+  prior information, and gives the usual net benefit. For a binary outcome,
+  prior information can be added with `nb_uniform()`, `nb_jeffreys()` or
+  your own Beta priors with `nb_beta()` (the conjugate Beta model of
+  bayesDCA).
 
 **Value of information** for validation (Sadatsafavi et al. 2023, 2025), from
 the same `nb()` results, for every outcome type and any number of models:
@@ -74,14 +75,18 @@ across the curves.
 
 ```r
 library(voipred.dev)
-fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = gusto[1:5000, ])
-val <- gusto[5001:10000, ]
-val$p <- predict(fit, val, type = "response")
+df_dev_binary <- gusto[1:5000, ]
+df_val_binary <- gusto[5001:10000, ]
+fit <- glm(day30 ~ age + Killip + sysbp + pulse,
+           family = binomial, data = df_dev_binary)
+df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
 
-res <- nb(val, predicted_risk = val$p, outcome = "day30",
-          thresholds = seq(0.01, 0.3, by = 0.01))
-# or by column name: nb(val, "p", "day30", ...)
-res
+res <- nb(data = df_val_binary,
+          predicted_risk = df_val_binary$p,      # or the column name: "p"
+          outcome = "day30",
+          thresholds = seq(0.01, 0.3, by = 0.01),
+          label = "Logistic")
+print(res)
 summary(res)
 plot(res)
 plot(res, type = "delta")
@@ -95,10 +100,16 @@ plot(o)
 plot(res, evpi = e, evsi = o)
 plot(res, evpi = e, evsi = o, interactive = TRUE)
 
-nb(val, fit, "day30")                 # optional: the model instead of the risks
+# optional: the model instead of the risks
+nb(data = df_val_binary,
+   model = fit,
+   outcome = "day30")
 
-# another prior (binary outcome)
-res_u <- nb(val, val$p, "day30", thresholds = seq(0.01, 0.3, by = 0.01),
+# optional prior information (binary outcome); the default uses the data only
+res_u <- nb(data = df_val_binary,
+            predicted_risk = df_val_binary$p,
+            outcome = "day30",
+            thresholds = seq(0.01, 0.3, by = 0.01),
             prior = nb_uniform())
 evpi(res_u)
 ```
@@ -106,8 +117,9 @@ evpi(res_u)
 ## Documentation
 
 - [Net benefit guide](vignettes/voipred_nb_guide.Rmd): binary, survival and
-  competing-risks examples, predicted risks or a fitted model, Bayesian net
-  benefit, every option explained, plots, and the list of supported models.
+  competing-risks examples, predicted risks or a fitted model, the prior
+  (the data only by default, or prior information), every option explained,
+  plots, and the list of supported models.
 - [Tests and messages](reports/voipred_nb_tests_and_messages.pdf): every
   test (checked against `dcurves`, each modelling package's own predictions,
   predtools, the EVSI paper's code and bayesDCA) and every error and warning

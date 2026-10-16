@@ -18,11 +18,15 @@
 #' @return A ggplot object, or a plotly widget with `interactive = TRUE`.
 #' @seealso [evpi()], [plot.voipred_nb()]
 #' @examples
-#' dev <- gusto[1:5000, ]
-#' val <- gusto[5001:5500, ]
-#' fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-#' val$p <- predict(fit, val, type = "response")
-#' res <- nb(val, val$p, "day30", thresholds = seq(0.01, 0.3, by = 0.01))
+#' df_dev_binary <- gusto[1:5000, ]
+#' df_val_binary <- gusto[5001:5500, ]
+#' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
+#'            family = binomial, data = df_dev_binary)
+#' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
+#' res <- nb(data = df_val_binary,
+#'           predicted_risk = df_val_binary$p,
+#'           outcome = "day30",
+#'           thresholds = seq(0.01, 0.3, by = 0.01))
 #' set.seed(1)
 #' e <- evpi(res, n_sim = 500)
 #' plot(e)
@@ -63,11 +67,15 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative"), labels = NUL
 #' @return A ggplot object, or a plotly widget with `interactive = TRUE`.
 #' @seealso [evsi()], [plot.voipred_nb()]
 #' @examples
-#' dev <- gusto[1:5000, ]
-#' val <- gusto[5001:5500, ]
-#' fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-#' val$p <- predict(fit, val, type = "response")
-#' res <- nb(val, val$p, "day30", thresholds = c(0.02, 0.05, 0.1))
+#' df_dev_binary <- gusto[1:5000, ]
+#' df_val_binary <- gusto[5001:5500, ]
+#' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
+#'            family = binomial, data = df_dev_binary)
+#' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
+#' res <- nb(data = df_val_binary,
+#'           predicted_risk = df_val_binary$p,
+#'           outcome = "day30",
+#'           thresholds = c(0.02, 0.05, 0.1))
 #' set.seed(1)
 #' o <- evsi(res, future_n = c(250, 500, 1000, 2000), n_sim = 500)
 #' plot(o)
@@ -108,11 +116,15 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, interactive = FALSE) {
 #' @return A ggplot object, or a plotly widget with `interactive = TRUE`.
 #' @seealso [p_useful()], [plot.voipred_p_best()]
 #' @examples
-#' dev <- gusto[1:5000, ]
-#' val <- gusto[5001:5500, ]
-#' fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-#' val$p <- predict(fit, val, type = "response")
-#' res <- nb(val, val$p, "day30", thresholds = seq(0.01, 0.3, by = 0.01))
+#' df_dev_binary <- gusto[1:5000, ]
+#' df_val_binary <- gusto[5001:5500, ]
+#' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
+#'            family = binomial, data = df_dev_binary)
+#' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
+#' res <- nb(data = df_val_binary,
+#'           predicted_risk = df_val_binary$p,
+#'           outcome = "day30",
+#'           thresholds = seq(0.01, 0.3, by = 0.01))
 #' set.seed(1)
 #' plot(p_useful(res, n_sim = 500))
 #' @export
@@ -143,11 +155,15 @@ plot.voipred_p_useful <- function(x, ..., interactive = FALSE) {
 #' @return A ggplot object, or a plotly widget with `interactive = TRUE`.
 #' @seealso [p_best()], [plot.voipred_p_useful()]
 #' @examples
-#' dev <- gusto[1:5000, ]
-#' val <- gusto[5001:5500, ]
-#' fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-#' val$p <- predict(fit, val, type = "response")
-#' res <- nb(val, val$p, "day30", thresholds = seq(0.01, 0.3, by = 0.01))
+#' df_dev_binary <- gusto[1:5000, ]
+#' df_val_binary <- gusto[5001:5500, ]
+#' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
+#'            family = binomial, data = df_dev_binary)
+#' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
+#' res <- nb(data = df_val_binary,
+#'           predicted_risk = df_val_binary$p,
+#'           outcome = "day30",
+#'           thresholds = seq(0.01, 0.3, by = 0.01))
 #' set.seed(1)
 #' plot(p_best(res, n_sim = 500))
 #' @export

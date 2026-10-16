@@ -1,6 +1,7 @@
-# The net benefit is Bayesian: a binary outcome has conjugate Beta (Dirichlet)
-# posteriors for the prevalence and, at each threshold, the sensitivity and
-# specificity of the models (Wynants et al. 2018, Cruz et al. 2024 (bayesDCA),
+# nb() works in a Bayesian framework; by default (improper prior) it uses the
+# data only and gives the usual net benefit. A binary outcome has conjugate
+# Beta (Dirichlet) posteriors for the prevalence and, at each threshold, the
+# sensitivity and specificity of the models (Wynants et al. 2018, Cruz et al. 2024 (bayesDCA),
 # Sadatsafavi et al. 2025 (EVSI)). With one model this is bayesDCA's binary
 # model; with several, the models are drawn jointly (a Dirichlet over the
 # patterns of treat / do not treat across the models), so that their
@@ -10,35 +11,37 @@
 
 #' Priors for the net benefit
 #'
-#' The prior of [nb()]. The net benefit puts Beta priors on the prevalence of
-#' the outcome and, at every threshold, on the sensitivity and the specificity
-#' of the model (the probabilities of being treated among patients with the
+#' The prior of [nb()]. By default [nb()] uses no prior information
+#' (`nb_improper()`: the data only, the usual net benefit); for a binary
+#' outcome, prior information can be added with the other priors. The priors
+#' are Beta priors on the prevalence of the outcome and, at every threshold,
+#' on the sensitivity and the specificity of the model (the probabilities of being treated among patients with the
 #' event, and of not being treated among patients without it). The net benefit
 #' at threshold \eqn{z} is
 #' \deqn{NB = \pi \, Se - (1 - \pi)(1 - Sp) \frac{z}{1 - z},}
 #' and that of treating all \eqn{\pi - (1 - \pi) z / (1 - z)}. The posteriors
 #' are Beta distributions (conjugate), so their draws are exact (no MCMC).
 #'
-#' * `nb_beta()`: Beta priors with the shapes you give, e.g. an informative
-#'   prior on the prevalence from earlier studies. The other priors are
-#'   special cases of it.
-#' * `nb_improper()` (default of [nb()]): the improper (Haldane) prior,
-#'   Beta(0, 0) for all three: the data only. For a binary outcome the
+#' * `nb_improper()` (default of [nb()]): no prior information. The improper
+#'   (Haldane) prior, Beta(0, 0) for all three: the data only. For a binary outcome the
 #'   posterior means are the observed proportions, so the net benefit of
-#'   [nb()] is exactly the frequentist net benefit,
+#'   [nb()] is exactly the usual net benefit,
 #'   \eqn{TP/n - FP/n \cdot z/(1-z)}, and its posterior draws are, at each
 #'   threshold, equal in distribution to the Bayesian bootstrap (not to the
 #'   ordinary bootstrap, which is close in large samples but not identical).
 #'   It is the only prior for survival and competing-risks outcomes: there the
 #'   posterior is sampled with the Bayesian bootstrap (Rubin 1981), and the net
-#'   benefit of [nb()] is the frequentist Kaplan-Meier, Aalen-Johansen or cIPCW
+#'   benefit of [nb()] is the usual Kaplan-Meier, Aalen-Johansen or cIPCW
 #'   estimate.
-#' * `nb_uniform()`: Beta(1, 1) for all three, as in bayesDCA.
+#' * `nb_uniform()`: Beta(1, 1) for all three, as in bayesDCA (binary outcome).
 #' * `nb_jeffreys()`: Jeffreys prior, Beta(1/2, 1/2) for all three.
+#' * `nb_beta()`: Beta priors with the shapes you give, e.g. an informative
+#'   prior on the prevalence from earlier studies. The other priors are
+#'   special cases of it.
 #'
 #' With the improper prior, a posterior is degenerate where a count is 0 (e.g.
 #' no patient with the event is left untreated at a threshold): it is then the
-#' observed proportion, as in the frequentist net benefit.
+#' observed proportion, as in the usual net benefit.
 #'
 #' @param prevalence,sensitivity,specificity The two shape parameters
 #'   \eqn{(a, b)} of each Beta prior, non-negative numbers: prior mean
@@ -110,7 +113,7 @@ prior_text <- function(prior, short = TRUE) {
 
 # ---- internal ----------------------------------------------------------------
 
-# Treated: risk > 0 and risk >= z (as in the frequentist net benefit).
+# Treated: risk > 0 and risk >= z (as in the usual net benefit).
 treated_at <- function(p, z) p > 0 & p >= z
 
 # Posterior mean net benefit of one model (the point estimate of nb()), with
@@ -224,7 +227,7 @@ bayes_nb_array <- function(prev, se, sp, odds) {
   out
 }
 
-# nb_draws() for Bayesian results: draws from the posterior.
+# nb_draws() for a binary outcome without case weights: draws from the posterior.
 bayes_draws <- function(res, n_sim) {
   s <- bayes_setup(res)
   th <- bayes_params(s, n_sim)
