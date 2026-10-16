@@ -103,7 +103,7 @@ as.data.frame.voipred_nb <- function(x, row.names = NULL, optional = FALSE, ...)
 #'
 #' `print()` shows the results at the first thresholds; `summary()` gives the
 #' main findings:
-#' * [p_useful()]: for each model, the thresholds where P(useful) is above
+#' * [p_useful()]: the thresholds where P(useful) is above
 #'   0.95, between 0.5 and 0.95, and below 0.5;
 #' * [p_best()]: the most likely best strategy at each threshold;
 #' * [evpi()]: where EVPI is positive and where it is largest, and the
@@ -149,7 +149,7 @@ as.data.frame.voipred_nb <- function(x, row.names = NULL, optional = FALSE, ...)
 #' e
 #' summary(e)
 #' set.seed(1)
-#' summary(p_useful(res1, res2))
+#' summary(p_useful(res1))
 #' set.seed(1)
 #' summary(evsi(res1, res2, future_n = c(500, 1000, 2000)))
 #' @name summary.voipred_voi

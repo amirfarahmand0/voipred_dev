@@ -51,8 +51,7 @@
 #' posterior means, \eqn{E[\pi] E[Se] - (1 - E[\pi])(1 - E[Sp]) z/(1-z)} and
 #' \eqn{E[\pi] - (1 - E[\pi]) z/(1-z)}. Survival and competing-risks
 #' outcomes use only the improper prior: their net benefit is the usual
-#' Kaplan-Meier, Aalen-Johansen or cIPCW estimate, and its uncertainty is
-#' represented with the Bayesian bootstrap.
+#' Kaplan-Meier, Aalen-Johansen or cIPCW estimate.
 #'
 #' **Predicted risks.** Validation needs only the predicted risks of the
 #' patients in `data`: give them with `predicted_risk`, a numeric vector with
@@ -785,9 +784,8 @@ check_prior <- function(prior, info, weights) {
          call. = FALSE)
   if (prior$type == "improper") return(invisible())
   if (info$type != "binary")
-    stop("For survival and competing-risks outcomes the prior is nb_improper() (the ",
-         "data only, sampled with the Bayesian bootstrap); other priors are for ",
-         "binary outcomes.", call. = FALSE)
+    stop("For survival and competing-risks outcomes the prior is nb_improper() ",
+         "(the data only); other priors are for binary outcomes.", call. = FALSE)
   if (!is.null(weights))
     stop("Case weights can only be used with the improper prior, nb_improper().",
          call. = FALSE)

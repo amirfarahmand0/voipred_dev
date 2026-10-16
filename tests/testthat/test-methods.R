@@ -11,7 +11,7 @@ methods_setup <- function() {
   r2 <- nb(val, f2, "day30", thresholds = z, label = "Age")
   set.seed(1)
   list(val = val, z = z, r1 = r1, r2 = r2,
-       e = evpi(r1, r2, n_sim = 200), pu = p_useful(r1, r2, n_sim = 200),
+       e = evpi(r1, r2, n_sim = 200), pu = p_useful(r1, n_sim = 200),
        pb = p_best(r1, r2, n_sim = 200), o = evsi(r1, r2, future_n = c(250, 1000), n_sim = 200))
 }
 
@@ -91,17 +91,19 @@ test_that("print() and summary() of nb() are short and say what the result is", 
 test_that("the value-of-information results are lists with print(), summary() and as.data.frame()", {
   s <- methods_setup()
   for (x in list(s$e, s$pu, s$pb, s$o)) {
+    models <- if (inherits(x, "voipred_p_useful")) "Full" else c("Full", "Age")
     expect_type(x, "list")
     expect_true(all(c("call", "estimates", "models", "outcome", "prior", "draws", "n_sim") %in%
                       names(x)))
-    expect_equal(x$models, c("Full", "Age"))
+    expect_equal(x$models, models)
     expect_equal(x$draws, "posterior")
     expect_equal(x$n_sim, 200)
     expect_identical(as.data.frame(x), x$estimates)
     out <- capture.output(print(x))
-    expect_match(out[1], "Full, Age; binary, n = 500, prior improper Beta\\(0, 0\\); 200 posterior draws$")
+    expect_match(out[1], paste0(paste(models, collapse = ", "), "; binary, n = 500, prior ",
+                                "improper Beta\\(0, 0\\); 200 posterior draws$"))
     expect_lte(length(out), 15)
-    expect_output(print(summary(x)), "Full, Age")
+    expect_output(print(summary(x)), paste(models, collapse = ", "))
   }
   expect_s3_class(s$e, "voipred_evpi")
   expect_s3_class(s$o, "voipred_evsi")
@@ -111,7 +113,7 @@ test_that("the value-of-information results are lists with print(), summary() an
   expect_equal(s$o$future_n, c(250, 1000))
   expect_equal(s$pb$strategies, c("Full", "Age", "Treat All", "Treat None"))
   # print(): wide tables
-  expect_match(capture.output(print(s$pu))[3], "threshold +Full +Age")
+  expect_match(capture.output(print(s$pu))[3], "threshold +Full$")
   expect_match(capture.output(print(s$pb))[3], "threshold +Full +Age +Treat All +Treat None")
   expect_match(capture.output(print(s$o))[3], "threshold +EVPI +N=250 +N=1000")
   # summary(): the main findings
@@ -130,6 +132,7 @@ test_that("the value-of-information results are lists with print(), summary() an
   expect_match(summary(s$o, thresholds = 0.05)$lines, "at the chosen thresholds")
   sp <- summary(s$pu)
   expect_named(sp$table, c("model", "P > 0.95", "0.5 to 0.95", "P < 0.5"))
+  expect_equal(sp$table$model, "Full")
   sb <- summary(s$pb)
   w <- as.matrix(wide(s$pb$estimates, "strategy", "p_best", s$pb$strategies)[, -1])
   expect_equal(sb$table[["P(best)"]], apply(w, 1, max))

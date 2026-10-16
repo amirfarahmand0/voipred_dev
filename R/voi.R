@@ -41,10 +41,9 @@
 #'   (exact Beta / Dirichlet draws, as in bayesDCA). Several models are drawn
 #'   jointly (a Dirichlet over the patterns of treat / do not treat across the
 #'   models), so their correlation on the same patients is kept, and each model
-#'   keeps its own posterior. With the improper prior these draws are equal in
-#'   distribution to the Bayesian bootstrap;
+#'   keeps its own posterior;
 #' * survival and competing-risks outcomes, and binary outcomes with case
-#'   weights (improper prior): the Bayesian bootstrap (Rubin 1981). Each
+#'   weights (improper prior): the Bayesian bootstrap. Each
 #'   draw gives the patients Dirichlet(1, ..., 1) weights (times the case
 #'   weights) and recomputes the net benefit with the same estimator as
 #'   [nb()]. With `censoring = "cipcw"`, the censoring model is refitted in
@@ -53,7 +52,8 @@
 #'
 #' The predicted risks are kept fixed in every draw. The expected net benefits
 #' are the means of the draws. `evpi()`, [p_useful()] and [p_best()] called
-#' with the same seed (and the same results and `n_sim`) use the same draws.
+#' with the same seed (and the same results and `n_sim`) use the same draws
+#' (for [p_useful()], one model).
 #'
 #' @param x A result of [nb()].
 #' @param ... More results of [nb()], for other models evaluated on the same
@@ -108,8 +108,8 @@ evpi <- function(x, ..., n_sim = 1000, labels = NULL) {
 
 #' Probability that a model is useful
 #'
-#' For each model and threshold, the probability that using the model gives a
-#' higher net benefit than both default strategies (treat all and treat
+#' For one model, at each threshold, the probability that using the model gives
+#' a higher net benefit than both default strategies (treat all and treat
 #' none):
 #' \deqn{P(useful) = P\{NB_{model} > \max(NB_{all}, 0)\} = P(\Delta NB > 0),}
 #' estimated as the share of the posterior draws in which the model's net
@@ -117,13 +117,21 @@ evpi <- function(x, ..., n_sim = 1000, labels = NULL) {
 #' at a threshold where it treats everyone, or no one) is not counted as
 #' useful.
 #'
+#' P(useful) compares a model only with treat all and treat none, so it does
+#' not depend on other models: `p_useful()` takes one model. To compare
+#' models, compute it for each and draw them together with
+#' `plot(pu_1, pu_2)` ([plot.voipred_p_useful()]); to compare the models with
+#' each other, use [p_best()].
+#'
 #' @inheritSection evpi Uncertainty
-#' @inheritParams evpi
+#' @param x A result of [nb()], for one model.
+#' @param ... Not used.
+#' @param n_sim Number of draws. Default 1000.
 #' @return An object of class `voipred_p_useful`, a list with `estimates` (a
 #'   data frame with columns `threshold`, `model` and `p_useful`, one row per
-#'   threshold and model), `models`, `outcome`, `prior`, `draws`, `n_sim` and
-#'   `call`, with `print()`, `summary()`, `plot()` and `as.data.frame()`
-#'   methods.
+#'   threshold), `models` (the model's label), `outcome`, `prior`, `draws`,
+#'   `n_sim` and `call`, with `print()`, `summary()`, `plot()` and
+#'   `as.data.frame()` methods.
 #' @seealso [p_best()], [evpi()], [plot.voipred_p_useful()], [summary.voipred_voi()]
 #' @examples
 #' df_dev_binary <- gusto[1:5000, ]
@@ -141,9 +149,15 @@ evpi <- function(x, ..., n_sim = 1000, labels = NULL) {
 #' summary(pu)
 #' plot(pu)
 #' @export
-p_useful <- function(x, ..., n_sim = 1000, labels = NULL) {
+p_useful <- function(x, ..., n_sim = 1000) {
   call <- match.call()
-  res <- collect_voi(x, list(...), labels, "p_useful()", "`n_sim` and `labels`")
+  dots <- list(...)
+  if (any(vapply(dots, inherits, logical(1), "voipred_nb")))
+    stop("p_useful() takes one result of nb(): the probability that a model is ",
+         "useful does not depend on the other models. Compute it for each model ",
+         "and draw them together with plot(pu_1, pu_2); use p_best() to compare ",
+         "the models with each other.", call. = FALSE)
+  res <- collect_voi(x, dots, NULL, "p_useful()", "`n_sim`")
   p_useful_from_draws(nb_draws(res, n_sim), res, call)
 }
 

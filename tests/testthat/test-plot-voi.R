@@ -14,7 +14,8 @@ voi_plot_setup <- function() {
   set.seed(2)
   o <- evsi(r1, future_n = c(200, 1000), n_sim = 60)
   list(r1 = r1, r2 = r2, d = d, e = evpi_from_draws(d), e1 = evpi_from_draws(draws_t(r1, n_sim = 100)),
-       pu = p_useful_from_draws(d), pb = p_best_from_draws(d), o = o)
+       pu = p_useful_from_draws(draws_t(r1, n_sim = 100)),
+       pu2 = p_useful_from_draws(draws_t(r2, n_sim = 100)), pb = p_best_from_draws(d), o = o)
 }
 
 line_data <- function(p) {
@@ -64,10 +65,17 @@ test_that("plot() of evsi(): against the future sample size", {
 
 test_that("plot() of p_useful() and p_best(): probabilities, in the colours of the decision curve", {
   s <- voi_plot_setup()
-  p <- plot(s$pu)
+  expect_equal(levels(plot(s$pu)$data$label), "Full")
+  # one result per model, drawn together; labelled by the models, argument names or labels
+  p <- plot(s$pu, s$pu2)
   expect_equal(levels(p$data$label), c("Full", "Age"))
-  expect_equal(line_data(p)[["Age"]], s$pu$estimates$p_useful[s$pu$estimates$model == "Age"])
+  expect_equal(line_data(p)[["Age"]], s$pu2$estimates$p_useful)
+  expect_equal(line_data(p)[["Full"]], s$pu$estimates$p_useful)
   expect_equal(p$coordinates$limits$y, c(0, 1))
+  expect_equal(levels(plot(s$pu, simple = s$pu2)$data$label), c("Full", "simple"))
+  expect_equal(levels(plot(s$pu, s$pu2, labels = c("a", "b"))$data$label), c("a", "b"))
+  expect_error(plot(s$pu, s$pu), "same label")
+  expect_error(plot(s$pu, s$pu2, labels = "a"), "`labels` must be 2 strings")
   b <- plot(s$pb)
   expect_equal(levels(b$data$label), c("Treat All", "Treat None", "Full", "Age"))
   expect_equal(line_data(b)[["Treat None"]], s$pb$estimates$p_best[s$pb$estimates$strategy == "Treat None"])
@@ -78,7 +86,7 @@ test_that("plot() of p_useful() and p_best(): probabilities, in the colours of t
     expect_equal(col(p, l), col(dca, l))
     expect_equal(col(b, l), col(dca, l))
   }
-  expect_error(plot(s$pu, s$pb), "Unknown argument")
+  expect_error(plot(s$pu, s$pb), "plot\\(\\) needs results of p_useful")
   expect_error(plot(s$pb, foo = 1), "Unknown argument")
 })
 
@@ -127,8 +135,9 @@ test_that("interactive = TRUE gives plotly widgets with the same curves", {
   expect_equal(traces(plot(s$e, interactive = TRUE))[["EVPI"]], s$e$estimates$EVPI)
   expect_equal(traces(plot(s$o, interactive = TRUE))[["Threshold 2%"]],
                c(0, s$o$estimates$EVSI[s$o$estimates$threshold == 0.02]))
-  expect_equal(traces(plot(s$pu, interactive = TRUE))[["Full"]],
-               s$pu$estimates$p_useful[s$pu$estimates$model == "Full"])
+  tp <- traces(plot(s$pu, s$pu2, interactive = TRUE))
+  expect_equal(tp[["Full"]], s$pu$estimates$p_useful)
+  expect_equal(tp[["Age"]], s$pu2$estimates$p_useful)
   expect_equal(traces(plot(s$pb, interactive = TRUE))[["Treat All"]],
                s$pb$estimates$p_best[s$pb$estimates$strategy == "Treat All"])
   expect_error(plot(s$e, interactive = "yes"), "TRUE or FALSE")

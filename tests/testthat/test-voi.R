@@ -279,6 +279,8 @@ test_that("inputs are checked", {
   expect_error(evpi(r, nb(g$dev, f, "day30", thresholds = c(0.05, 0.1), label = "b")),
                "cannot be used together: different data")
   expect_error(p_useful(data.frame(x = 1)), "needs results of nb")
+  expect_error(p_useful(r, r), "p_useful\\(\\) takes one result of nb\\(\\)")
+  expect_error(p_useful(r, labels = "a"), "Unknown argument `labels`")
   expect_error(evpi(as.data.frame(r)), "needs results of nb")
 })
 

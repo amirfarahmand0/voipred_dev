@@ -104,13 +104,18 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, interactive = FALSE) {
   render_plot(list(sp), interactive)
 }
 
-#' Plot the probability that each model is useful
+#' Plot the probability that a model is useful
 #'
-#' The plot of a result of [p_useful()]: P(useful) against the threshold, one
-#' curve per model, in the colours of [plot.voipred_nb()].
+#' The plot of results of [p_useful()]: P(useful) against the threshold, one
+#' curve per result, in the colours of [plot.voipred_nb()]. [p_useful()]
+#' takes one model; to compare models, give the result of each:
+#' `plot(pu_1, pu_2)`.
 #'
 #' @param x A result of [p_useful()].
-#' @param ... Not used.
+#' @param ... More results of [p_useful()] to draw on the same plot. A result
+#'   given here with a name is labelled with its name.
+#' @param labels Optional names of the curves, one per result, in order.
+#'   Default: the model's label of each result (or the argument names).
 #' @param interactive `TRUE` for an interactive plot (needs the plotly
 #'   package). Default `FALSE`.
 #' @return A ggplot object, or a plotly widget with `interactive = TRUE`.
@@ -126,14 +131,40 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, interactive = FALSE) {
 #'           outcome = "day30",
 #'           thresholds = seq(0.01, 0.3, by = 0.01))
 #' set.seed(1)
-#' plot(p_useful(res, n_sim = 500))
+#' pu <- p_useful(res, n_sim = 500)
+#' plot(pu)
+#'
+#' # two models: one result each, drawn together
+#' fit_age <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
+#' df_val_binary$p_age <- predict(fit_age, newdata = df_val_binary, type = "response")
+#' res_age <- nb(data = df_val_binary,
+#'               predicted_risk = df_val_binary$p_age,
+#'               outcome = "day30",
+#'               thresholds = seq(0.01, 0.3, by = 0.01),
+#'               label = "Age only")
+#' set.seed(1)
+#' pu_age <- p_useful(res_age, n_sim = 500)
+#' plot(pu, pu_age, labels = c("Full", "Age only"))
 #' @export
-plot.voipred_p_useful <- function(x, ..., interactive = FALSE) {
+plot.voipred_p_useful <- function(x, ..., labels = NULL, interactive = FALSE) {
   check_interactive(interactive)
-  check_no_dots(list(...), "plot()", "`interactive`")
-  e <- x$estimates
-  lev <- x$models
-  d <- curve_data(e$threshold, e$model, e$p_useful)
+  dots <- list(...)
+  res <- collect_results(x, dots, labels, "voipred_p_useful", "p_useful()", "plot()",
+                         "`labels` and `interactive`", "P(useful)")
+  if (is.null(labels)) {
+    # default: each result's model label, or the argument name
+    lab <- vapply(c(list(x), dots), function(r) r$models[1], character(1))
+    nms <- names(dots)
+    if (!is.null(nms)) lab[-1][nzchar(nms)] <- nms[nzchar(nms)]
+    if (anyDuplicated(lab))
+      stop("Two results have the same label (\"", lab[anyDuplicated(lab)], "\"); give ",
+           "each a different one with `labels`.", call. = FALSE)
+    names(res) <- lab
+  }
+  lev <- names(res)
+  d <- do.call(rbind, Map(function(r, l) curve_data(r$estimates$threshold, l,
+                                                     r$estimates$p_useful),
+                          res, lev))
   d$label <- factor(d$label, levels = lev)
   # the models keep the colours they have in the decision curve
   cols <- default_hues(length(lev) + 2)[-(1:2)]

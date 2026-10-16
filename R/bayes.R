@@ -23,16 +23,10 @@
 #' are Beta distributions (conjugate), so their draws are exact (no MCMC).
 #'
 #' * `nb_improper()` (default of [nb()]): no prior information. The improper
-#'   (Haldane) prior, Beta(0, 0) for all three: the data only. For a binary outcome the
-#'   posterior means are the observed proportions, so the net benefit of
-#'   [nb()] is exactly the usual net benefit,
-#'   \eqn{TP/n - FP/n \cdot z/(1-z)}, and its posterior draws are, at each
-#'   threshold, equal in distribution to the Bayesian bootstrap (not to the
-#'   ordinary bootstrap, which is close in large samples but not identical).
-#'   It is the only prior for survival and competing-risks outcomes: there the
-#'   posterior is sampled with the Bayesian bootstrap (Rubin 1981), and the net
-#'   benefit of [nb()] is the usual Kaplan-Meier, Aalen-Johansen or cIPCW
-#'   estimate.
+#'   (Haldane) prior, Beta(0, 0) for all three: the data only. The net benefit
+#'   of [nb()] is then the usual net benefit, \eqn{TP/n - FP/n \cdot z/(1-z)}.
+#'   It is the only prior for survival and competing-risks outcomes, whose net
+#'   benefit is the usual Kaplan-Meier, Aalen-Johansen or cIPCW estimate.
 #' * `nb_uniform()`: Beta(1, 1) for all three, as in bayesDCA (binary outcome).
 #' * `nb_jeffreys()`: Jeffreys prior, Beta(1/2, 1/2) for all three.
 #' * `nb_beta()`: Beta priors with the shapes you give, e.g. an informative

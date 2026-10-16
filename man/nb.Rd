@@ -203,8 +203,7 @@ the validation data (as in bayesDCA), and the net benefit columns are the
 posterior means, \eqn{E[\pi] E[Se] - (1 - E[\pi])(1 - E[Sp]) z/(1-z)} and
 \eqn{E[\pi] - (1 - E[\pi]) z/(1-z)}. Survival and competing-risks
 outcomes use only the improper prior: their net benefit is the usual
-Kaplan-Meier, Aalen-Johansen or cIPCW estimate, and its uncertainty is
-represented with the Bayesian bootstrap.
+Kaplan-Meier, Aalen-Johansen or cIPCW estimate.
 
 \strong{Predicted risks.} Validation needs only the predicted risks of the
 patients in \code{data}: give them with \code{predicted_risk}, a numeric vector with

@@ -61,7 +61,7 @@ largest EVPI.}
 \code{print()} shows the results at the first thresholds; \code{summary()} gives the
 main findings:
 \itemize{
-\item \code{\link[=p_useful]{p_useful()}}: for each model, the thresholds where P(useful) is above
+\item \code{\link[=p_useful]{p_useful()}}: the thresholds where P(useful) is above
 0.95, between 0.5 and 0.95, and below 0.5;
 \item \code{\link[=p_best]{p_best()}}: the most likely best strategy at each threshold;
 \item \code{\link[=evpi]{evpi()}}: where EVPI is positive and where it is largest, and the
@@ -99,7 +99,7 @@ e <- evpi(res1, res2)
 e
 summary(e)
 set.seed(1)
-summary(p_useful(res1, res2))
+summary(p_useful(res1))
 set.seed(1)
 summary(evsi(res1, res2, future_n = c(500, 1000, 2000)))
 }

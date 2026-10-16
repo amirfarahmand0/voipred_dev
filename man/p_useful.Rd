@@ -4,36 +4,38 @@
 \alias{p_useful}
 \title{Probability that a model is useful}
 \usage{
-p_useful(x, ..., n_sim = 1000, labels = NULL)
+p_useful(x, ..., n_sim = 1000)
 }
 \arguments{
-\item{x}{A result of \code{\link[=nb]{nb()}}.}
+\item{x}{A result of \code{\link[=nb]{nb()}}, for one model.}
 
-\item{...}{More results of \code{\link[=nb]{nb()}}, for other models evaluated on the same
-data, outcome, thresholds and prior (and horizon, cause and censoring). A
-result given here with a name is labelled with its name.}
+\item{...}{Not used.}
 
 \item{n_sim}{Number of draws. Default 1000.}
-
-\item{labels}{Optional names of the models, one per result, in order;
-default: the results' labels.}
 }
 \value{
 An object of class \code{voipred_p_useful}, a list with \code{estimates} (a
 data frame with columns \code{threshold}, \code{model} and \code{p_useful}, one row per
-threshold and model), \code{models}, \code{outcome}, \code{prior}, \code{draws}, \code{n_sim} and
-\code{call}, with \code{print()}, \code{summary()}, \code{plot()} and \code{as.data.frame()}
-methods.
+threshold), \code{models} (the model's label), \code{outcome}, \code{prior}, \code{draws},
+\code{n_sim} and \code{call}, with \code{print()}, \code{summary()}, \code{plot()} and
+\code{as.data.frame()} methods.
 }
 \description{
-For each model and threshold, the probability that using the model gives a
-higher net benefit than both default strategies (treat all and treat
+For one model, at each threshold, the probability that using the model gives
+a higher net benefit than both default strategies (treat all and treat
 none):
 \deqn{P(useful) = P\{NB_{model} > \max(NB_{all}, 0)\} = P(\Delta NB > 0),}
 estimated as the share of the posterior draws in which the model's net
 benefit is strictly higher. A model that ties with a default strategy (e.g.
 at a threshold where it treats everyone, or no one) is not counted as
 useful.
+}
+\details{
+P(useful) compares a model only with treat all and treat none, so it does
+not depend on other models: \code{p_useful()} takes one model. To compare
+models, compute it for each and draw them together with
+\code{plot(pu_1, pu_2)} (\code{\link[=plot.voipred_p_useful]{plot.voipred_p_useful()}}); to compare the models with
+each other, use \code{\link[=p_best]{p_best()}}.
 }
 \section{Uncertainty}{
 
@@ -46,10 +48,9 @@ of each model's sensitivity and specificity, with the prior of \code{\link[=nb]{
 (exact Beta / Dirichlet draws, as in bayesDCA). Several models are drawn
 jointly (a Dirichlet over the patterns of treat / do not treat across the
 models), so their correlation on the same patients is kept, and each model
-keeps its own posterior. With the improper prior these draws are equal in
-distribution to the Bayesian bootstrap;
+keeps its own posterior;
 \item survival and competing-risks outcomes, and binary outcomes with case
-weights (improper prior): the Bayesian bootstrap (Rubin 1981). Each
+weights (improper prior): the Bayesian bootstrap. Each
 draw gives the patients Dirichlet(1, ..., 1) weights (times the case
 weights) and recomputes the net benefit with the same estimator as
 \code{\link[=nb]{nb()}}. With \code{censoring = "cipcw"}, the censoring model is refitted in
@@ -59,7 +60,8 @@ every draw and the censoring weights recomputed from it (see
 
 The predicted risks are kept fixed in every draw. The expected net benefits
 are the means of the draws. \code{evpi()}, \code{\link[=p_useful]{p_useful()}} and \code{\link[=p_best]{p_best()}} called
-with the same seed (and the same results and \code{n_sim}) use the same draws.
+with the same seed (and the same results and \code{n_sim}) use the same draws
+(for \code{\link[=p_useful]{p_useful()}}, one model).
 }
 
 \examples{

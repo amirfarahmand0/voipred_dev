@@ -60,10 +60,9 @@ of each model's sensitivity and specificity, with the prior of \code{\link[=nb]{
 (exact Beta / Dirichlet draws, as in bayesDCA). Several models are drawn
 jointly (a Dirichlet over the patterns of treat / do not treat across the
 models), so their correlation on the same patients is kept, and each model
-keeps its own posterior. With the improper prior these draws are equal in
-distribution to the Bayesian bootstrap;
+keeps its own posterior;
 \item survival and competing-risks outcomes, and binary outcomes with case
-weights (improper prior): the Bayesian bootstrap (Rubin 1981). Each
+weights (improper prior): the Bayesian bootstrap. Each
 draw gives the patients Dirichlet(1, ..., 1) weights (times the case
 weights) and recomputes the net benefit with the same estimator as
 \code{\link[=nb]{nb()}}. With \code{censoring = "cipcw"}, the censoring model is refitted in
@@ -73,7 +72,8 @@ every draw and the censoring weights recomputed from it (see
 
 The predicted risks are kept fixed in every draw. The expected net benefits
 are the means of the draws. \code{evpi()}, \code{\link[=p_useful]{p_useful()}} and \code{\link[=p_best]{p_best()}} called
-with the same seed (and the same results and \code{n_sim}) use the same draws.
+with the same seed (and the same results and \code{n_sim}) use the same draws
+(for \code{\link[=p_useful]{p_useful()}}, one model).
 }
 
 \examples{

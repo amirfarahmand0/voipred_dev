@@ -563,6 +563,22 @@ All the options of part 1 apply, except `prior` (below). In addition:
 
 See `?nb` for the details of each argument.
 
+**The prior for a survival outcome.** There is no conjugate (generic)
+Bayesian model for the net benefit with censored data, so for survival and
+competing-risks outcomes `nb()` uses only the improper prior,
+`nb_improper()`: the net benefit is calculated from the data only, and is the
+usual Kaplan-Meier, Aalen-Johansen or cIPCW estimate. Giving another prior is
+an error:
+
+```{r survival-prior, error = TRUE}
+nb(data = df_val_survival,
+   predicted_risk = df_val_survival$p_cox,
+   outcome = ~ Surv(years, death),
+   horizon = 5,
+   thresholds = 0.2,
+   prior = nb_uniform())
+```
+
 **Censoring: `"km"`.** The risk among the treated patients is a
 Kaplan-Meier estimate (Aalen-Johansen for competing risks), as in dcurves.
 It assumes that censoring is independent of the outcome. At a threshold where

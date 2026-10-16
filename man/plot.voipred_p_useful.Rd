@@ -2,14 +2,18 @@
 % Please edit documentation in R/plot_voi.R
 \name{plot.voipred_p_useful}
 \alias{plot.voipred_p_useful}
-\title{Plot the probability that each model is useful}
+\title{Plot the probability that a model is useful}
 \usage{
-\method{plot}{voipred_p_useful}(x, ..., interactive = FALSE)
+\method{plot}{voipred_p_useful}(x, ..., labels = NULL, interactive = FALSE)
 }
 \arguments{
 \item{x}{A result of \code{\link[=p_useful]{p_useful()}}.}
 
-\item{...}{Not used.}
+\item{...}{More results of \code{\link[=p_useful]{p_useful()}} to draw on the same plot. A result
+given here with a name is labelled with its name.}
+
+\item{labels}{Optional names of the curves, one per result, in order.
+Default: the model's label of each result (or the argument names).}
 
 \item{interactive}{\code{TRUE} for an interactive plot (needs the plotly
 package). Default \code{FALSE}.}
@@ -18,8 +22,10 @@ package). Default \code{FALSE}.}
 A ggplot object, or a plotly widget with \code{interactive = TRUE}.
 }
 \description{
-The plot of a result of \code{\link[=p_useful]{p_useful()}}: P(useful) against the threshold, one
-curve per model, in the colours of \code{\link[=plot.voipred_nb]{plot.voipred_nb()}}.
+The plot of results of \code{\link[=p_useful]{p_useful()}}: P(useful) against the threshold, one
+curve per result, in the colours of \code{\link[=plot.voipred_nb]{plot.voipred_nb()}}. \code{\link[=p_useful]{p_useful()}}
+takes one model; to compare models, give the result of each:
+\code{plot(pu_1, pu_2)}.
 }
 \examples{
 df_dev_binary <- gusto[1:5000, ]
@@ -32,7 +38,20 @@ res <- nb(data = df_val_binary,
           outcome = "day30",
           thresholds = seq(0.01, 0.3, by = 0.01))
 set.seed(1)
-plot(p_useful(res, n_sim = 500))
+pu <- p_useful(res, n_sim = 500)
+plot(pu)
+
+# two models: one result each, drawn together
+fit_age <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
+df_val_binary$p_age <- predict(fit_age, newdata = df_val_binary, type = "response")
+res_age <- nb(data = df_val_binary,
+              predicted_risk = df_val_binary$p_age,
+              outcome = "day30",
+              thresholds = seq(0.01, 0.3, by = 0.01),
+              label = "Age only")
+set.seed(1)
+pu_age <- p_useful(res_age, n_sim = 500)
+plot(pu, pu_age, labels = c("Full", "Age only"))
 }
 \seealso{
 \code{\link[=p_useful]{p_useful()}}, \code{\link[=plot.voipred_p_best]{plot.voipred_p_best()}}
