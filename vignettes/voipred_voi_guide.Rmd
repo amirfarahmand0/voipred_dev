@@ -1,0 +1,537 @@
+---
+title: "Value of information for model validation"
+author: "Amirhosein Farahmand Piruz"
+date: "October 16, 2026"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 2
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4.2)
+```
+
+A validation sample is finite, so the net benefit of a model is uncertain.
+The value-of-information (VoI) functions measure how much that uncertainty
+matters for the decision of which strategy to use. They all take results of
+`nb()` (see the net benefit guide, `voipred_nb_guide.Rmd`):
+
+| Function | What it gives |
+|---|---|
+| `p_useful()` | Probability that a model is better than treating all and treating none (one model) |
+| `p_best()` | Probability that each strategy (each model, treat all, treat none) is the best |
+| `evpi()` | Expected value of perfect information (EVPI) and relative EVPI |
+| `evsi()` | Expected value of sample information (EVSI) of a future validation study |
+
+Each result has `print()`, `summary()`, `as.data.frame()` and `plot()`, and
+EVPI and EVSI can also be drawn below the decision curve. Every function works
+for binary, survival and competing-risks outcomes and any number of models.
+The help pages give the full details: `?p_useful`, `?p_best`, `?evpi`,
+`?evsi`, `?summary.voipred_voi` and the `plot()` methods
+(`?plot.voipred_evpi`, ...).
+
+## Installation
+
+voipred.dev is installed from GitHub. plotly (interactive plots) and
+patchwork (the panel below a static decision curve) are optional; partykit
+and coin are only used for the censoring tree in the EVPI section.
+voipred.dev has compiled (C++) code, so installing it needs a C++ compiler:
+Rtools on Windows, the Xcode command line tools on macOS
+(`xcode-select --install`); Linux has one already.
+
+```{r install, eval = FALSE}
+options(repos = c(CRAN = "https://cloud.r-project.org"),
+        install.packages.compile.from.source = "never")
+lib <- Sys.getenv("R_LIBS_USER")
+dir.create(lib, recursive = TRUE, showWarnings = FALSE)
+.libPaths(c(lib, .libPaths()))
+
+pkgs <- c(remotes = "0", plotly = "0", patchwork = "0", partykit = "0", coin = "0",
+          prodlim = "0", insight = "0", Rcpp = "0", ggplot2 = "3.4.0",
+          riskRegression = "2026.3.11")
+missing_or_old <- function(p)
+  !requireNamespace(p, quietly = TRUE) || utils::packageVersion(p) < pkgs[[p]]
+new <- names(pkgs)[vapply(names(pkgs), missing_or_old, logical(1))]
+if (length(new)) install.packages(new, lib = lib)
+
+remotes::install_github("amirfarahmand0/voipred_dev", force = TRUE,   # voipred.dev
+                        upgrade = "never", lib = lib)
+```
+
+```{r library}
+library(voipred.dev)
+library(survival)
+```
+
+# Setup: the net benefit
+
+**Binary outcome.** GUSTO-I, 30-day mortality. Two logistic models are
+fitted on 5000 patients and validated on 500, the size of the case study of
+Sadatsafavi et al. (2023); with thousands of validation patients the
+uncertainty would be small.
+
+```{r data-binary}
+set.seed(1)
+i   <- sample(nrow(gusto))
+df_dev_binary <- gusto[i[1:5000], ]
+df_val_binary <- gusto[i[5001:5500], ]
+fit_full <- glm(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
+                family = binomial, data = df_dev_binary)
+fit_age  <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
+df_val_binary$p_full <- predict(fit_full, newdata = df_val_binary, type = "response")
+df_val_binary$p_age  <- predict(fit_age, newdata = df_val_binary, type = "response")
+
+z <- seq(0.01, 0.30, by = 0.01)
+res_full <- nb(data = df_val_binary,
+               predicted_risk = df_val_binary$p_full,
+               outcome = "day30",
+               thresholds = z,
+               label = "Full")
+res_age  <- nb(data = df_val_binary,
+               predicted_risk = df_val_binary$p_age,
+               outcome = "day30",
+               thresholds = z,
+               label = "Age only")
+plot(res_full, res_age)
+```
+
+**Survival and competing risks.** Rotterdam breast cancer data: death by 5
+years (a Cox and a Weibull model), and recurrence by 5 years with death as a
+competing event (a cause-specific Cox model); fitted on 1500 patients and
+validated on 600. The risks by 5 years are given to `nb()`.
+
+In `nb()`, `predicted_risk =` is a vector or the name of a column of `data`;
+`outcome =` is, for a binary outcome, a column name (`"day30"`), a formula
+(`~ day30`) or a vector (0/1, logical or a two-level factor), and for a
+survival or competing-risks outcome a formula (`~ Surv(years, death)`), a
+`Surv` object or the name of a column holding one. The net benefit guide
+shows each of them.
+
+```{r data-survival}
+rott <- rotterdam
+rott$years     <- rott$dtime / 365.25
+rott$cr_time   <- ifelse(rott$recur == 1, rott$rtime, rott$dtime) / 365.25
+rott$cr_code   <- ifelse(rott$recur == 1, 1, ifelse(rott$death == 1, 2, 0))
+rott$cr_status <- factor(rott$cr_code, 0:2, c("censored", "recurrence", "death"))
+set.seed(1)
+j <- sample(nrow(rott))
+df_dev_survival <- rott[j[1:1500], ]
+df_val_survival <- rott[j[1501:2100], ]
+
+fit_cox <- coxph(Surv(years, death) ~ age + size + nodes + grade + hormon + chemo,
+                 data = df_dev_survival, x = TRUE)
+fit_aft <- survreg(Surv(years, death) ~ age + size + nodes, data = df_dev_survival,
+                   dist = "weibull")
+fit_csc <- riskRegression::CSC(prodlim::Hist(cr_time, cr_code) ~ age + size + nodes + grade,
+                               data = df_dev_survival)
+# predicted risks by 5 years: of death, and of recurrence (cause 1)
+df_val_survival$p_cox <- as.vector(riskRegression::predictRisk(
+  fit_cox, newdata = df_val_survival, times = 5))
+df_val_survival$p_aft <- as.vector(riskRegression::predictRisk(
+  fit_aft, newdata = df_val_survival, times = 5))
+df_val_survival$p_csc <- as.vector(riskRegression::predictRisk(
+  fit_csc, newdata = df_val_survival, times = 5, cause = 1))
+
+zs <- seq(0.05, 0.60, by = 0.01)
+res_cox <- nb(data = df_val_survival,
+              predicted_risk = df_val_survival$p_cox,
+              outcome = ~ Surv(years, death),
+              horizon = 5,
+              thresholds = zs,
+              label = "Cox")
+res_aft <- nb(data = df_val_survival,
+              predicted_risk = df_val_survival$p_aft,
+              outcome = ~ Surv(years, death),
+              horizon = 5,
+              thresholds = zs,
+              label = "Weibull")
+res_csc <- nb(data = df_val_survival,
+              predicted_risk = df_val_survival$p_csc,
+              outcome = ~ Surv(cr_time, cr_status),
+              horizon = 5,
+              cause = "recurrence",
+              thresholds = zs,
+              label = "Cause-specific Cox")
+
+# with conditional IPCW: censoring modelled on the validation data
+cens <- coxph(Surv(years, death == 0) ~ age + nodes + grade, data = df_val_survival)
+res_ci <- nb(data = df_val_survival,
+             predicted_risk = df_val_survival$p_cox,
+             outcome = ~ Surv(years, death),
+             horizon = 5,
+             thresholds = zs,
+             censoring = "cipcw",
+             cipcw = cipcw_control(model = cens),
+             label = "Cox")
+```
+
+# How the uncertainty is represented
+
+`nb()` works in a Bayesian framework, and each function draws `n_sim` times
+(default 1000) from the posterior of the net benefit of every strategy. With
+the default prior, `nb_improper()`, there is no prior information: the
+posterior reflects the data only, and the net benefit equals the usual
+(frequentist) net benefit. The predicted risks stay fixed; only the
+validation sample is uncertain. The draws follow from the `nb()` results:
+
+| Results of `nb()` | Draws |
+|---|---|
+| binary, without case weights | the conjugate Beta posterior of the prevalence, sensitivity and specificity, with the results' prior |
+| survival, competing risks, binary with case weights | the Bayesian bootstrap: Dirichlet(1, ..., 1) weights on the patients, the net benefit recomputed with the same estimator as `nb()` |
+
+For a survival or competing-risks outcome there is no conjugate (generic)
+Bayesian model for the net benefit with censored data, so `nb()` uses only
+the improper prior there, and the draws are the Bayesian bootstrap: the
+posterior under the improper prior (the data only). For a binary outcome
+with the improper prior, the conjugate posterior and the Bayesian bootstrap
+are the same distribution (with another prior, such as the uniform, they
+differ a little: the prior adds information). Several models
+are drawn together, with the same draws, so their correlation on the same
+patients is kept. With cIPCW the censoring model is refitted in every draw.
+With the same seed, results and `n_sim`, the four functions use the same
+draws. This guide uses `n_sim = 5000`.
+
+The arguments the four functions share:
+
+| Argument | What it does |
+|---|---|
+| `x`, `...` | Results of `nb()`: one for `p_useful()`; one or more for `p_best()`, `evpi()` and `evsi()`, for models evaluated on the same data, outcome, thresholds, censoring method and prior. A result given in `...` with a name is labelled with it. |
+| `n_sim` | Number of draws. Default 1000. |
+| `labels` | `p_best()`, `evpi()`, `evsi()`: names of the models, one per result, in order. Default: their `label`. |
+
+# P(useful)
+
+The probability that a model is better than both default strategies,
+$P\{NB_{model} > \max(NB_{all}, 0)\}$: the share of draws in which its net
+benefit is strictly higher. It compares the model only with treat all and
+treat none, so it does not depend on other models: `p_useful()` takes one
+model. To compare models, compute it for each and draw them together with
+`plot()`; to compare the models with each other, use `p_best()` (below).
+
+```{r pu}
+set.seed(10)
+pu_full <- p_useful(res_full, n_sim = 5000)
+```
+
+**`print()`** gives the header (the model, the outcome, the number of
+patients, the prior and the number and kind of draws) and P(useful) at the
+first thresholds; `print(pu_full, n = 30)` shows more:
+
+```{r pu-print}
+print(pu_full)
+```
+
+**`summary()`** gives the thresholds where the model is almost surely useful
+($P > 0.95$), likely useful ($0.5$ to $0.95$), or unlikely to be useful
+($P < 0.5$):
+
+```{r pu-summary}
+summary(pu_full)
+```
+
+**`plot()`** draws P(useful) against the threshold, one curve per result,
+named by the model's label, in the colours of the decision curve. For two
+models, compute each and give both:
+
+```{r pu-plot}
+set.seed(10)
+pu_age <- p_useful(res_age, n_sim = 5000)
+plot(pu_full, pu_age)
+plot(pu_full, pu_age, labels = c("Model A", "Model B"))   # other names
+```
+
+**Survival** works the same way:
+
+```{r pu-survival}
+set.seed(11)
+pu_cox <- p_useful(res_cox, n_sim = 5000)
+print(pu_cox)
+summary(pu_cox)
+set.seed(11)
+pu_aft <- p_useful(res_aft, n_sim = 5000)
+plot(pu_cox, pu_aft)
+```
+
+# P(best)
+
+The probability that each strategy (each model, treat all, treat none) has
+the highest net benefit. It compares the models with each other, so
+`p_best()` takes all the models together. Ties share the draw, so the
+probabilities sum to 1 at each threshold.
+
+```{r pb}
+set.seed(10)
+pb <- p_best(res_full, res_age, n_sim = 5000)
+```
+
+**`print()`** gives the header and, at the first thresholds, one column per
+strategy:
+
+```{r pb-print}
+print(pb)
+```
+
+**`summary()`** gives, at each threshold, the strategy most likely to be the
+best and its probability (all thresholds by default, or those in
+`thresholds`):
+
+```{r pb-summary}
+summary(pb, thresholds = c(0.02, 0.05, 0.1, 0.2))
+```
+
+**`plot()`** draws one curve per strategy:
+
+```{r pb-plot}
+plot(pb)
+```
+
+**Competing risks:**
+
+```{r pb-competing}
+set.seed(12)
+pb_cr <- p_best(res_csc, n_sim = 5000)
+print(pb_cr)
+summary(pb_cr, thresholds = c(0.2, 0.3, 0.4, 0.5))
+plot(pb_cr)
+```
+
+# EVPI
+
+With $ENB_{current} = \max_s E\{NB_s\}$ (use the strategy that is best on
+average) and $ENB_{perfect} = E\{\max_s NB_s\}$ (use the best strategy in each
+draw), $EVPI = ENB_{perfect} - ENB_{current} \ge 0$: the expected loss in net
+benefit from not knowing which strategy is best, in net true positives per
+patient. The relative EVPI compares the gain from perfect information with
+the gain from using the model(s), both over the best default strategy; 1.2
+means perfect information would give 20% more net benefit than using the
+best model now.
+
+```{r evpi}
+set.seed(10)
+e <- evpi(res_full, res_age, n_sim = 5000)
+```
+
+**`print()`** gives the header and EVPI and relative EVPI at the first
+thresholds:
+
+```{r evpi-print}
+print(e)
+```
+
+**`summary()`** gives the thresholds where EVPI is positive and its largest
+value, and at each threshold EVPI, relative EVPI, the strategy that is best
+now (highest expected net benefit) and its expected net benefit:
+
+```{r evpi-summary}
+summary(e, thresholds = c(0.02, 0.05, 0.1, 0.2))
+```
+
+The whole table, `as.data.frame(e)`, also has $ENB_{current}$ and
+$ENB_{perfect}$, and `e$ENB` the expected net benefit of each strategy.
+
+**`plot()`** draws EVPI, or the relative EVPI, against the threshold:
+
+```{r evpi-plot}
+plot(e)
+plot(e, type = "relative")
+```
+
+**Several results on one plot**, e.g. the full model validated on 500 and on
+2000 patients:
+
+```{r evpi-samples}
+df_val_binary_2000 <- gusto[i[5001:7000], ]
+df_val_binary_2000$p_full <- predict(fit_full, newdata = df_val_binary_2000,
+                                     type = "response")
+res_full_2000 <- nb(data = df_val_binary_2000,
+                    predicted_risk = df_val_binary_2000$p_full,
+                    outcome = "day30",
+                    thresholds = z,
+                    label = "Full")
+set.seed(10)
+e_500  <- evpi(res_full, n_sim = 5000)
+e_2000 <- evpi(res_full_2000, n_sim = 5000)
+plot(e_500, e_2000, labels = c("n = 500", "n = 2000"))
+```
+
+**Survival with cIPCW.** The censoring model is refitted in every draw:
+automatically for `coxph`, `survreg`, `rms::cph`, `rms::psm`, `flexsurvreg`
+and `prodlim`. In a draw where a few patients carry most of the weight,
+`coxph()` may warn that a coefficient of the censoring model may be infinite;
+one draw out of 5000 has a negligible effect.
+
+```{r evpi-cipcw}
+set.seed(41)
+e_ci <- evpi(res_ci, n_sim = 5000)
+print(e_ci)
+summary(e_ci, thresholds = c(0.1, 0.2, 0.3, 0.4))
+```
+
+For any other censoring model, give `refit_function` in `cipcw_control()`: a
+`function(data, weights)` that refits it with case weights. A survival tree:
+
+```{r evpi-refit}
+tree <- partykit::ctree(Surv(years, death == 0) ~ age + nodes + grade,
+                        data = df_val_survival)
+ctrl <- cipcw_control(
+  model = tree,
+  refit_function = function(data, weights)
+    partykit::ctree(Surv(years, death == 0) ~ age + nodes + grade, data = data,
+                    weights = weights))
+res_tree <- nb(data = df_val_survival,
+               predicted_risk = df_val_survival$p_cox,
+               outcome = ~ Surv(years, death),
+               horizon = 5,
+               thresholds = zs,
+               censoring = "cipcw",
+               cipcw = ctrl,
+               label = "Cox")
+set.seed(43)
+summary(evpi(res_tree, n_sim = 1000), thresholds = c(0.1, 0.2, 0.3, 0.4))
+```
+
+**Prior information.** All the results above use the default prior, the
+data only. For a binary outcome, prior information can be added in `nb()`
+(e.g. `prior = nb_uniform()`, see the net benefit guide); the draws then come
+from that posterior. Results with different priors are not compared:
+
+```{r evpi-prior}
+u_full <- nb(data = df_val_binary,
+             predicted_risk = df_val_binary$p_full,
+             outcome = "day30",
+             thresholds = z,
+             prior = nb_uniform(),
+             label = "Full")
+u_age  <- nb(data = df_val_binary,
+             predicted_risk = df_val_binary$p_age,
+             outcome = "day30",
+             thresholds = z,
+             prior = nb_uniform(),
+             label = "Age only")
+set.seed(30)
+summary(evpi(u_full, u_age, n_sim = 5000), thresholds = c(0.02, 0.05, 0.1, 0.2))
+```
+
+# EVSI
+
+The expected gain in net benefit from a future validation study of $N$
+patients (`future_n`), added to the current sample, before choosing the
+strategy. It is between 0 and EVPI and approaches EVPI as $N$ grows. Two
+algorithms of Sadatsafavi et al. (2025) are used: the conjugate
+(Beta-binomial) one for a binary outcome without case weights, and the
+Bayesian bootstrap one otherwise (for survival, a future patient is a
+resampled current patient, with the same follow-up).
+
+```{r evsi}
+set.seed(20)
+o <- evsi(res_full, res_age, future_n = c(250, 500, 1000, 2000, 4000), n_sim = 5000)
+```
+
+**`print()`** gives the header and, at the first thresholds, EVPI and the
+EVSI of each future sample size, one column per size:
+
+```{r evsi-print}
+print(o)
+```
+
+**`summary()`** gives EVSI as a percentage of EVPI, at the 3 thresholds with
+the largest EVPI (or at chosen `thresholds`): how much of the value of
+perfect information a study of each size would give:
+
+```{r evsi-summary}
+summary(o)
+summary(o, thresholds = c(0.05, 0.1, 0.2))
+```
+
+**`plot()`** draws EVSI against the future sample size, one curve per
+threshold (all thresholds if there are at most 5, otherwise the 4 with the
+largest EVPI, or those in `thresholds`), with EVPI as a dashed line:
+
+```{r evsi-plot}
+plot(o)
+plot(o, thresholds = c(0.02, 0.05, 0.1, 0.2))
+```
+
+Small negative values of EVSI where EVPI is close to 0 are Monte Carlo error:
+EVSI is about 0 there.
+
+**Survival:**
+
+```{r evsi-survival}
+set.seed(41)
+o_s <- evsi(res_cox, res_aft, future_n = c(500, 1000, 2000, 4000), n_sim = 5000)
+print(o_s)
+summary(o_s)
+plot(o_s, thresholds = c(0.1, 0.2, 0.3))
+```
+
+# Extracting values
+
+Every result is a list, and its whole table is `as.data.frame()` (the same as
+`$estimates`), one row per threshold (and per model, strategy or future
+sample size). Thresholds made with `seq()` are not exact decimals (0.1 is
+stored as 0.1000000000000000055), so select a threshold with `round()`:
+
+```{r extract}
+d_pu <- as.data.frame(pu_full)
+d_pu[round(d_pu$threshold, 2) == 0.1, ]                     # P(useful) at 0.1
+
+d_pb <- as.data.frame(pb)
+d_pb[round(d_pb$threshold, 2) == 0.1, ]                     # P(best) at 0.1
+
+d_e <- as.data.frame(e)
+d_e$EVPI[round(d_e$threshold, 2) == 0.1]                    # EVPI at 0.1
+
+d_o <- as.data.frame(o)
+d_o[round(d_o$threshold, 2) == 0.1 & d_o$future_n == 2000, ]  # EVSI at 0.1, N = 2000
+```
+
+# EVPI and EVSI below the decision curve
+
+`plot()` of `nb()` results draws EVPI and EVSI in a panel below the decision
+curve, on the same threshold axis (without `evpi`, the panel takes the EVPI
+of the `evsi()` result):
+
+```{r dca-voi, fig.height = 6.5}
+plot(res_full, res_age, evpi = e, evsi = o)
+plot(res_full, res_age, type = "delta", evpi = e)
+plot(res_cox, res_aft, evsi = o_s)
+```
+
+# Interactive plots
+
+Every plot takes `interactive = TRUE` for a plotly version: hovering shows
+the values of all the curves, and clicking a legend entry hides a curve.
+
+```{r interactive, fig.height = 6.5}
+plot(pu_full, pu_age, interactive = TRUE)
+plot(o, thresholds = c(0.02, 0.05, 0.1, 0.2), interactive = TRUE)
+plot(res_full, res_age, evpi = e, evsi = o, interactive = TRUE)
+```
+
+# Checks
+
+```{r checks, error = TRUE}
+evpi(res_full, n_sim = 1)                     # at least 2 draws
+evpi(res_full, res_cox)                       # results that cannot be compared
+evpi(res_full, u_age)                         # different priors
+evpi(as.data.frame(res_full))                 # not a result of nb()
+evsi(res_full)                                # future_n is required
+plot(o, thresholds = 0.055)                   # not a threshold of the result
+p_useful(res_full, res_age)                   # p_useful() takes one model
+plot(res_full, evpi = pu_full)                # evpi = must be a result of evpi()
+```
+
+# References
+
+- Sadatsafavi M, Lee TY, Wynants L, Vickers AJ, Gustafson P.
+  Value-of-information analysis for external validation of risk prediction
+  models. *Medical Decision Making* 2023; 43(5): 564-575.
+- Sadatsafavi M, et al. Expected value of sample information calculations
+  for risk prediction model validation. *Medical Decision Making* 2025;
+  45(3): 232-244.
+- Rubin DB. The Bayesian bootstrap. *Annals of Statistics* 1981; 9(1):
+  130-134.
+- bayesDCA: Bayesian decision curve analysis, R package
+  (github.com/giulianonetto/bayesDCA).

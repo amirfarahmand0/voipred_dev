@@ -128,11 +128,6 @@ table, which has one row per threshold:
 - `delta_NB`: $NB_{model} - \max(NB_{all}, NB_{none})$, the gain of the model
   over the best default strategy. The model is useful where it is positive.
 
-The result is a list, like a `glm` fit: its parts are read with `$`. The
-whole table is `res_glm$estimates` (or `as.data.frame(res_glm)`), and
-`res_glm$risk`, `res_glm$outcome` and `res_glm$counts` hold the predicted
-risks, the outcome and the counts of true and false positives and negatives.
-`summary()` gives the best strategy along the thresholds, and, at each
 **`summary()`** gives the best strategy along the thresholds and the
 largest gain of the model, and, at each threshold, the sensitivity and
 specificity of the model and the best strategy; `thresholds` picks some:
@@ -140,6 +135,27 @@ specificity of the model and the best strategy; `thresholds` picks some:
 ```{r summary-glm}
 summary(res_glm)
 summary(res_glm, thresholds = c(0.05, 0.1, 0.2))
+```
+
+**`as.data.frame()`** gives the whole table, one row per threshold. Thresholds
+made with `seq()` are not exact decimals (0.1 is stored as
+0.1000000000000000055), so select a threshold with `round()`:
+
+```{r as-data-frame-glm}
+d_glm <- as.data.frame(res_glm)
+head(d_glm)
+d_glm[round(d_glm$threshold, 2) == 0.1, ]       # the net benefit at threshold 0.1
+```
+
+The result is a list, like a `glm` fit, and its other parts are read with
+`$`: the predicted risks, the outcome, and the counts of true and false
+positives and negatives at each threshold:
+
+```{r parts-glm}
+names(res_glm)
+head(res_glm$risk)
+res_glm$outcome$prevalence
+head(res_glm$counts, 3)
 ```
 
 ## All the ways to give the risks and the binary outcome
@@ -481,6 +497,13 @@ strategy:
 ```{r summary-cox}
 summary(res_cox)
 summary(res_cox, thresholds = c(0.1, 0.2, 0.3, 0.4, 0.5))
+```
+
+**`as.data.frame()`** gives the whole table, as for a binary outcome:
+
+```{r as-data-frame-cox}
+d_cox <- as.data.frame(res_cox)
+d_cox[round(d_cox$threshold, 2) == 0.3, ]       # the net benefit at threshold 0.3
 ```
 
 ## All the ways to give the survival outcome

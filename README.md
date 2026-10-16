@@ -119,10 +119,16 @@ evpi(res_u)
 
 ## Documentation
 
-- [Net benefit guide](vignettes/voipred_nb_guide.Rmd): binary, survival and
+- [Net benefit guide](vignettes/voipred_nb_guide.Rmd)
+  ([rendered](reports/voipred_nb_guide.html)): binary, survival and
   competing-risks examples, predicted risks or a fitted model, the prior
   (the data only by default, or prior information), every option explained,
   plots, and the list of supported models.
+- [Value of information guide](vignettes/voipred_voi_guide.Rmd)
+  ([rendered](reports/voipred_voi_guide.html)): `p_useful()`, `p_best()`,
+  `evpi()` and `evsi()` for binary, survival and competing-risks outcomes,
+  with their `print()`, `summary()` and plots, EVPI and EVSI below the
+  decision curve, and how to extract values.
 - [Tests and messages](reports/voipred_nb_tests_and_messages.pdf): every
   test (checked against `dcurves`, each modelling package's own predictions,
   predtools, the EVSI paper's code and bayesDCA) and every error and warning
