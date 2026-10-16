@@ -54,13 +54,16 @@ the same `nb()` results, for every outcome type and any number of models:
 - `evpi()`: expected value of perfect information and relative EVPI;
 - `evsi()`: expected value of sample information of a future validation study
   of a given size;
-- `p_useful()` and `p_best()`: the probability that a model is better than
-  treating all and none, and that each strategy is the best;
+- `p_useful()`: the probability that a model is better than treating all
+  and treating none, for one model (compute it for each model and draw them
+  together with `plot(pu_1, pu_2)`);
+- `p_best()`: the probability that each strategy (each model, treat all,
+  treat none) is the best;
 - the uncertainty is represented with `n_sim` draws from the posterior of
   the net benefit: for a binary outcome from the conjugate Beta model (and
   `evsi()` uses the conjugate algorithm of Sadatsafavi et al. 2025); for
   survival and competing risks, and for case weights, with the Bayesian
-  bootstrap, which is the posterior under the improper prior;
+  bootstrap;
 - with cIPCW, the censoring model is refitted in every draw, so its
   uncertainty is included: automatically for `coxph`, `survreg`, `cph`,
   `psm`, `flexsurvreg` and `prodlim`, with `refit_function` in
