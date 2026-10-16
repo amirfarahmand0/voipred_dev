@@ -5,8 +5,8 @@
 \title{Net benefit of a prediction model in a validation sample}
 \usage{
 nb(
-  predicted_risk = NULL,
   data,
+  predicted_risk = NULL,
   outcome,
   thresholds = seq(0, 0.99, by = 0.01),
   horizon = NULL,
@@ -14,14 +14,18 @@ nb(
   censoring = c("km", "cipcw"),
   cipcw = cipcw_control(),
   weights = NULL,
+  prior = nb_improper(),
   model = NULL,
   predict_function = NULL,
-  bayesian = FALSE,
-  prior = nb_uniform(),
   label = NULL
 )
 }
 \arguments{
+\item{data}{A data frame: the validation sample, one row per patient, with
+the outcome columns when \code{outcome} names them (and, with a \code{model}, every
+covariate it uses; with \code{censoring = "cipcw"}, every covariate of the
+censoring model).}
+
 \item{predicted_risk}{The predicted risks of the patients in \code{data}: a
 numeric vector, one probability per row of \code{data} (in its row order),
 e.g. \code{val$p}. Alternatively, the name of the column of \code{data} that holds
@@ -29,11 +33,6 @@ them, e.g. \code{"p"}. For survival outcomes,
 the risk of the event by \code{horizon} (competing risks: of \code{cause} by
 \code{horizon}). This is all the validation needs. A fitted model can also be
 given here instead; it is then used as \code{model}.}
-
-\item{data}{A data frame: the validation sample, one row per patient, with
-the outcome columns when \code{outcome} names them (and, with a \code{model}, every
-covariate it uses; with \code{censoring = "cipcw"}, every covariate of the
-censoring model).}
 
 \item{outcome}{The observed outcome, one per row of \code{data}:
 \itemize{
@@ -80,16 +79,23 @@ optionally, your own \code{predict_function} for it) or the censoring
 weights, and optional truncation, made with \code{\link[=cipcw_control]{cipcw_control()}}. Giving settings with \code{censoring = "km"} is an error.}
 
 \item{weights}{Optional case weights, one non-negative number per row of
-\code{data} (with a positive sum), e.g. sampling weights or the weights of a
-(Bayesian) bootstrap draw. They weight each patient in the net benefit
-(an integer weight is the same as repeating the row; 0 drops the
-patient). They are not passed to the prediction model or the censoring
-model.}
+\code{data} (with a positive sum), e.g. sampling weights. They weight each
+patient in the net benefit (an integer weight is the same as repeating the
+row; 0 drops the patient), and the value-of-information functions then
+use the Bayesian bootstrap of the weighted sample. They are not passed to
+the prediction model or the censoring model. Only with the improper prior.}
+
+\item{prior}{The prior of the net benefit (see "Prior" and \link{nb_priors}):
+\code{\link[=nb_improper]{nb_improper()}} (default: Beta(0, 0), the data only, which gives the
+frequentist net benefit), \code{\link[=nb_uniform]{nb_uniform()}}, \code{\link[=nb_jeffreys]{nb_jeffreys()}} or your own Beta
+priors with \code{\link[=nb_beta]{nb_beta()}}. Survival and competing-risks outcomes: only
+\code{\link[=nb_improper]{nb_improper()}}.}
 
 \item{model}{Optional, instead of \code{predicted_risk}: a fitted prediction
 model, from which voipred predicts the risks of the patients in \code{data},
-once. See "Predicted risks" for the models that work automatically and
-for \code{predict_function}. Give either \code{predicted_risk} or \code{model}.}
+once. See "Predicting the risks from a model" for the models that work
+by default and for \code{predict_function}. Give either \code{predicted_risk} or
+\code{model}.}
 
 \item{predict_function}{Optional, with \code{model} only: a
 \verb{function(model, newdata, horizon, cause)}
@@ -106,35 +112,41 @@ two), or a curve per patient, \verb{list(time = <grid>, surv = <n x grid matrix>
 last grid time \verb{<= horizon}. A function that ignores some arguments can
 be written \verb{function(model, newdata, ...)}.}
 
-\item{bayesian}{Binary outcomes only: \code{TRUE} for the Bayesian net benefit
-(see "Bayesian net benefit"): the net benefit columns are posterior means,
-and the value-of-information functions (\code{\link[=evpi]{evpi()}}, \code{\link[=evsi]{evsi()}}, \code{\link[=p_useful]{p_useful()}},
-\code{\link[=p_best]{p_best()}}) draw from the posterior instead of resampling the patients.
-Default \code{FALSE}. Case weights cannot be used with it.}
-
-\item{prior}{With \code{bayesian = TRUE}: the prior, \code{\link[=nb_uniform]{nb_uniform()}} (default,
-Beta(1, 1) for the prevalence, sensitivity and specificity, as in
-bayesDCA), \code{\link[=nb_jeffreys]{nb_jeffreys()}} or your own Beta priors with \code{\link[=nb_beta]{nb_beta()}}.}
-
 \item{label}{Name of the model in printed output and plots, a single
 string. Default: the name of the object given as \code{predicted_risk} or
 \code{model} (e.g. \code{p}, the column name, or \code{fit}), or \code{"Model"} for an
 expression. \code{"Treat All"} and \code{"Treat None"} are reserved.}
 }
 \value{
-A data frame of class \code{voipred_nb} with one row per threshold
-and columns \code{threshold}, \code{NB_model} (using the model; \code{NA} where it
-cannot be estimated, see Details), \code{NB_all} (treat everyone), \code{NB_none}
-(treat no one, always 0) and \code{delta_NB}, the difference in net benefit
-between the model and the best default strategy,
+An object of class \code{voipred_nb}, a list with:
+\itemize{
+\item \code{estimates}: a data frame with one row per threshold and columns
+\code{threshold}, \code{NB_model} (using the model; \code{NA} where it cannot be
+estimated, see Details), \code{NB_all} (treat everyone), \code{NB_none} (treat no
+one, always 0) and \code{delta_NB}, the difference in net benefit between the
+model and the best default strategy,
 \eqn{NB_{model} - \max(NB_{all}, NB_{none})}: positive where the model
-is useful. Plot the results with \code{\link[=plot_dca]{plot_dca()}}. Attributes: \code{label}, \code{n} (rows of \code{data}),
-\code{prevalence} (binary: the weighted event rate; survival: the estimated
-risk of the event, or of \code{cause}, by the horizon), \code{outcome_type}
-(\code{"binary"}, \code{"survival"} or \code{"competing"}), \code{risk} (the predicted
-risks, one per row of \code{data}), \code{bayesian} (and with \code{bayesian = TRUE} the
-\code{prior}; \code{prevalence} is then its posterior mean) and, for survival
-outcomes, \code{horizon}, \code{cause} (the event level used) and \code{censoring}.
+is useful;
+\item \code{label}, \code{call} and \code{prior};
+\item \code{outcome}: the outcome type (\code{"binary"}, \code{"survival"} or
+\code{"competing"}), the number of patients \code{n}, the \code{prevalence} (binary:
+the posterior mean event rate; survival: the estimated risk of the
+event, or of \code{cause}, by the horizon), \code{events} (binary), and for
+survival outcomes \code{horizon}, \code{cause} and \code{censoring};
+\item \code{risk}: the predicted risks, one per row of \code{data};
+\item \code{counts} (binary): the numbers of true and false positives and
+negatives at each threshold;
+\item \code{observed}, \code{weights} and \code{cipcw}: the outcome, case weights and
+censoring settings, used by the value-of-information functions.
+}
+
+Like a \code{glm} fit, it is a list whose parts are read with \code{$} (e.g.
+\code{res$estimates}), and it has methods: \code{print()} shows what was evaluated
+and the first rows of \code{estimates}; \link[=summary.voipred_nb]{summary()} gives
+the best strategy, sensitivity and specificity (share treated for
+survival) at each threshold; \link[=plot.voipred_nb]{plot()} draws the decision
+curve or the \eqn{\Delta NB} curve; \code{as.data.frame()} returns
+\code{estimates}.
 }
 \description{
 Computes the net benefit of using the model (treat if predicted risk is at
@@ -177,13 +189,18 @@ that cause; for competing risks only true censoring is censoring.
 A patient is treated when the predicted risk is at or above the threshold,
 and a predicted risk of exactly 0 is never treated, as in dcurves.
 
-\strong{Bayesian net benefit} (binary outcome, \code{bayesian = TRUE}). The prevalence
-\eqn{\pi} and, at each threshold, the sensitivity \eqn{Se} and specificity
-\eqn{Sp} of the model get Beta priors (\code{\link[=nb_uniform]{nb_uniform()}} by default), updated
-with the validation data to Beta posteriors (as in bayesDCA). The net
-benefit columns are then the posterior means,
-\eqn{E[\pi] E[Se] - (1 - E[\pi])(1 - E[Sp]) z/(1-z)} and
-\eqn{E[\pi] - (1 - E[\pi]) z/(1-z)}.
+\strong{Prior.} The net benefit is Bayesian, so that its uncertainty, used by
+the value-of-information functions (\code{\link[=p_useful]{p_useful()}}, \code{\link[=p_best]{p_best()}}, \code{\link[=evpi]{evpi()}},
+\code{\link[=evsi]{evsi()}}), is a posterior. For a binary outcome the prevalence \eqn{\pi}
+and, at each threshold, the sensitivity \eqn{Se} and specificity \eqn{Sp}
+of the model have Beta priors, updated with the validation data to Beta
+posteriors (as in bayesDCA); the net benefit columns are the posterior
+means, \eqn{E[\pi] E[Se] - (1 - E[\pi])(1 - E[Sp]) z/(1-z)} and
+\eqn{E[\pi] - (1 - E[\pi]) z/(1-z)}. The default prior, \code{\link[=nb_improper]{nb_improper()}}
+(Beta(0, 0): the data only), gives exactly the frequentist net benefit; see
+\link{nb_priors} for the others. Survival and competing-risks outcomes use the
+improper prior: their net benefit is the frequentist estimate, and its
+posterior is sampled with the Bayesian bootstrap.
 
 \strong{Predicted risks.} Validation needs only the predicted risks of the
 patients in \code{data}: give them with \code{predicted_risk}, a numeric vector with
@@ -194,27 +211,42 @@ object is not needed, and the risks can come from anywhere (an R model,
 published coefficients, other software). The outcome alone decides the type
 of analysis (binary, survival or competing risks).
 
-Optionally, voipred can predict the risks itself from the fitted model,
-given as \code{model} (or in place of \code{predicted_risk}, e.g. \code{nb(fit, val, "y")}). It predicts them once, and every later step (the
-value-of-information functions, plots) reuses them. Then
-voipred keeps no list of models; there are two routes:
+\strong{Predicting the risks from a model (optional).} Instead of the risks,
+the fitted model can be given, as \code{model} (or in place of \code{predicted_risk},
+e.g. \code{nb(val, fit, "y")}). voipred then predicts the risks of the patients
+in \code{data} from it, once, and every later step (the value-of-information
+functions, plots) reuses them: the probability of the event (binary), of
+the event by \code{horizon} (survival), or of \code{cause} by \code{horizon} (competing
+risks). There are two ways:
 \itemize{
-\item \strong{Automatically}, from the model alone: voipred calls \code{\link[=predict_risk]{predict_risk()}},
-which uses a method for the model's class if there is one (voipred ships
-some, and the author of a modelling package can add one), otherwise the
-standard routes, \code{predict()} with \code{type = "response"} or \code{"prob"} and
-\code{riskRegression::predictRisk()}. This covers the common models, each
-tested against its package's own predictions: e.g. \code{glm}, \code{gam},
-random forests (\code{ranger}, \code{randomForest}), boosting (\code{gbm}, \code{xgboost},
-\code{lightgbm}, \code{catboost}), \code{glmnet}, \code{svm}, bayespred; survival: \code{coxph},
-\code{rms::cph}/\code{psm}, \code{survreg}, \code{flexsurvreg}, \code{rstpm2::stpm2},
-bayespred.dev Bayesian Cox and parametric models (posterior mean of risk),
-survival forests (\code{ranger}, \code{randomForestSRC}, \code{aorsf}), survival trees;
-competing risks: \code{riskRegression::CSC} and \code{FGR}, \code{cmprsk::crr},
-competing-risks \code{randomForestSRC}, survival's multi-state \code{coxph}. See
-\code{\link[=predict_risk]{predict_risk()}} for the full list. Any other model whose \code{predict()}
-returns probabilities in the usual way, or that has a
-\code{riskRegression::predictRisk()} method, works too.
+\item \strong{By default}, from the model alone. voipred keeps no list of models: it
+uses \code{predict()} with \code{type = "response"} or \code{type = "prob"}, or
+\code{riskRegression::predictRisk()} (at \code{horizon}, and for \code{cause}), and its
+own prediction code only for models these get wrong. Checked in the
+tests against each package's own predictions:
+\itemize{
+\item binary: \code{glm} (logit, probit, cloglog), \code{logistf}, \code{mgcv::gam},
+\code{earth}, \code{rpart}, \code{partykit::ctree}, \code{randomForest}, \code{ranger}
+(\code{probability = TRUE}), \code{gbm}, \code{xgboost}, \code{lightgbm}, \code{catboost},
+\code{glmnet}, \code{cv.glmnet}, \code{e1071::svm} (\code{probability = TRUE}),
+\code{e1071::naiveBayes}, \code{naivebayes}, \code{nnet}, \code{MASS::lda}, \code{MASS::qda},
+\code{kknn}, and bayespred \code{bpmfit} and \code{bpm} (posterior mean of risk);
+\item survival: \code{coxph}, \code{rms::cph}, \code{survreg}, \code{rms::psm}, \code{flexsurvreg},
+\code{flexsurvspline}, \code{rstpm2::stpm2}, \code{mgcv::gam} with \code{cox.ph()},
+\code{ranger}, \code{randomForestSRC}, \code{aorsf}, \code{partykit::ctree}, \code{prodlim}, and
+bayespred.dev Bayesian Cox and parametric survival models (posterior
+mean of risk);
+\item competing risks: \code{riskRegression::CSC}, \code{riskRegression::FGR} (fitted
+for the requested cause), \code{cmprsk::crr}, competing-risks
+\code{randomForestSRC}, and survival's multi-state \code{coxph}.
+}
+
+Any other model whose \code{predict()} returns probabilities in the usual way,
+or that has a \code{riskRegression::predictRisk()} method, works too. Models
+that only give relative risks or times (e.g. \code{gbm} and \code{glmnet} Cox
+models, \code{rpart} survival trees) have no route to probabilities. Before
+predicting, the covariates the model uses are compared with the columns
+of \code{data}, and missing ones are named in an error.
 \item \strong{With \code{predict_function}}, a function you write that returns the risks.
 It works for any model, and is the way to go when voipred stops with
 "Could not get predicted risks from this ... model". If given, it is
@@ -239,40 +271,52 @@ dev <- gusto[1:5000, ]
 val <- gusto[5001:10000, ]
 fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
 
-# The predicted risks are all that is needed
+# Binary outcome: the predicted risks are all that is needed
 val$p <- predict(fit, val, type = "response")
-res <- nb(predicted_risk = val$p, data = val, outcome = "day30",
+res <- nb(val, predicted_risk = val$p, outcome = "day30",
           thresholds = seq(0, 0.3, by = 0.01))
-head(res)
+res
+summary(res)
+plot(res)
 
 # The same, with the name of the column of `data` that holds the risks
-nb(predicted_risk = "p", data = val, outcome = "day30", thresholds = c(0.05, 0.1))
+nb(val, "p", "day30", thresholds = c(0.05, 0.1))
 
-# Or let voipred predict them from the model
-nb(fit, val, "day30", thresholds = c(0.05, 0.1))
-
-# Bayesian net benefit (posterior means), as in bayesDCA
-nb(predicted_risk = val$p, data = val, outcome = "day30",
-   thresholds = c(0.05, 0.1), bayesian = TRUE)
-nb(predicted_risk = val$p, data = val, outcome = "day30",
-   thresholds = c(0.05, 0.1), bayesian = TRUE, prior = nb_jeffreys())
-
-# Any model, with your own prediction function
-nb(model = fit, data = val, outcome = "day30", thresholds = c(0.05, 0.1),
+# Optionally, the model instead of the risks: by default, or with your own
+# prediction function
+nb(val, fit, "day30", thresholds = c(0.05, 0.1))
+nb(val, model = fit, outcome = "day30", thresholds = c(0.05, 0.1),
    predict_function = function(model, newdata, ...)
      predict(model, newdata, type = "response"))
+
+# Other priors (binary outcome)
+nb(val, val$p, "day30", thresholds = c(0.05, 0.1), prior = nb_uniform())
+nb(val, val$p, "day30", thresholds = c(0.05, 0.1), prior = nb_beta(prevalence = c(7, 93)))
 
 # Survival: death by 5 years (Rotterdam breast cancer data)
 library(survival)
 rott <- rotterdam
 rott$years <- rott$dtime / 365.25
-cox <- coxph(Surv(years, death) ~ age + size + nodes + grade, data = rott[1:1500, ],
-             x = TRUE)
+cox <- coxph(Surv(years, death) ~ age + size + nodes + grade, data = rott[1:1500, ])
 val_s <- rott[1501:2982, ]
-nb(cox, val_s, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3))
+val_s$p5 <- 1 - summary(survfit(cox, newdata = val_s), times = 5)$surv[1, ]
+nb(val_s, val_s$p5, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3))
+
+# Optionally, the model instead of the risks: by default, or with your own
+# prediction function (here the same risks as above)
+nb(val_s, cox, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3))
+nb(val_s, model = cox, outcome = ~ Surv(years, death), horizon = 5,
+   thresholds = c(0.1, 0.2, 0.3),
+   predict_function = function(model, newdata, horizon, ...)
+     1 - summary(survfit(model, newdata = newdata), times = horizon)$surv[1, ])
 
 # The same with conditional IPCW: censoring modelled on the validation data
 cens <- coxph(Surv(years, death == 0) ~ age + nodes + grade, data = val_s)
-nb(cox, val_s, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3),
+nb(val_s, val_s$p5, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3),
    censoring = "cipcw", cipcw = cipcw_control(model = cens))
+}
+\seealso{
+\code{\link[=summary.voipred_nb]{summary.voipred_nb()}}, \code{\link[=plot.voipred_nb]{plot.voipred_nb()}}, \link{nb_priors},
+\code{\link[=cipcw_control]{cipcw_control()}}, and the value-of-information functions \code{\link[=p_useful]{p_useful()}},
+\code{\link[=p_best]{p_best()}}, \code{\link[=evpi]{evpi()}} and \code{\link[=evsi]{evsi()}}.
 }

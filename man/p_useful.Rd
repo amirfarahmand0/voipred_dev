@@ -4,84 +4,76 @@
 \alias{p_useful}
 \title{Probability that a model is useful}
 \usage{
-p_useful(
-  x,
-  ...,
-  n_sim = 1000,
-  method = c("bayesian", "ordinary"),
-  labels = NULL
-)
+p_useful(x, ..., n_sim = 1000, labels = NULL)
 }
 \arguments{
 \item{x}{A result of \code{\link[=nb]{nb()}}.}
 
 \item{...}{More results of \code{\link[=nb]{nb()}}, for other models evaluated on the same
-data, outcome, thresholds (and horizon, cause and censoring). A named
-result is labelled with its name.}
+data, outcome, thresholds and prior (and horizon, cause and censoring). A
+result given here with a name is labelled with its name.}
 
 \item{n_sim}{Number of draws. Default 1000.}
 
-\item{method}{\code{"bayesian"} (Bayesian bootstrap, default) or \code{"ordinary"}
-(ordinary bootstrap): see "Uncertainty". Not used (an error if given) for
-results of \code{nb(bayesian = TRUE)}.}
-
-\item{labels}{Optional names of the models, one per result; default: the
-results' labels.}
+\item{labels}{Optional names of the models, one per result, in order;
+default: the results' labels.}
 }
 \value{
-A data frame of class \code{voipred_p_useful} with columns \code{threshold},
-\code{model} and \code{p_useful}, one row per threshold and model.
+An object of class \code{voipred_p_useful}, a list with \code{estimates} (a
+data frame with columns \code{threshold}, \code{model} and \code{p_useful}, one row per
+threshold and model), \code{models}, \code{outcome}, \code{prior}, \code{draws}, \code{n_sim} and
+\code{call}, with \code{print()}, \code{summary()}, \code{plot()} and \code{as.data.frame()}
+methods.
 }
 \description{
 For each model and threshold, the probability that using the model gives a
 higher net benefit than both default strategies (treat all and treat
 none):
 \deqn{P(useful) = P\{NB_{model} > \max(NB_{all}, 0)\} = P(\Delta NB > 0),}
-estimated as the share of the draws in which the model's net benefit is
-strictly higher. A model that ties with a default strategy (e.g. at a
-threshold where it treats everyone, or no one) is not counted as useful.
+estimated as the share of the posterior draws in which the model's net
+benefit is strictly higher. A model that ties with a default strategy (e.g.
+at a threshold where it treats everyone, or no one) is not counted as
+useful.
 }
 \section{Uncertainty}{
 
-The uncertainty about the net benefit is represented by \code{n_sim} draws, in
-each of which the net benefit of every model, of treating all and of
-treating none is recomputed with the same estimator as \code{\link[=nb]{nb()}} (any outcome
-type, any number of models). The expected net benefits are the means of the
-draws (not the point estimates), as in Sadatsafavi et al. (2023), so EVPI
-is never negative.
+The uncertainty about the net benefit is its posterior (see the prior of
+\code{\link[=nb]{nb()}}), represented by \code{n_sim} draws, in each of which the net benefit of
+every model, of treating all and of treating none is computed:
 \itemize{
-\item \code{method = "bayesian"} (default): Bayesian bootstrap. The patients'
-weights are Dirichlet(1, ..., 1), which gives draws from the posterior
-distribution of the net benefit under a non-informative prior (Rubin's
-Bayesian bootstrap).
-\item \code{method = "ordinary"}: ordinary bootstrap. The weights are the numbers of
-times each patient is drawn when sampling \code{n} patients with replacement.
-\item Results of \code{nb(bayesian = TRUE)} (Bayesian net benefit, binary outcome):
-the draws are from the posterior of the prevalence and of each model's
-sensitivity and specificity (exact Beta / Dirichlet draws, as in
-bayesDCA), and \code{method} is not used. Several models are drawn jointly (a
-Dirichlet over the patterns of treat / do not treat across the models),
-so their correlation on the same patients is kept, and each model keeps
-its own posterior.
+\item binary outcome: draws from the conjugate posterior of the prevalence and
+of each model's sensitivity and specificity, with the prior of \code{\link[=nb]{nb()}}
+(exact Beta / Dirichlet draws, as in bayesDCA). Several models are drawn
+jointly (a Dirichlet over the patterns of treat / do not treat across the
+models), so their correlation on the same patients is kept, and each model
+keeps its own posterior. With the improper prior these draws are equal in
+distribution to the Bayesian bootstrap;
+\item survival and competing-risks outcomes, and binary outcomes with case
+weights (improper prior): the Bayesian bootstrap (Rubin 1981). Each
+draw gives the patients Dirichlet(1, ..., 1) weights (times the case
+weights) and recomputes the net benefit with the same estimator as
+\code{\link[=nb]{nb()}}. With \code{censoring = "cipcw"}, the censoring model is refitted in
+every draw and the censoring weights recomputed from it (see
+\code{\link[=cipcw_control]{cipcw_control()}}).
 }
 
-With case weights in \code{\link[=nb]{nb()}} (\code{weights}), the bootstrap draws are taken from
-the weighted sample. The predicted risks are kept fixed in every draw. With
-\code{censoring = "cipcw"}, the censoring model is refitted in every draw and the
-censoring weights recomputed from it (see \code{\link[=cipcw_control]{cipcw_control()}}).
-
-\code{evpi()}, \code{\link[=p_useful]{p_useful()}} and \code{\link[=p_best]{p_best()}} called with the same seed (and the
-same results, \code{n_sim} and \code{method}) use the same draws.
+The predicted risks are kept fixed in every draw. The expected net benefits
+are the means of the draws. \code{evpi()}, \code{\link[=p_useful]{p_useful()}} and \code{\link[=p_best]{p_best()}} called
+with the same seed (and the same results and \code{n_sim}) use the same draws.
 }
 
 \examples{
 dev <- gusto[1:5000, ]
 val <- gusto[5001:5500, ]
 fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-res <- nb(fit, val, "day30", thresholds = c(0.02, 0.05, 0.1, 0.2))
+val$p <- predict(fit, val, type = "response")
+res <- nb(val, val$p, "day30", thresholds = seq(0.01, 0.3, by = 0.01))
 set.seed(1)
-p_useful(res, n_sim = 500)
+pu <- p_useful(res)
+pu
+summary(pu)
+plot(pu)
 }
 \seealso{
-\code{\link[=p_best]{p_best()}}, \code{\link[=evpi]{evpi()}}, \code{\link[=plot_p_useful]{plot_p_useful()}}
+\code{\link[=p_best]{p_best()}}, \code{\link[=evpi]{evpi()}}, \code{\link[=plot.voipred_p_useful]{plot.voipred_p_useful()}}, \code{\link[=summary.voipred_voi]{summary.voipred_voi()}}
 }

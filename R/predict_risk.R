@@ -1,110 +1,32 @@
-#' Predicted risks from a fitted model
-#'
-#' Turns a fitted model into one predicted risk per row of `newdata`: the
-#' probability of the event (binary outcome), of the event by `horizon`
-#' (survival outcome), or of the event `cause` by `horizon` (competing risks).
-#'
-#' voipred does not keep a list of supported models. Risks are obtained in
-#' this order:
-#'
-#' 1. **A `predict_risk()` method for the model's class**, if one exists. This
-#'    is an ordinary S3 generic: anyone (a user, or the author of a modelling
-#'    package) can add a method, e.g.
-#'    `predict_risk.mymodel <- function(model, newdata, horizon = NULL, cause = NULL, ...)`,
-#'    and voipred then works with that model. `horizon = NULL` means a
-#'    binary outcome, `cause = NULL` a non-competing outcome; the method may
-#'    return any of the output shapes described below. voipred itself only
-#'    ships methods for models that the standard routes below cannot handle.
-#' 2. **The standard routes** (the default method):
-#'    * binary outcome: `predict(model, newdata, type = "response")`, then
-#'      `predict(model, newdata, type = "prob")`, then
-#'      `riskRegression::predictRisk(model, newdata)`;
-#'    * survival outcome:
-#'      `riskRegression::predictRisk(model, newdata, times = horizon)`;
-#'    * competing risks: the same with `cause = cause` (the event level's
-#'      label), and if that fails `cause = cause_index` (its position among
-#'      the event levels), for models that number their causes.
-#'
-#'    If a route fails, it is tried again with only the model's covariate
-#'    columns of `newdata` (some `predict()` methods trip over other columns).
-#'
-#' In [nb()], a `predict_function` takes precedence over both, and works for any
-#' model.
-#'
-#' Whatever the route, the output is read in a generic way: a vector of
-#' probabilities; one column per outcome class (the event column is taken:
-#' column `"1"` or `".pred_1"`, otherwise the second of two); or a survival
-#' curve per patient, `list(time = <grid>, surv = <n x grid matrix>)` (or
-#' `cif =` for a cumulative incidence), read at the horizon. It must then be
-#' probabilities: values outside \[0, 1\] (e.g. log-odds, relative risks,
-#' predicted times) and predictions that are only 0s and 1s (class labels) are
-#' rejected, as are `NA`s and a wrong number of predictions.
-#'
-#' **Works through the standard routes** (checked in the tests against each
-#' package's own predictions): binary: `glm`, `mgcv::gam`, `logistf`, `rpart`,
-#' `partykit::ctree`, `randomForest`, `ranger` (`probability = TRUE`), `gbm`,
-#' `xgboost()`, `naivebayes::naive_bayes`, `earth`, `kknn` (attached),
-#' bayespred `bpmfit` and `bpm`; survival: `coxph` (fitted with `x = TRUE`),
-#' `rms::cph`, `survreg`, `rms::psm`, `flexsurvreg`, `flexsurvspline`,
-#' `ranger`, `randomForestSRC`, `prodlim`; competing risks:
-#' `riskRegression::CSC`, `riskRegression::FGR`, competing-risks
-#' `randomForestSRC`.
-#'
-#' **Methods shipped by voipred**, only where the standard routes fail or
-#' give a wrong answer: binary: `e1071::svm`, `e1071::naiveBayes`, `nnet`,
-#' `MASS::lda`/`qda`, `glmnet`/`cv.glmnet`, `xgb.train()` boosters (and the
-#' level order of `xgboost()`), `lightgbm`, `catboost`; survival: `coxph`
-#' without `x = TRUE` or with case weights, stratified `survreg`,
-#' `flexsurvreg` when its formula was passed as a variable, `aorsf`,
-#' `partykit::ctree` survival trees, `rstpm2::stpm2` (attach rstpm2),
-#' `mgcv::gam` with `cox.ph()`, bayespred.dev Bayesian Cox and parametric
-#' survival models (`bpmfit` survival fits, and `bpm` objects packaged at the
-#' horizon with `posterior(fit, time = )`; the risk is the posterior mean of
-#' risk); competing risks: `cmprsk::crr`, survival's
-#' multi-state `coxph` (`coxph(Surv(time, factor_status) ~ x, id = id)`:
-#' cause-specific Cox models combined by Aalen-Johansen, as
-#' `riskRegression::CSC`), and a check that an `FGR` model was fitted for the
-#' requested cause. Models trained on a
-#' numeric matrix need `newdata` columns with the same names as the features.
-#'
-#' Models that only give relative risks or times (e.g. `xgboost` survival
-#' objectives, `gbm` and `glmnet` Cox models, `rpart` survival trees) have no
-#' route to probabilities: voipred stops and asks for `predict_function`, or the
-#' \[0, 1\] check stops their output.
-#'
-#' Before predicting, the covariates the model uses (read with
-#' `insight::find_predictors()`, or from a formula the model keeps) are
-#' compared with the columns of `newdata`; missing ones are listed in an
-#' error. When they cannot be read (e.g. `ranger`), the model's own error is
-#' shown instead.
-#'
-#' @param model A fitted model. A vector of risks is not accepted.
-#' @param newdata A data frame with the covariates the model needs; one risk
-#'   is returned per row, in the same order.
-#' @param horizon For survival and competing-risks outcomes: the time by
-#'   which the risk is predicted. `NULL` for a binary outcome.
-#' @param cause For competing risks: the cause of interest (the outcome's
-#'   event level). `NULL` otherwise.
-#' @param ... Passed to methods. voipred also passes `cause_index`, the
-#'   position of `cause` among the outcome's event levels.
-#' @return A numeric vector of length `nrow(newdata)` with values in \[0, 1\],
-#'   checked as described above. Calling `predict_risk()` directly gives the
-#'   risks [nb()] uses (without `predict_function`).
-#' @examples
-#' fit <- glm(day30 ~ age + Killip, family = binomial, data = gusto[1:2000, ])
-#' p <- predict_risk(fit, gusto[2001:3000, ])
-#' summary(p)
-#'
-#' library(survival)
-#' cox <- coxph(Surv(dtime, death) ~ age + nodes, data = rotterdam[1:1500, ], x = TRUE)
-#' summary(predict_risk(cox, rotterdam[1501:2000, ], horizon = 1826))
-#' @export
+# Predicted risks from a fitted model (internal: used by nb() when a `model`
+# is given instead of `predicted_risk`).
+#
+# Turns a fitted model into one predicted risk per row of `newdata`: the
+# probability of the event (binary outcome, horizon = NULL), of the event by
+# `horizon` (survival), or of the event `cause` by `horizon` (competing risks;
+# `cause_index`, its position among the outcome's event levels, is passed in
+# `...`). Risks are obtained in this order (a `predict_function` given to nb()
+# takes precedence over both):
+#
+# 1. voipred's own method for the model's class, only for models that the
+#    standard routes cannot handle or get wrong (see the methods below);
+# 2. the standard routes (the default method): binary: predict(type =
+#    "response"), then predict(type = "prob"), then riskRegression::predictRisk();
+#    survival: riskRegression::predictRisk(times = horizon); competing risks: the
+#    same with `cause` by label, then by position. A failed route is retried with
+#    only the model's covariate columns of `newdata`.
+#
+# The output is read generically (a vector; one column per class, the event
+# column taken; or a curve per patient, list(time, surv) or list(time, cif),
+# read at the horizon) and checked: one probability per row, no NA, values in
+# [0, 1], not only 0s and 1s. Missing covariates are named before predicting.
+# The models that work are listed in the documentation of nb() ("Predicting the
+# risks from a model").
 predict_risk <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   UseMethod("predict_risk")
 }
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk default
 predict_risk.default <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   check_model_object(model)
   check_covariates(model, newdata)
@@ -124,7 +46,7 @@ predict_risk.default <- function(model, newdata, horizon = NULL, cause = NULL, .
          ". If a covariate is missing from the data, add it. Otherwise give ",
          "`predict_function = function(model, newdata, horizon, cause)` to nb(), ",
          "returning the risk of the event", if (!is.null(horizon)) " by the horizon",
-         ", or add a predict_risk() method for this class (see ?predict_risk).",
+         ".",
          call. = FALSE)
   finish_risk(out, newdata, horizon)
 }
@@ -414,8 +336,7 @@ stored_surv <- function(model) {
 #
 # Binary-outcome models. Each needs its own predict() call.
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk svm
 predict_risk.svm <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (!is.null(horizon)) return(NextMethod())
   if (!isTRUE(model$compprob))
@@ -430,8 +351,7 @@ predict_risk.svm <- function(model, newdata, horizon = NULL, cause = NULL, ...) 
   finish_risk(attr(pr, "probabilities"), newdata)
 }
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk naiveBayes
 predict_risk.naiveBayes <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (!is.null(horizon)) return(NextMethod())
   vars <- names(model$tables)
@@ -440,28 +360,24 @@ predict_risk.naiveBayes <- function(model, newdata, horizon = NULL, cause = NULL
   finish_risk(pr, newdata)
 }
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk nnet
 predict_risk.nnet <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (!is.null(horizon)) return(NextMethod())
   check_covariates(model, newdata)
   finish_risk(stats::predict(model, newdata = newdata, type = "raw"), newdata)
 }
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk lda
 predict_risk.lda <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (!is.null(horizon)) return(NextMethod())
   check_covariates(model, newdata)
   finish_risk(stats::predict(model, newdata = newdata)$posterior, newdata)
 }
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk qda
 predict_risk.qda <- predict_risk.lda
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk glmnet
 predict_risk.glmnet <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (!inherits(model, "lognet")) return(NextMethod())
   if (length(model$lambda) != 1)
@@ -471,18 +387,14 @@ predict_risk.glmnet <- function(model, newdata, horizon = NULL, cause = NULL, ..
   finish_risk(stats::predict(model, newx = x, type = "response"), newdata)
 }
 
-#' @rdname predict_risk
-#' @method predict_risk cv.glmnet
-#' @export
+#' @exportS3Method predict_risk cv.glmnet
 predict_risk.cv.glmnet <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (!inherits(model$glmnet.fit, "lognet")) return(NextMethod())
   x <- feature_matrix(model, newdata, rownames(model$glmnet.fit$beta))
   finish_risk(stats::predict(model, newx = x, type = "response"), newdata)  # lambda.1se
 }
 
-#' @rdname predict_risk
-#' @method predict_risk xgb.Booster
-#' @export
+#' @exportS3Method predict_risk xgb.Booster
 predict_risk.xgb.Booster <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (!is.null(horizon)) return(NextMethod())
   if (inherits(model, "xgboost")) {
@@ -499,9 +411,7 @@ predict_risk.xgb.Booster <- function(model, newdata, horizon = NULL, cause = NUL
   finish_risk(stats::predict(model, feature_matrix(model, newdata, feats)), newdata)
 }
 
-#' @rdname predict_risk
-#' @method predict_risk lgb.Booster
-#' @export
+#' @exportS3Method predict_risk lgb.Booster
 predict_risk.lgb.Booster <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (!is.null(horizon)) return(NextMethod())
   js <- model$dump_model()
@@ -511,9 +421,7 @@ predict_risk.lgb.Booster <- function(model, newdata, horizon = NULL, cause = NUL
   finish_risk(stats::predict(model, feature_matrix(model, newdata, feats)), newdata)
 }
 
-#' @rdname predict_risk
-#' @method predict_risk catboost.Model
-#' @export
+#' @exportS3Method predict_risk catboost.Model
 predict_risk.catboost.Model <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (!is.null(horizon)) return(NextMethod())
   if (!requireNamespace("catboost", quietly = TRUE))
@@ -544,8 +452,7 @@ feature_matrix <- function(model, newdata, feats) {
 
 # Survival models. Each gives S(t | x); the risk by the horizon is 1 - S.
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk coxph
 predict_risk.coxph <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (is.null(horizon)) return(NextMethod())
   # with the design matrix stored (x = TRUE, or rms::cph), riskRegression
@@ -559,9 +466,7 @@ predict_risk.coxph <- function(model, newdata, horizon = NULL, cause = NULL, ...
   finish_risk(1 - s, newdata)
 }
 
-#' @rdname predict_risk
-#' @method predict_risk ObliqueForestSurvival
-#' @export
+#' @exportS3Method predict_risk ObliqueForestSurvival
 predict_risk.ObliqueForestSurvival <- function(model, newdata, horizon = NULL,
                                                cause = NULL, ...) {
   if (is.null(horizon)) return(NextMethod())
@@ -569,8 +474,7 @@ predict_risk.ObliqueForestSurvival <- function(model, newdata, horizon = NULL,
   finish_risk(1 - surv_at(model, newdata, rep(horizon, nrow(newdata))), newdata)
 }
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk constparty
 predict_risk.constparty <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (is.null(horizon) || !inherits(model$fitted[["(response)"]], "Surv"))
     return(NextMethod())
@@ -578,22 +482,17 @@ predict_risk.constparty <- function(model, newdata, horizon = NULL, cause = NULL
   finish_risk(1 - surv_at(model, newdata, rep(horizon, nrow(newdata))), newdata)
 }
 
-#' @rdname predict_risk
-#' @method predict_risk stpm2
-#' @export
+#' @exportS3Method predict_risk stpm2
 predict_risk.stpm2 <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (is.null(horizon)) return(NextMethod())
   check_covariates(model, newdata, needed = stpm2_covariates(model))
   finish_risk(1 - surv_at(model, newdata, rep(horizon, nrow(newdata))), newdata)
 }
 
-#' @rdname predict_risk
-#' @method predict_risk pstpm2
-#' @export
+#' @exportS3Method predict_risk pstpm2
 predict_risk.pstpm2 <- predict_risk.stpm2
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk gam
 predict_risk.gam <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (!is_gam_cox(model)) return(NextMethod())
   if (is.null(horizon))
@@ -603,8 +502,7 @@ predict_risk.gam <- function(model, newdata, horizon = NULL, cause = NULL, ...) 
   finish_risk(1 - surv_at(model, newdata, rep(horizon, nrow(newdata))), newdata)
 }
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk flexsurvreg
 predict_risk.flexsurvreg <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (is.null(horizon)) return(NextMethod())
   # riskRegression fails when the formula was passed as a variable
@@ -614,8 +512,7 @@ predict_risk.flexsurvreg <- function(model, newdata, horizon = NULL, cause = NUL
   finish_risk(1 - surv_at(model, newdata, rep(horizon, nrow(newdata))), newdata)
 }
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk survreg
 predict_risk.survreg <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   # riskRegression mismatches the scales of a stratified survreg
   if (is.null(horizon) || length(model$scale) == 1) return(NextMethod())
@@ -628,8 +525,7 @@ predict_risk.survreg <- function(model, newdata, horizon = NULL, cause = NULL, .
 # horizon is a `bpm` whose predict() is the posterior mean of the risk, the same
 # convention as for bayespred's binary models.
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk bpmfit
 predict_risk.bpmfit <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (!is_bp_survival(model)) return(NextMethod())          # binary: standard route
   if (is.null(horizon))
@@ -640,8 +536,7 @@ predict_risk.bpmfit <- function(model, newdata, horizon = NULL, cause = NULL, ..
   finish_risk(bp_dev_predict(post, newdata), newdata)
 }
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk bpm
 predict_risk.bpm <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (inherits(model, "bpm_lp"))
     stop("This bpm object has no baseline hazard, so it gives no risks. Package ",
@@ -680,8 +575,7 @@ bp_dev_predict <- function(post, newdata) {
 
 # Competing-risks models.
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk crr
 predict_risk.crr <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (is.null(horizon) || is.null(cause))
     stop("This crr model is a competing-risks model: use it with a ",
@@ -704,8 +598,7 @@ predict_risk.crr <- function(model, newdata, horizon = NULL, cause = NULL, ...) 
   finish_risk(as.vector(r), newdata)
 }
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk coxphms
 predict_risk.coxphms <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   # survival's multi-state Cox model, coxph(Surv(time, factor_status) ~ x, id = id).
   # riskRegression cannot predict from it; survival::survfit() gives the state
@@ -734,8 +627,7 @@ predict_risk.coxphms <- function(model, newdata, horizon = NULL, cause = NULL, .
   finish_risk(ps[1, , j], newdata)
 }
 
-#' @rdname predict_risk
-#' @export
+#' @exportS3Method predict_risk FGR
 predict_risk.FGR <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   # riskRegression returns the fitted cause's risk whatever cause is asked for,
   # so check the cause here before using the standard route.

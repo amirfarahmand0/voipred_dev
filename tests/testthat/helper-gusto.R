@@ -24,11 +24,11 @@ dcurves_nb <- function(risk, data, outcome, thresholds) {
 # nb() result vs dcurves::dca() on the same predicted risks: model, treat all
 # and treat none at every threshold.
 expect_same_as_dcurves <- function(res, val) {
-  ref <- dcurves_nb(attr(res, "risk"), val, "day30", all_z)
-  expect_equal(res$threshold, ref$threshold)
-  expect_equal(res$NB_model, ref$NB_model, tolerance = 1e-10)
-  expect_equal(res$NB_all, ref$NB_all, tolerance = 1e-10)
-  expect_equal(res$NB_none, ref$NB_none, tolerance = 1e-10)
+  ref <- dcurves_nb(res$risk, val, "day30", all_z)
+  expect_equal(res$estimates$threshold, ref$threshold)
+  expect_equal(res$estimates$NB_model, ref$NB_model, tolerance = 1e-10)
+  expect_equal(res$estimates$NB_all, ref$NB_all, tolerance = 1e-10)
+  expect_equal(res$estimates$NB_none, ref$NB_none, tolerance = 1e-10)
 }
 
 # For models trained on a numeric matrix: the same GUSTO split, with the

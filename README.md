@@ -25,7 +25,8 @@ validation sample and a range of risk thresholds, `nb()` returns the net
 benefit of the model, of treating everyone and of treating no one at each
 threshold, and `delta_NB`, the gain of the model over the best default
 strategy, for a **binary**, **survival** or **competing-risks** outcome.
-`plot_dca()` draws the decision curve and the ΔNB curve, for one model or
+The result is an object with `print()`, `summary()` and `plot()` methods:
+`plot()` draws the decision curve and the ΔNB curve, for one model or
 several together.
 
 - Survival and competing-risks outcomes are evaluated at a time horizon, with
@@ -34,15 +35,17 @@ several together.
   covariates.
 - Only the predicted risks are needed (`predicted_risk`, a vector such as
   `val$p`, or the name of a column of the data such as `"p"`), from any model
-  or software. Optionally, voipred.dev predicts
-  them once from a fitted model: the common binary, survival and
-  competing-risks models in R work automatically, including bayespred and
-  bayespred.dev Bayesian models, and any other model with a function that
-  returns its predicted risks.
+  or software. Optionally, the fitted model can be given instead, and
+  voipred.dev predicts the risks from it once: the common binary, survival
+  and competing-risks models in R work by default, including bayespred and
+  bayespred.dev Bayesian models, and any other model with a
+  `predict_function` that returns its predicted risks (see `?nb`).
 - The predictions must be probabilities: scores and class labels are rejected.
-- **Bayesian net benefit** (binary outcome): `nb(..., bayesian = TRUE)` gives
-  the posterior means of the conjugate Beta model of bayesDCA, with the prior
-  `nb_uniform()` (default), `nb_jeffreys()` or `nb_beta()`.
+- **Bayesian net benefit**: the net benefit is the posterior mean of the
+  conjugate Beta model of bayesDCA. The default prior, `nb_improper()`
+  (Beta(0, 0)), gives exactly the usual (frequentist) net benefit; for a
+  binary outcome the prior can also be `nb_uniform()`, `nb_jeffreys()` or
+  `nb_beta()`.
 
 **Value of information** for validation (Sadatsafavi et al. 2023, 2025), from
 the same `nb()` results, for every outcome type and any number of models:
@@ -52,19 +55,20 @@ the same `nb()` results, for every outcome type and any number of models:
   of a given size;
 - `p_useful()` and `p_best()`: the probability that a model is better than
   treating all and none, and that each strategy is the best;
-- the uncertainty is represented with `method = "bayesian"` (Bayesian
-  bootstrap, default) or `"ordinary"` (ordinary bootstrap), with `n_sim`
-  draws; `evpi()` also has the asymptotic method for a binary outcome and one
-  model. For Bayesian net benefit results the draws come from the posterior,
-  and `evsi()` uses the conjugate algorithm of Sadatsafavi et al. (2025);
+- the uncertainty is represented with `n_sim` draws from the posterior of
+  the net benefit: for a binary outcome from the conjugate Beta model (and
+  `evsi()` uses the conjugate algorithm of Sadatsafavi et al. 2025); for
+  survival and competing risks, and for case weights, with the Bayesian
+  bootstrap, which is the posterior under the improper prior;
 - with cIPCW, the censoring model is refitted in every draw, so its
   uncertainty is included: automatically for `coxph`, `survreg`, `cph`,
   `psm`, `flexsurvreg` and `prodlim`, with `refit_function` in
   `cipcw_control()` for other models.
 
-**Plots**: `plot_dca()`, `plot_evpi()`, `plot_evsi()`, `plot_p_useful()`,
-`plot_p_best()`, and `plot_dca(res, evpi = , evsi = )` for the decision curve
-with EVPI and EVSI in a panel below. Every plot function takes
+**Results**: every result (`nb()`, `evpi()`, `evsi()`, `p_useful()`,
+`p_best()`) has `print()` (a short table), `summary()` (the main findings),
+`as.data.frame()` and `plot()`; `plot(res, evpi = , evsi = )` draws the
+decision curve with EVPI and EVSI in a panel below. Every plot takes
 `interactive = TRUE` for an interactive (plotly) version with a shared hover
 across the curves.
 
@@ -74,27 +78,29 @@ fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = gusto
 val <- gusto[5001:10000, ]
 val$p <- predict(fit, val, type = "response")
 
-res <- nb(predicted_risk = val$p, data = val, outcome = "day30",
+res <- nb(val, predicted_risk = val$p, outcome = "day30",
           thresholds = seq(0.01, 0.3, by = 0.01))
-# or by column name: nb(predicted_risk = "p", data = val, ...)
-plot_dca(res)
-plot_dca(res, type = "delta")
+# or by column name: nb(val, "p", "day30", ...)
+res
+summary(res)
+plot(res)
+plot(res, type = "delta")
 
-e <- evpi(res)                        # Bayesian bootstrap
-evpi(res, method = "ordinary")        # ordinary bootstrap
+e <- evpi(res)
 p_useful(res)
 p_best(res)
 o <- evsi(res, future_n = c(1000, 2000, 4000))
-plot_evsi(o)
-plot_dca(res, evpi = e, evsi = o)
-plot_dca(res, evpi = e, evsi = o, interactive = TRUE)
+summary(o)
+plot(o)
+plot(res, evpi = e, evsi = o)
+plot(res, evpi = e, evsi = o, interactive = TRUE)
 
-nb(model = fit, data = val, outcome = "day30")       # or let voipred.dev predict from the model
+nb(val, fit, "day30")                 # optional: the model instead of the risks
 
-# Bayesian net benefit, with draws from its posterior
-res_b <- nb(predicted_risk = val$p, data = val, outcome = "day30",
-            thresholds = seq(0.01, 0.3, by = 0.01), bayesian = TRUE)
-evpi(res_b)
+# another prior (binary outcome)
+res_u <- nb(val, val$p, "day30", thresholds = seq(0.01, 0.3, by = 0.01),
+            prior = nb_uniform())
+evpi(res_u)
 ```
 
 ## Documentation
@@ -106,9 +112,11 @@ evpi(res_b)
   test (checked against `dcurves`, each modelling package's own predictions,
   predtools, the EVSI paper's code and bayesDCA) and every error and warning
   message.
-- The help pages give the full details: `?nb`, `?plot_dca`, `?cipcw_control`,
-  `?predict_risk`, `?evpi`, `?evsi`, `?p_useful`, `?p_best`,
-  `?plot_evpi`, `?plot_evsi`, `?plot_p_useful`, `?plot_p_best`, `?nb_priors`.
+- The help pages give the full details: `?nb`, `?nb_priors`,
+  `?cipcw_control`, `?evpi`, `?evsi`, `?p_useful`,
+  `?p_best`, `?summary.voipred_nb`, `?summary.voipred_voi`,
+  `?plot.voipred_nb`, `?plot.voipred_evpi`, `?plot.voipred_evsi`,
+  `?plot.voipred_p_useful`, `?plot.voipred_p_best`.
 
 ## Next version
 

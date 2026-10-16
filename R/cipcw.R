@@ -14,8 +14,8 @@
 #' censoring is censoring: patients with a competing event are not censored
 #' (`Surv(time, status == "censored")`, not `status != cause`). voipred
 #' predicts from the model the probability of remaining uncensored just before
-#' each patient's own time and at the horizon, in the same way as the risks
-#' of [predict_risk()]: through `riskRegression::predictRisk()` (e.g.
+#' each patient's own time and at the horizon, in the same way as it predicts
+#' risks from a model in [nb()]: through `riskRegression::predictRisk()` (e.g.
 #' `coxph` with `x = TRUE`, `rms::cph`, `survreg`, `flexsurvreg`, `ranger`,
 #' `randomForestSRC`, a Kaplan-Meier `prodlim` fit), or voipred's own code for
 #' models riskRegression cannot handle (`coxph` without `x = TRUE`, `aorsf`,
@@ -54,23 +54,18 @@
 #' from the validation data, so its uncertainty is part of the uncertainty
 #' about the net benefit. The value-of-information functions ([evpi()],
 #' [evsi()], [p_useful()], [p_best()]) therefore refit the censoring
-#' model in every draw, on that draw's data, and recompute the censoring
-#' weights from it, as a bootstrap that refits the censoring model on each
-#' resampled data set. The refit is done:
+#' model in every draw of the Bayesian bootstrap, with that draw's weights as
+#' case weights, and recompute the censoring weights from it. The refit is
+#' done:
 #' * with `refit_function`, if given;
 #' * otherwise automatically for the censoring models whose case weights
 #'   voipred knows: `survival::coxph`, `survival::survreg`, `rms::cph`,
 #'   `rms::psm`, `flexsurv::flexsurvreg` (also `flexsurvspline`) and
 #'   `prodlim::prodlim`: the model's own call, with the draw's data and the
 #'   draw's weights as case weights;
-#' * otherwise, for draws with whole-number weights (`method = "ordinary"`),
-#'   by refitting the model's own call on the resampled patients (each repeated
-#'   as many times as it is drawn), which needs no case weights;
-#' * otherwise (`method = "bayesian"`, whose weights are not whole
-#'   numbers, with a model voipred does not know) it stops and asks for
-#'   `refit_function`: other models take weights under other names or with
-#'   another meaning (e.g. `ranger`'s `case.weights` are sampling
-#'   probabilities), so voipred does not guess.
+#' * otherwise it stops and asks for `refit_function`: other models take
+#'   weights under other names or with another meaning (e.g. `ranger`'s
+#'   `case.weights` are sampling probabilities), so voipred does not guess.
 #'
 #' Patients with a weight of 0 in a draw are left out of the refit. Given
 #' weights (option 2) cannot be refitted, so they can be used in [nb()] but not
@@ -112,22 +107,31 @@
 #' @param refit_function Option 1, optional: a `function(data, weights)`
 #'   returning the censoring model fitted to `data` (the validation data given
 #'   to [nb()], restricted to the patients with a positive weight in a draw)
-#'   with case weights `weights` (with `method = "ordinary"`, the number of
-#'   times each patient is drawn; with the Bayesian bootstrap, positive
-#'   weights averaging 1, times the case weights of [nb()] if any), e.g.
+#'   with case weights `weights` (the Bayesian-bootstrap weights of the draw,
+#'   positive and averaging 1, times the case weights of [nb()] if any; in
+#'   [evsi()] also whole numbers for the pooled samples), e.g.
 #'   `function(data, weights)
 #'   coxph(Surv(time, status == 0) ~ x, data = data, weights = weights)`. Used
 #'   by the value-of-information functions to refit the censoring model in
-#'   every draw (see "Uncertainty"). Needed for a Bayesian bootstrap with a
-#'   censoring model voipred cannot refit with case weights by itself.
+#'   every draw (see "Uncertainty"). Needed for a censoring model voipred
+#'   cannot refit with case weights by itself.
 #' @return An object of class `cipcw_control`.
 #' @examples
-#' \dontrun{
 #' library(survival)
-#' cens_fit <- coxph(Surv(time, status == 0) ~ age + nodes, data = val)
-#' nb(fit, val, ~ Surv(time, status), horizon = 5,
+#' rott <- rotterdam
+#' rott$years <- rott$dtime / 365.25
+#' cox <- coxph(Surv(years, death) ~ age + size + nodes + grade, data = rott[1:1500, ])
+#' val <- rott[1501:2982, ]
+#' val$p5 <- 1 - summary(survfit(cox, newdata = val), times = 5)$surv[1, ]
+#'
+#' # the censoring model: fitted on the validation data, censoring as the event
+#' cens_fit <- coxph(Surv(years, death == 0) ~ age + nodes + grade, data = val)
+#' nb(val, val$p5, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3),
 #'    censoring = "cipcw", cipcw = cipcw_control(model = cens_fit))
-#' }
+#'
+#' # truncating small probabilities of remaining uncensored
+#' nb(val, val$p5, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3),
+#'    censoring = "cipcw", cipcw = cipcw_control(model = cens_fit, min_prob = 0.05))
 #' @export
 cipcw_control <- function(model = NULL, weight_event = NULL,
                           weight_horizon = NULL, min_prob = NULL,

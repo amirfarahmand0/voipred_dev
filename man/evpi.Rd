@@ -4,51 +4,40 @@
 \alias{evpi}
 \title{Expected value of perfect information (EVPI) for model validation}
 \usage{
-evpi(
-  x,
-  ...,
-  n_sim = 1000,
-  method = c("bayesian", "ordinary", "asymptotic"),
-  labels = NULL
-)
+evpi(x, ..., n_sim = 1000, labels = NULL)
 }
 \arguments{
 \item{x}{A result of \code{\link[=nb]{nb()}}.}
 
 \item{...}{More results of \code{\link[=nb]{nb()}}, for other models evaluated on the same
-data, outcome, thresholds (and horizon, cause and censoring). A named
-result is labelled with its name.}
+data, outcome, thresholds and prior (and horizon, cause and censoring). A
+result given here with a name is labelled with its name.}
 
 \item{n_sim}{Number of draws. Default 1000.}
 
-\item{method}{\code{"bayesian"} (Bayesian bootstrap, default), \code{"ordinary"}
-(ordinary bootstrap) or \code{"asymptotic"}: see "Uncertainty". \code{"asymptotic"}
-is for a binary outcome and one model only: the net benefits of the model
-and of treating all are taken as bivariate normal, with the moments of
-Sadatsafavi et al. (2023), and \eqn{E\{\max(0, NB_{model}, NB_{all})\}}
-is computed in closed form (it needs the mvtnorm package). Not used (an
-error if given) for results of \code{nb(bayesian = TRUE)}.}
-
-\item{labels}{Optional names of the models, one per result; default: the
-results' labels.}
+\item{labels}{Optional names of the models, one per result, in order;
+default: the results' labels.}
 }
 \value{
-A data frame of class \code{voipred_evpi} with one row per threshold
-and columns \code{threshold}, \code{ENB_current}, \code{ENB_perfect}, \code{EVPI} and
-\code{rEVPI}. The expected net benefit of each strategy is in the attribute
-\code{ENB} (a threshold x strategy matrix).
+An object of class \code{voipred_evpi}, a list with \code{estimates} (a data
+frame with one row per threshold and columns \code{threshold}, \code{ENB_current},
+\code{ENB_perfect}, \code{EVPI} and \code{rEVPI}), \code{ENB} (the expected net benefit of
+each strategy at each threshold), \code{models}, \code{outcome}, \code{prior}, \code{draws}
+(\code{"posterior"} or \code{"Bayesian bootstrap"}), \code{n_sim} and \code{call}. It has
+\code{print()}, \code{summary()}, \code{plot()} and \code{as.data.frame()} methods; EVPI can
+also be drawn under the decision curve with \verb{plot(<nb result>, evpi = )}.
 }
 \description{
 The expected loss in net benefit due to uncertainty about which strategy
 (each model, treat all, treat none) is best, at each threshold. With
 \eqn{NB_s} the net benefit of strategy \eqn{s} and expectations over its
-uncertainty:
+posterior:
 \deqn{ENB_{perfect} = E\{\max_s NB_s\}, \qquad
       ENB_{current} = \max_s E\{NB_s\},}
 \deqn{EVPI = ENB_{perfect} - ENB_{current}.}
 EVPI is in net benefit units (net true positives per patient); it is 0 when
-the best strategy is certain, and multiplied by the number of patients the
-decision concerns it gives the population EVPI.
+the best strategy is certain. It is never negative: both terms are means
+over the same draws.
 }
 \details{
 The \strong{relative EVPI} compares the gain from perfect information with the
@@ -62,52 +51,54 @@ is positive, and \code{NA} when both are 0.
 }
 \section{Uncertainty}{
 
-The uncertainty about the net benefit is represented by \code{n_sim} draws, in
-each of which the net benefit of every model, of treating all and of
-treating none is recomputed with the same estimator as \code{\link[=nb]{nb()}} (any outcome
-type, any number of models). The expected net benefits are the means of the
-draws (not the point estimates), as in Sadatsafavi et al. (2023), so EVPI
-is never negative.
+The uncertainty about the net benefit is its posterior (see the prior of
+\code{\link[=nb]{nb()}}), represented by \code{n_sim} draws, in each of which the net benefit of
+every model, of treating all and of treating none is computed:
 \itemize{
-\item \code{method = "bayesian"} (default): Bayesian bootstrap. The patients'
-weights are Dirichlet(1, ..., 1), which gives draws from the posterior
-distribution of the net benefit under a non-informative prior (Rubin's
-Bayesian bootstrap).
-\item \code{method = "ordinary"}: ordinary bootstrap. The weights are the numbers of
-times each patient is drawn when sampling \code{n} patients with replacement.
-\item Results of \code{nb(bayesian = TRUE)} (Bayesian net benefit, binary outcome):
-the draws are from the posterior of the prevalence and of each model's
-sensitivity and specificity (exact Beta / Dirichlet draws, as in
-bayesDCA), and \code{method} is not used. Several models are drawn jointly (a
-Dirichlet over the patterns of treat / do not treat across the models),
-so their correlation on the same patients is kept, and each model keeps
-its own posterior.
+\item binary outcome: draws from the conjugate posterior of the prevalence and
+of each model's sensitivity and specificity, with the prior of \code{\link[=nb]{nb()}}
+(exact Beta / Dirichlet draws, as in bayesDCA). Several models are drawn
+jointly (a Dirichlet over the patterns of treat / do not treat across the
+models), so their correlation on the same patients is kept, and each model
+keeps its own posterior. With the improper prior these draws are equal in
+distribution to the Bayesian bootstrap;
+\item survival and competing-risks outcomes, and binary outcomes with case
+weights (improper prior): the Bayesian bootstrap (Rubin 1981). Each
+draw gives the patients Dirichlet(1, ..., 1) weights (times the case
+weights) and recomputes the net benefit with the same estimator as
+\code{\link[=nb]{nb()}}. With \code{censoring = "cipcw"}, the censoring model is refitted in
+every draw and the censoring weights recomputed from it (see
+\code{\link[=cipcw_control]{cipcw_control()}}).
 }
 
-With case weights in \code{\link[=nb]{nb()}} (\code{weights}), the bootstrap draws are taken from
-the weighted sample. The predicted risks are kept fixed in every draw. With
-\code{censoring = "cipcw"}, the censoring model is refitted in every draw and the
-censoring weights recomputed from it (see \code{\link[=cipcw_control]{cipcw_control()}}).
-
-\code{evpi()}, \code{\link[=p_useful]{p_useful()}} and \code{\link[=p_best]{p_best()}} called with the same seed (and the
-same results, \code{n_sim} and \code{method}) use the same draws.
+The predicted risks are kept fixed in every draw. The expected net benefits
+are the means of the draws. \code{evpi()}, \code{\link[=p_useful]{p_useful()}} and \code{\link[=p_best]{p_best()}} called
+with the same seed (and the same results and \code{n_sim}) use the same draws.
 }
 
 \examples{
 dev <- gusto[1:5000, ]
 val <- gusto[5001:5500, ]
-fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-res <- nb(fit, val, "day30", thresholds = c(0.02, 0.05, 0.1, 0.2))
+fit1 <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
+val$p1 <- predict(fit1, val, type = "response")
+fit2 <- glm(day30 ~ age, family = binomial, data = dev)
+val$p2 <- predict(fit2, val, type = "response")
+z <- seq(0.01, 0.3, by = 0.01)
+res1 <- nb(val, val$p1, "day30", thresholds = z, label = "Full")
+res2 <- nb(val, val$p2, "day30", thresholds = z, label = "Age only")
 set.seed(1)
-evpi(res, n_sim = 500)
-evpi(res, n_sim = 500, method = "ordinary")
-evpi(res, method = "asymptotic")
+e <- evpi(res1, res2)
+e
+summary(e)
+plot(e)
+plot(e, type = "relative")
 }
 \references{
 Sadatsafavi M, Lee TY, Wynants L, Vickers AJ, Gustafson P.
 Value-of-information analysis for external validation of risk prediction
-models. Medical Decision Making 2023; 43(5): 564-575.
+models. Medical Decision Making 2023; 43(5): 564-575. Rubin DB. The
+Bayesian bootstrap. Annals of Statistics 1981; 9(1): 130-134.
 }
 \seealso{
-\code{\link[=evsi]{evsi()}}, \code{\link[=p_useful]{p_useful()}}, \code{\link[=p_best]{p_best()}}, \code{\link[=plot_evpi]{plot_evpi()}}
+\code{\link[=evsi]{evsi()}}, \code{\link[=p_useful]{p_useful()}}, \code{\link[=p_best]{p_best()}}, \code{\link[=plot.voipred_evpi]{plot.voipred_evpi()}}, \code{\link[=summary.voipred_voi]{summary.voipred_voi()}}
 }

@@ -5,7 +5,7 @@ local_base_formula()
 fork <- readRDS(test_path("fixtures", "cipcw_fork.rds"))
 
 cipcw_nb <- function(model, data, outcome, ctrl, horizon = 5, thresholds = surv_z, ...)
-  nb(model, data, outcome, horizon = horizon, thresholds = thresholds,
+  nb(data, model, outcome, horizon = horizon, thresholds = thresholds,
      censoring = "cipcw", cipcw = ctrl, ...)
 
 # Muffle the expected "not a survival model" warning of fixed_model().
@@ -35,10 +35,10 @@ test_that("same as the dcurves cIPCW branch: Cox censoring model", {
                           data = s$val)
   res <- no_fixed_warning(cipcw_nb(fixed_model(fork$surv_cox$risk), s$val, surv_outcome,
                                    cipcw_control(model = cens), thresholds = fork$z))
-  expect_equal(res$NB_model, fork$surv_cox$NB_model, tolerance = 1e-10)
-  expect_equal(res$NB_all, fork$surv_cox$NB_all, tolerance = 1e-10)
-  expect_equal(attr(res, "prevalence"), fork$surv_cox$prevalence, tolerance = 1e-10)
-  expect_identical(attr(res, "censoring"), "cipcw")
+  expect_equal(res$estimates$NB_model, fork$surv_cox$NB_model, tolerance = 1e-10)
+  expect_equal(res$estimates$NB_all, fork$surv_cox$NB_all, tolerance = 1e-10)
+  expect_equal(res$outcome$prevalence, fork$surv_cox$prevalence, tolerance = 1e-10)
+  expect_identical(res$outcome$censoring, "cipcw")
 })
 
 test_that("same as the dcurves cIPCW branch: given weights", {
@@ -48,8 +48,8 @@ test_that("same as the dcurves cIPCW branch: given weights", {
                                    cipcw_control(weight_event = unname(f$weight_event),
                                                  weight_horizon = unname(f$weight_horizon)),
                                    thresholds = fork$z))
-  expect_equal(res$NB_model, f$NB_model, tolerance = 1e-10)
-  expect_equal(res$NB_all, f$NB_all, tolerance = 1e-10)
+  expect_equal(res$estimates$NB_model, f$NB_model, tolerance = 1e-10)
+  expect_equal(res$estimates$NB_all, f$NB_all, tolerance = 1e-10)
 })
 
 test_that("same as the dcurves cIPCW branch: competing risks, Cox censoring model", {
@@ -58,9 +58,9 @@ test_that("same as the dcurves cIPCW branch: competing risks, Cox censoring mode
                           data = s$val)
   res <- no_fixed_warning(cipcw_nb(fixed_model(fork$cr_cox$risk), s$val, cr_outcome,
                                    cipcw_control(model = cens), thresholds = fork$z))
-  expect_equal(res$NB_model, fork$cr_cox$NB_model, tolerance = 1e-10)
-  expect_equal(res$NB_all, fork$cr_cox$NB_all, tolerance = 1e-10)
-  expect_equal(attr(res, "prevalence"), fork$cr_cox$prevalence, tolerance = 1e-10)
+  expect_equal(res$estimates$NB_model, fork$cr_cox$NB_model, tolerance = 1e-10)
+  expect_equal(res$estimates$NB_all, fork$cr_cox$NB_all, tolerance = 1e-10)
+  expect_equal(res$outcome$prevalence, fork$cr_cox$prevalence, tolerance = 1e-10)
 })
 
 test_that("the vectorized estimator equals a direct implementation (ties, weights, causes)", {
@@ -98,8 +98,8 @@ test_that("a censoring model gives the same result as its weights given by hand"
     wh <- 1 / vapply(seq_len(n), function(i) G(5, i), 1)
     b <- cipcw_nb(cx, s$val, surv_outcome, cipcw_control(weight_event = we,
                                                          weight_horizon = wh))
-    expect_equal(a$NB_model, b$NB_model, tolerance = 1e-10)
-    expect_equal(a$NB_all, b$NB_all, tolerance = 1e-10)
+    expect_equal(a$estimates$NB_model, b$estimates$NB_model, tolerance = 1e-10)
+    expect_equal(a$estimates$NB_all, b$estimates$NB_all, tolerance = 1e-10)
   }
 })
 
@@ -114,9 +114,9 @@ test_that("with Kaplan-Meier censoring weights, the risk by the horizon is 1 - K
   for (tau in c(2, 5, 8)) {
     a <- suppressWarnings(cipcw_nb(cx, s$val, surv_outcome,
                                    cipcw_control(model = km_cens), horizon = tau))
-    b <- quiet_nb(cx, s$val, surv_outcome, horizon = tau)
-    expect_equal(attr(a, "prevalence"), attr(b, "prevalence"), tolerance = 1e-10)
-    expect_equal(a$NB_all, b$NB_all, tolerance = 1e-10)
+    b <- quiet_nb(s$val, cx, surv_outcome, horizon = tau)
+    expect_equal(a$outcome$prevalence, b$outcome$prevalence, tolerance = 1e-10)
+    expect_equal(a$estimates$NB_all, b$estimates$NB_all, tolerance = 1e-10)
   }
 })
 
@@ -192,7 +192,7 @@ test_that("small censoring probabilities: warning, optional truncation, error at
                  pmax(steep$g(d$x2, d$time - 1e-9 * max(d$time)), 0.05), 1)
   g_h <- ifelse(d$time > 5, pmax(steep$g(d$x2, 5), 0.05), 1)
   r_hand <- run(cipcw_control(weight_event = 1 / g_ev, weight_horizon = 1 / g_h))
-  expect_equal(r_tr$NB_model, r_hand$NB_model, tolerance = 1e-6)
+  expect_equal(r_tr$estimates$NB_model, r_hand$estimates$NB_model, tolerance = 1e-6)
   # the warning counts only the probabilities the estimator uses
   used <- c(steep$g(d$x2, d$time - 1e-9 * max(d$time))[d$status != 0 & d$time <= 5],
             steep$g(d$x2, 5)[d$time > 5])
@@ -257,8 +257,8 @@ test_that("every censoring model class runs and agrees with its own predictions"
     for (nm in names(fits)) {
       res <- suppress_matching(cipcw_nb(cx, v, surv_outcome, cipcw_control(model = fits[[nm]])),
                                "Could not verify|below 0.01|No patient treated|fitted to .* patients")
-      expect_true(all(is.finite(res$NB_all)), label = nm)
-      expect_true(attr(res, "prevalence") > 0.2 && attr(res, "prevalence") < 0.32, label = nm)
+      expect_true(all(is.finite(res$estimates$NB_all)), label = nm)
+      expect_true(res$outcome$prevalence > 0.2 && res$outcome$prevalence < 0.32, label = nm)
     }
     # the censoring probabilities at the horizon equal each model's own prediction
     nd <- v[1:20, ]
@@ -288,15 +288,15 @@ test_that("cIPCW is close to the truth under informative censoring; KM is not", 
   ci <- suppress_matching(cipcw_nb(fixed_model(p), d, ~ survival::Surv(time, status),
                                    cipcw_control(model = cens), horizon = tau, thresholds = z),
                           "not a survival model|below 0.01")
-  km <- quiet_nb(fixed_model(p), d, ~ survival::Surv(time, status), horizon = tau,
+  km <- quiet_nb(d, fixed_model(p), ~ survival::Surv(time, status), horizon = tau,
                  thresholds = z)
-  expect_lt(max(abs(ci$NB_model - truth)), 0.01)
-  expect_gt(max(abs(km$NB_model - truth)), 0.02)
+  expect_lt(max(abs(ci$estimates$NB_model - truth)), 0.01)
+  expect_gt(max(abs(km$estimates$NB_model - truth)), 0.02)
   # a censoring model without the covariate driving censoring is biased too
   cens0 <- survival::coxph(survival::Surv(time, status == 0) ~ x1, data = d)
   ci0 <- no_fixed_warning(cipcw_nb(fixed_model(p), d, ~ survival::Surv(time, status),
                                    cipcw_control(model = cens0), horizon = tau, thresholds = z))
-  expect_gt(max(abs(ci0$NB_model - truth)), 0.02)
+  expect_gt(max(abs(ci0$estimates$NB_model - truth)), 0.02)
 })
 
 test_that("cIPCW is close to the truth with competing risks and informative censoring", {
@@ -307,14 +307,14 @@ test_that("cIPCW is close to the truth with competing risks and informative cens
   cens <- survival::coxph(survival::Surv(time, status == 0) ~ x2, data = d)
   ci <- no_fixed_warning(cipcw_nb(fixed_model(p), d, ~ survival::Surv(time, status_f),
                                   cipcw_control(model = cens), horizon = tau, thresholds = z))
-  expect_lt(max(abs(ci$NB_model - truth)), 0.01)
+  expect_lt(max(abs(ci$estimates$NB_model - truth)), 0.01)
   # cause 2
   d2 <- d; d2$cause <- 3L - d2$cause
   truth2 <- true_nb(d2, p, z, tau)
   ci2 <- no_fixed_warning(cipcw_nb(fixed_model(p), d, ~ survival::Surv(time, status_f),
                                    cipcw_control(model = cens), horizon = tau,
                                    thresholds = z, cause = "cause2"))
-  expect_lt(max(abs(ci2$NB_model - truth2)), 0.01)
+  expect_lt(max(abs(ci2$estimates$NB_model - truth2)), 0.01)
 })
 
 test_that("cIPCW with case weights equals duplicated rows", {
@@ -329,8 +329,8 @@ test_that("cIPCW with case weights equals duplicated rows", {
   i <- rep(seq_len(500), w)
   b <- cipcw_nb(cx, v[i, ], surv_outcome,
                 cipcw_control(weight_event = we[i], weight_horizon = wh[i]), thresholds = z)
-  expect_equal(a$NB_model, b$NB_model, tolerance = 1e-12)
-  expect_equal(attr(a, "prevalence"), attr(b, "prevalence"), tolerance = 1e-12)
+  expect_equal(a$estimates$NB_model, b$estimates$NB_model, tolerance = 1e-12)
+  expect_equal(a$outcome$prevalence, b$outcome$prevalence, tolerance = 1e-12)
 })
 
 test_that("a censoring model with case weights equals duplicated rows and dropped rows", {
@@ -349,16 +349,16 @@ test_that("a censoring model with case weights equals duplicated rows and droppe
   i <- rep(seq_len(600), w)
   b <- suppress_matching(cipcw_nb(cx, v[i, ], surv_outcome, ctrl, thresholds = z),
                          "Could not verify|fitted to .* patients")
-  expect_equal(a$NB_model, b$NB_model, tolerance = 1e-12)
-  expect_equal(a$NB_all, b$NB_all, tolerance = 1e-12)
-  expect_equal(attr(a, "prevalence"), attr(b, "prevalence"), tolerance = 1e-12)
+  expect_equal(a$estimates$NB_model, b$estimates$NB_model, tolerance = 1e-12)
+  expect_equal(a$estimates$NB_all, b$estimates$NB_all, tolerance = 1e-12)
+  expect_equal(a$outcome$prevalence, b$outcome$prevalence, tolerance = 1e-12)
   # the same as giving the model's weights by hand, with the same case weights
   we <- ifelse(v$death == 1 & v$dtimey <= 5,
                1 / surv_at(cens, v, v$dtimey, "left"), 1)
   wh <- 1 / surv_at(cens, v, rep(5, 600), "left")
   c2 <- cipcw_nb(cx, v, surv_outcome, cipcw_control(weight_event = we, weight_horizon = wh),
                  thresholds = z, weights = w)
-  expect_equal(a$NB_model, c2$NB_model, tolerance = 1e-12)
+  expect_equal(a$estimates$NB_model, c2$estimates$NB_model, tolerance = 1e-12)
   # Dirichlet (non-integer) case weights run and stay finite
   set.seed(11); wd <- rexp(600); wd <- wd / sum(wd) * 600
   d <- cipcw_nb(cx, v, surv_outcome, ctrl, thresholds = z, weights = wd)
@@ -372,8 +372,8 @@ test_that("a censoring model with case weights equals duplicated rows and droppe
   f <- suppress_matching(cipcw_nb(csc, v[keep == 1, ], cr_outcome,
                                   cipcw_control(model = cens_cr), thresholds = z,
                                   cause = "death"), "Could not verify|fitted to .* patients")
-  expect_equal(e$NB_model, f$NB_model, tolerance = 1e-12)
-  expect_equal(attr(e, "prevalence"), attr(f, "prevalence"), tolerance = 1e-12)
+  expect_equal(e$estimates$NB_model, f$estimates$NB_model, tolerance = 1e-12)
+  expect_equal(e$outcome$prevalence, f$outcome$prevalence, tolerance = 1e-12)
 })
 
 test_that("print shows the cIPCW estimator", {
@@ -381,7 +381,7 @@ test_that("print shows the cIPCW estimator", {
   cx <- survival::coxph(surv_formula, data = s$dev)
   cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age, data = s$val)
   r <- cipcw_nb(cx, s$val, surv_outcome, cipcw_control(model = cens), thresholds = 0.2)
-  expect_output(print(r), "survival, horizon = 5, cipcw")
+  expect_output(print(r), "survival, horizon 5, .*censoring cIPCW \\(coxph\\)")
 })
 
 test_that("censoring predict_function: same as the model route, per row or as a curve", {
@@ -399,8 +399,8 @@ test_that("censoring predict_function: same as the model route, per row or as a 
     a <- cipcw_nb(cx, v, surv_outcome, cipcw_control(model = cens, ties = ties))
     b <- cipcw_nb(cx, v, surv_outcome, cipcw_control(model = cens, ties = ties,
                                                      predict_function = curve))
-    expect_equal(b$NB_model, a$NB_model, tolerance = 1e-10)
-    expect_equal(attr(b, "prevalence"), attr(a, "prevalence"), tolerance = 1e-10)
+    expect_equal(b$estimates$NB_model, a$estimates$NB_model, tolerance = 1e-10)
+    expect_equal(b$outcome$prevalence, a$outcome$prevalence, tolerance = 1e-10)
   }
   # one probability per row, at that row's time
   sr <- survival::survreg(survival::Surv(dtimey, death == 0) ~ age + nodes + grade, data = v)
@@ -408,7 +408,7 @@ test_that("censoring predict_function: same as the model route, per row or as a 
     1 - survival::psurvreg(times, predict(model, newdata, type = "lp"), model$scale, model$dist)
   a <- cipcw_nb(cx, v, surv_outcome, cipcw_control(model = sr))
   b <- cipcw_nb(cx, v, surv_outcome, cipcw_control(model = sr, predict_function = per_row))
-  expect_equal(b$NB_model, a$NB_model, tolerance = 1e-8)
+  expect_equal(b$estimates$NB_model, a$estimates$NB_model, tolerance = 1e-8)
   expect_output(print(cipcw_control(model = sr, predict_function = per_row)),
                 "censoring model \\(survreg, with predict_function\\)")
 })
@@ -432,7 +432,7 @@ test_that("censoring predict_function makes any censoring model usable", {
                                cipcw_control(model = mine, predict_function = fun)),
                  "Could not verify that the censoring model")
   a <- cipcw_nb(cx, v, surv_outcome, cipcw_control(model = cens))
-  expect_equal(b$NB_model, a$NB_model, tolerance = 1e-10)
+  expect_equal(b$estimates$NB_model, a$estimates$NB_model, tolerance = 1e-10)
 })
 
 test_that("censoring predict_function: input and output checks", {
@@ -477,7 +477,7 @@ test_that("more censoring model classes: psm, flexsurvspline, stratified survreg
   for (m in models) {
     res <- suppress_matching(cipcw_nb(cx, v, surv_outcome, cipcw_control(model = m)),
                              "Could not verify|below 0.01|No patient treated|fitted to .* patients")
-    expect_true(all(is.finite(res$NB_all)))
-    expect_true(attr(res, "prevalence") > 0.2 && attr(res, "prevalence") < 0.32)
+    expect_true(all(is.finite(res$estimates$NB_all)))
+    expect_true(res$outcome$prevalence > 0.2 && res$outcome$prevalence < 0.32)
   }
 })

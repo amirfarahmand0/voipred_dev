@@ -4,39 +4,30 @@
 \alias{evsi}
 \title{Expected value of sample information (EVSI) for model validation}
 \usage{
-evsi(
-  x,
-  ...,
-  future_n,
-  n_sim = 1000,
-  method = c("bayesian", "ordinary"),
-  labels = NULL
-)
+evsi(x, ..., future_n, n_sim = 1000, labels = NULL)
 }
 \arguments{
 \item{x}{A result of \code{\link[=nb]{nb()}}.}
 
 \item{...}{More results of \code{\link[=nb]{nb()}}, for other models evaluated on the same
-data, outcome, thresholds (and horizon, cause and censoring). A named
-result is labelled with its name.}
+data, outcome, thresholds and prior (and horizon, cause and censoring). A
+result given here with a name is labelled with its name.}
 
 \item{future_n}{Sizes of the future validation sample: one or more
 positive integers.}
 
 \item{n_sim}{Number of draws. Default 1000.}
 
-\item{method}{\code{"bayesian"} (Bayesian bootstrap, default) or \code{"ordinary"}
-(ordinary bootstrap): how the uncertainty about the current sample is
-represented. Not used (an error if given) for results of
-\code{nb(bayesian = TRUE)}.}
-
-\item{labels}{Optional names of the models, one per result; default: the
-results' labels.}
+\item{labels}{Optional names of the models, one per result, in order;
+default: the results' labels.}
 }
 \value{
-A data frame of class \code{voipred_evsi} with columns \code{threshold},
-\code{future_n}, \code{EVSI} and \code{EVPI} (from the same draws), one row per
-threshold and future sample size.
+An object of class \code{voipred_evsi}, a list with \code{estimates} (a data
+frame with columns \code{threshold}, \code{future_n}, \code{EVSI} and \code{EVPI}, one row per
+threshold and future sample size), \code{future_n}, \code{models}, \code{outcome},
+\code{prior}, \code{draws}, \code{n_sim} and \code{call}. It has \code{print()}, \code{summary()},
+\code{plot()} and \code{as.data.frame()} methods; EVSI can also be drawn under the
+decision curve with \verb{plot(<nb result>, evsi = )}.
 }
 \description{
 The expected gain in net benefit from a future validation study of size
@@ -46,45 +37,73 @@ strategy to use. EVSI is between 0 and EVPI, and approaches EVPI as
 more validation data are worth collecting.
 }
 \details{
-It is computed with the bootstrap-based algorithm of Sadatsafavi et al.
-(2025). For each of \code{n_sim} draws:
-\enumerate{
-\item draw weights \eqn{W} for the current sample (\code{method = "bayesian"}:
-Bayesian bootstrap, Dirichlet; \code{"ordinary"}: ordinary bootstrap), which
-defines a "true" population,
-and compute the true net benefit of every strategy;
-\item for each \eqn{N}: draw a future sample of \eqn{N} patients from that
-population (multinomial counts with probabilities \eqn{W}), pool it with
-the current sample, compute the net benefit of every strategy in the
-pooled data, pick the best strategy, and record its \emph{true} net benefit
-(if strategies tie exactly in the pooled data, the mean of their true
-net benefits, i.e. a random choice among them).
-}
-
-For Bayesian results (\code{nb(bayesian = TRUE)}, binary outcome) the conjugate
-algorithm of Sadatsafavi et al. (2025) is used instead: each draw from the
-posterior (prevalence, sensitivity, specificity) is a "true" population;
-a future sample of \eqn{N} patients is simulated from it (events, and the
-patients treated among them, binomial / multinomial), the posterior means
-are updated with it, the strategy with the highest posterior mean net
-benefit is chosen, and its true net benefit recorded.
-
-Then \eqn{ENB_{sample}} is the mean of the recorded true net benefits and
-\eqn{EVSI = ENB_{sample} - ENB_{current}}, with \eqn{ENB_{current}} as in
-\code{\link[=evpi]{evpi()}} (from the same draws). The net benefit is computed with the same
-estimator as \code{\link[=nb]{nb()}}, so this works for binary, survival and
-competing-risks outcomes (a future patient is a resampled current patient,
-with the same follow-up), with any number of models. With
+For each of \code{n_sim} posterior draws (see "Uncertainty"), which define a
+"true" population with the true net benefit of every strategy, and for each
+\eqn{N}, a future sample of \eqn{N} patients is drawn from that population
+and combined with the current data, the strategy with the highest net
+benefit in the combined data is chosen, and its \emph{true} net benefit
+recorded (Sadatsafavi et al. 2025):
+\itemize{
+\item binary outcome: the conjugate algorithm. The future sample is simulated
+from the draw (events, and the patients treated among them, binomial /
+multinomial), and the strategy with the highest posterior mean net benefit
+after updating the posterior with it is chosen;
+\item survival and competing-risks outcomes (and case weights): the bootstrap
+algorithm. The draw's Bayesian-bootstrap weights \eqn{W} define the
+population; the future sample is \eqn{N} patients drawn from it
+(multinomial counts with probabilities \eqn{W}, a future patient being a
+current patient, with the same follow-up), pooled with the current sample,
+and the net benefit recomputed with the same estimator as \code{\link[=nb]{nb()}}. With
 \code{censoring = "cipcw"} the censoring model is refitted in every draw and
 every pooled sample (see \code{\link[=cipcw_control]{cipcw_control()}}).
 }
+
+If strategies tie exactly in the combined data, the mean of their true net
+benefits is recorded (a random choice among them). Then \eqn{ENB_{sample}}
+is the mean of the recorded true net benefits and
+\eqn{EVSI = ENB_{sample} - ENB_{current}}, with \eqn{ENB_{current}} as in
+\code{\link[=evpi]{evpi()}} (from the same draws). The true EVSI is never negative, but its
+estimate can be slightly negative where EVPI is close to 0 (Monte Carlo
+error; more draws make it smaller): read such values as 0.
+}
+\section{Uncertainty}{
+
+The uncertainty about the net benefit is its posterior (see the prior of
+\code{\link[=nb]{nb()}}), represented by \code{n_sim} draws, in each of which the net benefit of
+every model, of treating all and of treating none is computed:
+\itemize{
+\item binary outcome: draws from the conjugate posterior of the prevalence and
+of each model's sensitivity and specificity, with the prior of \code{\link[=nb]{nb()}}
+(exact Beta / Dirichlet draws, as in bayesDCA). Several models are drawn
+jointly (a Dirichlet over the patterns of treat / do not treat across the
+models), so their correlation on the same patients is kept, and each model
+keeps its own posterior. With the improper prior these draws are equal in
+distribution to the Bayesian bootstrap;
+\item survival and competing-risks outcomes, and binary outcomes with case
+weights (improper prior): the Bayesian bootstrap (Rubin 1981). Each
+draw gives the patients Dirichlet(1, ..., 1) weights (times the case
+weights) and recomputes the net benefit with the same estimator as
+\code{\link[=nb]{nb()}}. With \code{censoring = "cipcw"}, the censoring model is refitted in
+every draw and the censoring weights recomputed from it (see
+\code{\link[=cipcw_control]{cipcw_control()}}).
+}
+
+The predicted risks are kept fixed in every draw. The expected net benefits
+are the means of the draws. \code{evpi()}, \code{\link[=p_useful]{p_useful()}} and \code{\link[=p_best]{p_best()}} called
+with the same seed (and the same results and \code{n_sim}) use the same draws.
+}
+
 \examples{
 dev <- gusto[1:5000, ]
 val <- gusto[5001:5500, ]
 fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-res <- nb(fit, val, "day30", thresholds = c(0.02, 0.05, 0.1))
+val$p <- predict(fit, val, type = "response")
+res <- nb(val, val$p, "day30", thresholds = c(0.02, 0.05, 0.1))
 set.seed(1)
-evsi(res, future_n = c(250, 500, 1000, 4000), n_sim = 500)
+o <- evsi(res, future_n = c(250, 500, 1000, 4000))
+o
+summary(o)
+plot(o)
 }
 \references{
 Sadatsafavi M, et al. Expected value of sample information
@@ -92,5 +111,5 @@ calculations for risk prediction model validation. Medical Decision
 Making 2025; 45(3): 232-244.
 }
 \seealso{
-\code{\link[=evpi]{evpi()}}, \code{\link[=plot_evsi]{plot_evsi()}}
+\code{\link[=evpi]{evpi()}}, \code{\link[=plot.voipred_evsi]{plot.voipred_evsi()}}, \code{\link[=summary.voipred_voi]{summary.voipred_voi()}}
 }

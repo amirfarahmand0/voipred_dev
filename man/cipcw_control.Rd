@@ -53,13 +53,13 @@ voipred's own prediction. Requires \code{model}.}
 \item{refit_function}{Option 1, optional: a \verb{function(data, weights)}
 returning the censoring model fitted to \code{data} (the validation data given
 to \code{\link[=nb]{nb()}}, restricted to the patients with a positive weight in a draw)
-with case weights \code{weights} (with \code{method = "ordinary"}, the number of
-times each patient is drawn; with the Bayesian bootstrap, positive
-weights averaging 1, times the case weights of \code{\link[=nb]{nb()}} if any), e.g.
+with case weights \code{weights} (the Bayesian-bootstrap weights of the draw,
+positive and averaging 1, times the case weights of \code{\link[=nb]{nb()}} if any; in
+\code{\link[=evsi]{evsi()}} also whole numbers for the pooled samples), e.g.
 \code{function(data, weights) coxph(Surv(time, status == 0) ~ x, data = data, weights = weights)}. Used
 by the value-of-information functions to refit the censoring model in
-every draw (see "Uncertainty"). Needed for a Bayesian bootstrap with a
-censoring model voipred cannot refit with case weights by itself.}
+every draw (see "Uncertainty"). Needed for a censoring model voipred
+cannot refit with case weights by itself.}
 }
 \value{
 An object of class \code{cipcw_control}.
@@ -80,8 +80,8 @@ as the "events": \code{Surv(time, status == 0)}. With competing risks, only true
 censoring is censoring: patients with a competing event are not censored
 (\code{Surv(time, status == "censored")}, not \code{status != cause}). voipred
 predicts from the model the probability of remaining uncensored just before
-each patient's own time and at the horizon, in the same way as the risks
-of \code{\link[=predict_risk]{predict_risk()}}: through \code{riskRegression::predictRisk()} (e.g.
+each patient's own time and at the horizon, in the same way as it predicts
+risks from a model in \code{\link[=nb]{nb()}}: through \code{riskRegression::predictRisk()} (e.g.
 \code{coxph} with \code{x = TRUE}, \code{rms::cph}, \code{survreg}, \code{flexsurvreg}, \code{ranger},
 \code{randomForestSRC}, a Kaplan-Meier \code{prodlim} fit), or voipred's own code for
 models riskRegression cannot handle (\code{coxph} without \code{x = TRUE}, \code{aorsf},
@@ -120,9 +120,9 @@ probability is exactly 0.
 from the validation data, so its uncertainty is part of the uncertainty
 about the net benefit. The value-of-information functions (\code{\link[=evpi]{evpi()}},
 \code{\link[=evsi]{evsi()}}, \code{\link[=p_useful]{p_useful()}}, \code{\link[=p_best]{p_best()}}) therefore refit the censoring
-model in every draw, on that draw's data, and recompute the censoring
-weights from it, as a bootstrap that refits the censoring model on each
-resampled data set. The refit is done:
+model in every draw of the Bayesian bootstrap, with that draw's weights as
+case weights, and recompute the censoring weights from it. The refit is
+done:
 \itemize{
 \item with \code{refit_function}, if given;
 \item otherwise automatically for the censoring models whose case weights
@@ -130,14 +130,9 @@ voipred knows: \code{survival::coxph}, \code{survival::survreg}, \code{rms::cph}
 \code{rms::psm}, \code{flexsurv::flexsurvreg} (also \code{flexsurvspline}) and
 \code{prodlim::prodlim}: the model's own call, with the draw's data and the
 draw's weights as case weights;
-\item otherwise, for draws with whole-number weights (\code{method = "ordinary"}),
-by refitting the model's own call on the resampled patients (each repeated
-as many times as it is drawn), which needs no case weights;
-\item otherwise (\code{method = "bayesian"}, whose weights are not whole
-numbers, with a model voipred does not know) it stops and asks for
-\code{refit_function}: other models take weights under other names or with
-another meaning (e.g. \code{ranger}'s \code{case.weights} are sampling
-probabilities), so voipred does not guess.
+\item otherwise it stops and asks for \code{refit_function}: other models take
+weights under other names or with another meaning (e.g. \code{ranger}'s
+\code{case.weights} are sampling probabilities), so voipred does not guess.
 }
 
 Patients with a weight of 0 in a draw are left out of the refit. Given
@@ -146,10 +141,19 @@ in the value-of-information functions. \code{nb()} itself always uses the model
 as given.
 }
 \examples{
-\dontrun{
 library(survival)
-cens_fit <- coxph(Surv(time, status == 0) ~ age + nodes, data = val)
-nb(fit, val, ~ Surv(time, status), horizon = 5,
+rott <- rotterdam
+rott$years <- rott$dtime / 365.25
+cox <- coxph(Surv(years, death) ~ age + size + nodes + grade, data = rott[1:1500, ])
+val <- rott[1501:2982, ]
+val$p5 <- 1 - summary(survfit(cox, newdata = val), times = 5)$surv[1, ]
+
+# the censoring model: fitted on the validation data, censoring as the event
+cens_fit <- coxph(Surv(years, death == 0) ~ age + nodes + grade, data = val)
+nb(val, val$p5, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3),
    censoring = "cipcw", cipcw = cipcw_control(model = cens_fit))
-}
+
+# truncating small probabilities of remaining uncensored
+nb(val, val$p5, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3),
+   censoring = "cipcw", cipcw = cipcw_control(model = cens_fit, min_prob = 0.05))
 }

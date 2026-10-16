@@ -8,7 +8,7 @@ test_that("glm: missing covariates are named", {
   fit <- glm(gusto_formula, family = binomial, data = s$dev)
   v <- drop_cols(s$val, c("sysbp", "pulse"))
   expect_error(predict_risk(fit, v), "missing 2 covariates.*sysbp, pulse")
-  expect_error(nb(fit, v, "day30"), "missing 2 covariates.*sysbp, pulse")
+  expect_error(nb(v, fit, "day30"), "missing 2 covariates.*sysbp, pulse")
 })
 
 test_that("one missing covariate uses the singular", {
@@ -41,7 +41,7 @@ test_that("ranger: covariates cannot be read generically, so ranger's own error 
   v <- drop_cols(s$val, c("Killip", "pulse"))
   expect_error(predict_risk(rf, v),
                "Could not get predicted risks from this ranger model \\(.+\\)\\. If a covariate is missing")
-  expect_error(nb(rf, v, "day30"), "Could not get predicted risks from this ranger model")
+  expect_error(nb(v, rf, "day30"), "Could not get predicted risks from this ranger model")
 })
 
 test_that("randomForest (formula and x/y interface): missing covariates are named", {
@@ -65,7 +65,7 @@ test_that("bayespred (bpmfit and bpm): missing covariates are named", {
   v <- drop_cols(s$val, c("miloc", "sex"))
   expect_error(predict_risk(fit, v), "miloc, sex")
   expect_error(predict_risk(bayespred::posterior(fit), v), "miloc, sex")
-  expect_error(nb(fit, v, "day30"), "miloc, sex")
+  expect_error(nb(v, fit, "day30"), "miloc, sex")
 })
 
 test_that("extra columns and a missing outcome column are fine for prediction", {

@@ -4,80 +4,78 @@
 \alias{p_best}
 \title{Probability that each strategy is the best}
 \usage{
-p_best(x, ..., n_sim = 1000, method = c("bayesian", "ordinary"), labels = NULL)
+p_best(x, ..., n_sim = 1000, labels = NULL)
 }
 \arguments{
 \item{x}{A result of \code{\link[=nb]{nb()}}.}
 
 \item{...}{More results of \code{\link[=nb]{nb()}}, for other models evaluated on the same
-data, outcome, thresholds (and horizon, cause and censoring). A named
-result is labelled with its name.}
+data, outcome, thresholds and prior (and horizon, cause and censoring). A
+result given here with a name is labelled with its name.}
 
 \item{n_sim}{Number of draws. Default 1000.}
 
-\item{method}{\code{"bayesian"} (Bayesian bootstrap, default) or \code{"ordinary"}
-(ordinary bootstrap): see "Uncertainty". Not used (an error if given) for
-results of \code{nb(bayesian = TRUE)}.}
-
-\item{labels}{Optional names of the models, one per result; default: the
-results' labels.}
+\item{labels}{Optional names of the models, one per result, in order;
+default: the results' labels.}
 }
 \value{
-A data frame of class \code{voipred_p_best} with columns \code{threshold},
-\code{strategy} and \code{p_best}, one row per threshold and strategy.
+An object of class \code{voipred_p_best}, a list with \code{estimates} (a
+data frame with columns \code{threshold}, \code{strategy} and \code{p_best}, one row per
+threshold and strategy), \code{strategies}, \code{models}, \code{outcome}, \code{prior},
+\code{draws}, \code{n_sim} and \code{call}, with \code{print()}, \code{summary()}, \code{plot()} and
+\code{as.data.frame()} methods.
 }
 \description{
 For each strategy (each model, treat all and treat none) and threshold,
 the probability that it has the highest net benefit:
 \deqn{P(best_s) = P\{NB_s = \max_t NB_t\},}
-estimated as the share of the draws in which it is the best. Exact ties
-are shared equally, so the probabilities of all strategies add up to 1 at
-each threshold.
+estimated as the share of the posterior draws in which it is the best.
+Exact ties are shared equally, so the probabilities of all strategies add up
+to 1 at each threshold.
 }
 \section{Uncertainty}{
 
-The uncertainty about the net benefit is represented by \code{n_sim} draws, in
-each of which the net benefit of every model, of treating all and of
-treating none is recomputed with the same estimator as \code{\link[=nb]{nb()}} (any outcome
-type, any number of models). The expected net benefits are the means of the
-draws (not the point estimates), as in Sadatsafavi et al. (2023), so EVPI
-is never negative.
+The uncertainty about the net benefit is its posterior (see the prior of
+\code{\link[=nb]{nb()}}), represented by \code{n_sim} draws, in each of which the net benefit of
+every model, of treating all and of treating none is computed:
 \itemize{
-\item \code{method = "bayesian"} (default): Bayesian bootstrap. The patients'
-weights are Dirichlet(1, ..., 1), which gives draws from the posterior
-distribution of the net benefit under a non-informative prior (Rubin's
-Bayesian bootstrap).
-\item \code{method = "ordinary"}: ordinary bootstrap. The weights are the numbers of
-times each patient is drawn when sampling \code{n} patients with replacement.
-\item Results of \code{nb(bayesian = TRUE)} (Bayesian net benefit, binary outcome):
-the draws are from the posterior of the prevalence and of each model's
-sensitivity and specificity (exact Beta / Dirichlet draws, as in
-bayesDCA), and \code{method} is not used. Several models are drawn jointly (a
-Dirichlet over the patterns of treat / do not treat across the models),
-so their correlation on the same patients is kept, and each model keeps
-its own posterior.
+\item binary outcome: draws from the conjugate posterior of the prevalence and
+of each model's sensitivity and specificity, with the prior of \code{\link[=nb]{nb()}}
+(exact Beta / Dirichlet draws, as in bayesDCA). Several models are drawn
+jointly (a Dirichlet over the patterns of treat / do not treat across the
+models), so their correlation on the same patients is kept, and each model
+keeps its own posterior. With the improper prior these draws are equal in
+distribution to the Bayesian bootstrap;
+\item survival and competing-risks outcomes, and binary outcomes with case
+weights (improper prior): the Bayesian bootstrap (Rubin 1981). Each
+draw gives the patients Dirichlet(1, ..., 1) weights (times the case
+weights) and recomputes the net benefit with the same estimator as
+\code{\link[=nb]{nb()}}. With \code{censoring = "cipcw"}, the censoring model is refitted in
+every draw and the censoring weights recomputed from it (see
+\code{\link[=cipcw_control]{cipcw_control()}}).
 }
 
-With case weights in \code{\link[=nb]{nb()}} (\code{weights}), the bootstrap draws are taken from
-the weighted sample. The predicted risks are kept fixed in every draw. With
-\code{censoring = "cipcw"}, the censoring model is refitted in every draw and the
-censoring weights recomputed from it (see \code{\link[=cipcw_control]{cipcw_control()}}).
-
-\code{evpi()}, \code{\link[=p_useful]{p_useful()}} and \code{\link[=p_best]{p_best()}} called with the same seed (and the
-same results, \code{n_sim} and \code{method}) use the same draws.
+The predicted risks are kept fixed in every draw. The expected net benefits
+are the means of the draws. \code{evpi()}, \code{\link[=p_useful]{p_useful()}} and \code{\link[=p_best]{p_best()}} called
+with the same seed (and the same results and \code{n_sim}) use the same draws.
 }
 
 \examples{
 dev <- gusto[1:5000, ]
 val <- gusto[5001:5500, ]
 fit1 <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
+val$p1 <- predict(fit1, val, type = "response")
 fit2 <- glm(day30 ~ age, family = binomial, data = dev)
-z <- c(0.02, 0.05, 0.1, 0.2)
-res1 <- nb(fit1, val, "day30", thresholds = z, label = "Full")
-res2 <- nb(fit2, val, "day30", thresholds = z, label = "Age only")
+val$p2 <- predict(fit2, val, type = "response")
+z <- seq(0.01, 0.3, by = 0.01)
+res1 <- nb(val, val$p1, "day30", thresholds = z, label = "Full")
+res2 <- nb(val, val$p2, "day30", thresholds = z, label = "Age only")
 set.seed(1)
-p_best(res1, res2, n_sim = 500)
+pb <- p_best(res1, res2)
+pb
+summary(pb)
+plot(pb)
 }
 \seealso{
-\code{\link[=p_useful]{p_useful()}}, \code{\link[=evpi]{evpi()}}, \code{\link[=plot_p_best]{plot_p_best()}}
+\code{\link[=p_useful]{p_useful()}}, \code{\link[=evpi]{evpi()}}, \code{\link[=plot.voipred_p_best]{plot.voipred_p_best()}}, \code{\link[=summary.voipred_voi]{summary.voipred_voi()}}
 }

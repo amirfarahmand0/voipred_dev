@@ -7,8 +7,8 @@ voi_plot_setup <- function() {
   f2 <- glm(day30 ~ age, family = binomial, data = g$dev)
   val <- g$val[1:1500, ]
   z <- c(0.01, 0.02, 0.05, 0.1, 0.2)
-  r1 <- nb(f1, val, "day30", thresholds = z, label = "Full")
-  r2 <- nb(f2, val, "day30", thresholds = z, label = "Age")
+  r1 <- nb(val, f1, "day30", thresholds = z, label = "Full")
+  r2 <- nb(val, f2, "day30", thresholds = z, label = "Age")
   set.seed(1)
   d <- draws_t(r1, r2, n_sim = 100)
   set.seed(2)
@@ -22,77 +22,83 @@ line_data <- function(p) {
   split(ld$y, levels(p$data$label)[ld$group])
 }
 
-test_that("plot_evpi(): EVPI or relative EVPI against the threshold", {
+test_that("plot() of evpi(): EVPI or relative EVPI against the threshold", {
   s <- voi_plot_setup()
-  p <- plot_evpi(s$e)
+  p <- plot(s$e)
   expect_s3_class(p, "ggplot")
   expect_equal(levels(p$data$label), "EVPI")
-  expect_equal(line_data(p)[["EVPI"]], s$e$EVPI)
+  expect_equal(line_data(p)[["EVPI"]], s$e$estimates$EVPI)
   expect_equal(p$labels$y, "EVPI")
-  pr <- plot_evpi(s$e, type = "relative")
+  pr <- plot(s$e, type = "relative")
   expect_equal(ggplot2::layer_data(pr, 1)$yintercept, 1)
-  expect_equal(line_data(pr)[["EVPI"]], s$e$rEVPI[is.finite(s$e$rEVPI)])
+  expect_equal(line_data(pr)[["EVPI"]], s$e$estimates$rEVPI[is.finite(s$e$estimates$rEVPI)])
   # several results, labelled by argument names or `labels`
-  p2 <- plot_evpi(s$e, single = s$e1)
+  p2 <- plot(s$e, single = s$e1)
   expect_equal(levels(p2$data$label), c("EVPI 1", "single"))
-  expect_equal(levels(plot_evpi(s$e, s$e1, labels = c("a", "b"))$data$label), c("a", "b"))
-  expect_error(plot_evpi(s$pu), "needs results of evpi")
-  expect_error(plot_evpi(s$e, tpye = "relative"), "Unknown argument `tpye`")
+  expect_equal(levels(plot(s$e, s$e1, labels = c("a", "b"))$data$label), c("a", "b"))
+  expect_error(plot(s$e, s$pu), "needs results of evpi")
+  expect_error(plot(s$e, tpye = "relative"), "Unknown argument `tpye`")
 })
 
-test_that("plot_evsi(): against the future sample size", {
+test_that("plot() of evsi(): against the future sample size", {
   s <- voi_plot_setup()
-  p <- plot_evsi(s$o)
+  p <- plot(s$o)
   expect_s3_class(p, "ggplot")
   expect_equal(p$labels$x, "Future sample size")
   lv <- levels(p$data$label)
   expect_equal(lv, paste0("Threshold ", c(1, 2, 5, 10, 20), "%"))
   first <- p$data[p$data$label == lv[2], ]
   expect_equal(first$x, c(0, 200, 1000))
-  expect_equal(first$value, c(0, s$o$EVSI[s$o$threshold == 0.02]))
+  expect_equal(first$value, c(0, s$o$estimates$EVSI[s$o$estimates$threshold == 0.02]))
   ref <- ggplot2::layer_data(p, 1)                      # the dashed EVPI lines
   expect_true(all(ref$linetype == "dashed"))
-  expect_error(plot_evsi(s$o, type = "threshold"), "unused argument")   # removed
-  expect_error(plot_evsi(s$e), "needs a result of evsi")
+  expect_error(plot(s$o, type = "threshold"), "Unknown argument")   # not in the paper
+  # chosen thresholds; by default at most 5, otherwise the 4 with the largest EVPI
+  expect_equal(levels(plot(s$o, thresholds = c(0.05, 0.2))$data$label),
+               c("Threshold 5%", "Threshold 20%"))
+  expect_error(plot(s$o, thresholds = 0.3), "not among the thresholds")
+  big <- s$o
+  big$estimates <- rbind(big$estimates, transform(big$estimates, threshold = threshold + 0.001))
+  expect_length(levels(plot(big)$data$label), 4)
 })
 
-test_that("plot_p_useful() and plot_p_best(): probabilities, in the colours of plot_dca()", {
+test_that("plot() of p_useful() and p_best(): probabilities, in the colours of the decision curve", {
   s <- voi_plot_setup()
-  p <- plot_p_useful(s$pu)
+  p <- plot(s$pu)
   expect_equal(levels(p$data$label), c("Full", "Age"))
-  expect_equal(line_data(p)[["Age"]], s$pu$p_useful[s$pu$model == "Age"])
+  expect_equal(line_data(p)[["Age"]], s$pu$estimates$p_useful[s$pu$estimates$model == "Age"])
   expect_equal(p$coordinates$limits$y, c(0, 1))
-  b <- plot_p_best(s$pb)
+  b <- plot(s$pb)
   expect_equal(levels(b$data$label), c("Treat All", "Treat None", "Full", "Age"))
-  expect_equal(line_data(b)[["Treat None"]], s$pb$p_best[s$pb$strategy == "Treat None"])
+  expect_equal(line_data(b)[["Treat None"]], s$pb$estimates$p_best[s$pb$estimates$strategy == "Treat None"])
   col <- function(p, l) unique(ggplot2::layer_data(p, length(p$layers))$colour[
     levels(p$data$label)[ggplot2::layer_data(p, length(p$layers))$group] == l])
-  dca <- plot_dca(s$r1, s$r2)
+  dca <- plot(s$r1, s$r2)
   for (l in c("Full", "Age")) {
     expect_equal(col(p, l), col(dca, l))
     expect_equal(col(b, l), col(dca, l))
   }
-  expect_error(plot_p_useful(s$pb), "needs a result of p_useful")
-  expect_error(plot_p_best(s$pu), "needs a result of p_best")
+  expect_error(plot(s$pu, s$pb), "Unknown argument")
+  expect_error(plot(s$pb, foo = 1), "Unknown argument")
 })
 
-test_that("plot_dca() with an EVPI / EVSI panel below", {
+test_that("plot() of nb() with an EVPI / EVSI panel below", {
   skip_if_not_installed("patchwork")
   s <- voi_plot_setup()
-  p <- plot_dca(s$r1, evpi = s$e1, evsi = s$o)
+  p <- plot(s$r1, evpi = s$e1, evsi = s$o)
   expect_s3_class(p, "patchwork")
   bottom <- p[[2]]
   expect_equal(levels(bottom$data$label), c("EVPI", "EVSI (N = 200)", "EVSI (N = 1,000)"))
-  expect_equal(line_data(bottom)[["EVPI"]], s$e1$EVPI)
+  expect_equal(line_data(bottom)[["EVPI"]], s$e1$estimates$EVPI)
   # the two panels share the threshold axis
   expect_equal(p[[1]]$coordinates$limits$x, bottom$coordinates$limits$x)
   # EVSI alone: EVPI is taken from evsi()
-  q <- plot_dca(s$r1, evsi = s$o)
-  expect_equal(line_data(q[[2]])[["EVPI"]], s$o$EVPI[s$o$future_n == 200])
+  q <- plot(s$r1, evsi = s$o)
+  expect_equal(line_data(q[[2]])[["EVPI"]], s$o$estimates$EVPI[s$o$estimates$future_n == 200])
   withr::local_pdf(NULL)
   expect_no_error(print(p))
-  expect_error(plot_dca(s$r1, evpi = s$o), "`evpi` must be a result of evpi")
-  expect_error(plot_dca(s$r1, evsi = s$e1), "`evsi` must be a result of evsi")
+  expect_error(plot(s$r1, evpi = s$o), "`evpi` must be a result of evpi")
+  expect_error(plot(s$r1, evsi = s$e1), "`evsi` must be a result of evsi")
 })
 
 test_that("interactive = TRUE gives plotly widgets with the same curves", {
@@ -103,49 +109,49 @@ test_that("interactive = TRUE gives plotly widgets with the same curves", {
     nm <- vapply(b, function(t) if (is.null(t$name)) "" else t$name, character(1))
     stats::setNames(lapply(b, function(t) as.numeric(t$y)), nm)
   }
-  w <- plot_dca(s$r1, s$r2, interactive = TRUE)
+  w <- plot(s$r1, s$r2, interactive = TRUE)
   expect_s3_class(w, "plotly")
   tr <- traces(w)
   expect_setequal(names(tr), c("Treat All", "Treat None", "Full", "Age"))
-  expect_equal(tr[["Full"]], s$r1$NB_model)
-  td <- traces(plot_dca(s$r1, s$r2, type = "delta", interactive = TRUE))
-  expect_equal(td[["Age"]], s$r2$delta_NB)
+  expect_equal(tr[["Full"]], s$r1$estimates$NB_model)
+  td <- traces(plot(s$r1, s$r2, type = "delta", interactive = TRUE))
+  expect_equal(td[["Age"]], s$r2$estimates$delta_NB)
   # decision curve with the VoI panel: one shared x axis, two y axes
-  wv <- plot_dca(s$r1, evpi = s$e1, evsi = s$o, interactive = TRUE)
+  wv <- plot(s$r1, evpi = s$e1, evsi = s$o, interactive = TRUE)
   b <- plotly::plotly_build(wv)$x
   expect_true(all(vapply(b$data, function(t) is.null(t$xaxis) || t$xaxis == "x", logical(1))))
   expect_setequal(unique(unlist(lapply(b$data, `[[`, "yaxis"))), c("y", "y2"))
   tv <- traces(wv)
-  expect_equal(tv[["EVPI"]], s$e1$EVPI)
-  expect_equal(tv[["EVSI (N = 1,000)"]], s$o$EVSI[s$o$future_n == 1000])
-  expect_equal(traces(plot_evpi(s$e, interactive = TRUE))[["EVPI"]], s$e$EVPI)
-  expect_equal(traces(plot_evsi(s$o, interactive = TRUE))[["Threshold 2%"]],
-               c(0, s$o$EVSI[s$o$threshold == 0.02]))
-  expect_equal(traces(plot_p_useful(s$pu, interactive = TRUE))[["Full"]],
-               s$pu$p_useful[s$pu$model == "Full"])
-  expect_equal(traces(plot_p_best(s$pb, interactive = TRUE))[["Treat All"]],
-               s$pb$p_best[s$pb$strategy == "Treat All"])
-  expect_error(plot_evpi(s$e, interactive = "yes"), "TRUE or FALSE")
+  expect_equal(tv[["EVPI"]], s$e1$estimates$EVPI)
+  expect_equal(tv[["EVSI (N = 1,000)"]], s$o$estimates$EVSI[s$o$estimates$future_n == 1000])
+  expect_equal(traces(plot(s$e, interactive = TRUE))[["EVPI"]], s$e$estimates$EVPI)
+  expect_equal(traces(plot(s$o, interactive = TRUE))[["Threshold 2%"]],
+               c(0, s$o$estimates$EVSI[s$o$estimates$threshold == 0.02]))
+  expect_equal(traces(plot(s$pu, interactive = TRUE))[["Full"]],
+               s$pu$estimates$p_useful[s$pu$estimates$model == "Full"])
+  expect_equal(traces(plot(s$pb, interactive = TRUE))[["Treat All"]],
+               s$pb$estimates$p_best[s$pb$estimates$strategy == "Treat All"])
+  expect_error(plot(s$e, interactive = "yes"), "TRUE or FALSE")
 })
 
 test_that("static and interactive plots share one look, with the legend on the right", {
   s <- voi_plot_setup()
-  p <- plot_dca(s$r1, s$r2)
+  p <- plot(s$r1, s$r2)
   expect_equal(p$theme$legend.position, "right")
   expect_null(p$labels$colour)                                   # no legend title
   expect_s3_class(p$theme$panel.grid.minor, "element_blank")
   expect_equal(plain_label(c(0, 6e-4, 0.01, NA, 2000)), c("0", "0.0006", "0.01", NA, "2000"))
   skip_if_not_installed("plotly")
-  w <- plotly::plotly_build(plot_dca(s$r1, s$r2, interactive = TRUE))$x$layout
+  w <- plotly::plotly_build(plot(s$r1, s$r2, interactive = TRUE))$x$layout
   expect_equal(w$legend$x, 1.02)
   expect_equal(w$legend$yanchor, "middle")
   expect_equal(w$yaxis$tickformat, "~g")
   skip_if_not_installed("patchwork")
-  st <- plot_dca(s$r1, evpi = s$e1, evsi = s$o)
+  st <- plot(s$r1, evpi = s$e1, evsi = s$o)
   expect_s3_class(st[[1]]$theme$axis.text.x, "element_blank")    # shared x axis
   expect_false(identical(st$patches$layout$guides, "collect"))   # a legend per panel
   skip_if_not(utils::packageVersion("plotly") >= "4.11.0")
-  b <- plotly::plotly_build(plot_dca(s$r1, evpi = s$e1, evsi = s$o, interactive = TRUE))$x
+  b <- plotly::plotly_build(plot(s$r1, evpi = s$e1, evsi = s$o, interactive = TRUE))$x
   shown <- Filter(function(t) !isFALSE(t$showlegend), b$data)
   leg <- vapply(shown, function(t) if (is.null(t$legend)) "legend" else t$legend, "")
   nm <- vapply(shown, `[[`, "", "name")
@@ -157,7 +163,7 @@ test_that("static and interactive plots share one look, with the legend on the r
 test_that("the interactive delta-NB axis title uses codes plotly can show", {
   skip_if_not_installed("plotly")
   s <- voi_plot_setup()
-  w <- plotly::plotly_build(plot_dca(s$r1, type = "delta", interactive = TRUE))$x$layout
+  w <- plotly::plotly_build(plot(s$r1, type = "delta", interactive = TRUE))$x$layout
   ttl <- w$yaxis$title
   if (is.list(ttl)) ttl <- ttl$text
   # plotly decodes numeric codes (&#916;) but not most named ones (&Delta;)
@@ -168,14 +174,14 @@ test_that("the interactive delta-NB axis title uses codes plotly can show", {
 
 test_that("the value-of-information axis is named after what it shows", {
   s <- voi_plot_setup()
-  expect_equal(plot_evpi(s$e)$labels$y, "EVPI")
-  expect_equal(plot_evsi(s$o)$labels$y, "EVSI")
+  expect_equal(plot(s$e)$labels$y, "EVPI")
+  expect_equal(plot(s$o)$labels$y, "EVSI")
   skip_if_not_installed("patchwork")
-  expect_equal(plot_dca(s$r1, evpi = s$e1)[[2]]$labels$y, "EVPI")
-  expect_equal(plot_dca(s$r1, evpi = s$e1, evsi = s$o)[[2]]$labels$y, "EVPI / EVSI")
-  expect_equal(plot_dca(s$r1, evsi = s$o)[[2]]$labels$y, "EVPI / EVSI")
+  expect_equal(plot(s$r1, evpi = s$e1)[[2]]$labels$y, "EVPI")
+  expect_equal(plot(s$r1, evpi = s$e1, evsi = s$o)[[2]]$labels$y, "EVPI / EVSI")
+  expect_equal(plot(s$r1, evsi = s$o)[[2]]$labels$y, "EVPI / EVSI")
   skip_if_not_installed("plotly")
-  w <- plotly::plotly_build(plot_dca(s$r1, evpi = s$e1, interactive = TRUE))$x$layout
+  w <- plotly::plotly_build(plot(s$r1, evpi = s$e1, interactive = TRUE))$x$layout
   t2 <- w$yaxis2$title
   if (is.list(t2)) t2 <- t2$text
   expect_equal(t2, "EVPI")

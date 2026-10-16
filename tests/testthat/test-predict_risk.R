@@ -62,7 +62,7 @@ test_that("bayespred: the risk is the posterior mean of risk", {
                unname(as.vector(predict(fit, s$val, type = "response", method = "pm"))))
   post <- bayespred::posterior(fit)
   expect_equal(predict_risk(post, s$val), predict_risk(fit, s$val))
-  expect_error(nb(fit, s$val, "day30", bayespred_method = "pe"), "unused argument")
+  expect_error(nb(s$val, fit, "day30", bayespred_method = "pe"), "unused argument")
 })
 
 test_that("a numeric or logical vector is rejected", {

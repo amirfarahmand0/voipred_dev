@@ -17,17 +17,18 @@ voipred.dev evaluates a prediction model in a validation sample in two steps:
 1. `nb()` computes, from the predicted risks of the validation patients, the
    net benefit of the model, of treating everyone and of treating no one, at
    each risk threshold;
-2. `plot_dca()` draws the decision curve, or the gain of the model over the
-   best default strategy ($\Delta NB$).
+2. `print()` and `summary()` show the result, and `plot()` draws the
+   decision curve, or the gain of the model over the best default strategy
+   ($\Delta NB$).
 
 The outcome decides the analysis: a binary outcome (part 1), or a survival or
-competing-risks outcome (part 2). Part 3 lists the models voipred can
-predict from by itself, when the fitted model is given instead of the risks,
-and shows how to use any other model.
+competing-risks outcome (part 2). Only the predicted risks are needed, and
+this guide gives them that way throughout. Giving the fitted model instead,
+which is optional, is explained once for each part.
 
 This vignette explains each option briefly, with examples. The help pages
-give the full details: `?nb`, `?plot_dca`, `?cipcw_control`,
-`?predict_risk` and `?nb_priors`.
+give the full details: `?nb`, `?summary.voipred_nb`, `?plot.voipred_nb`,
+`?cipcw_control` and `?nb_priors`.
 
 ## Installation
 
@@ -90,29 +91,24 @@ mean(val$day30)   # prevalence in the validation sample
 
 `nb()` needs only the predicted risks of the validation patients, given with
 `predicted_risk`: one risk per row of `data`. They can come from any model or
-software, so the model object is not needed: when it is not available (e.g.
-a published model given as coefficients, or risks computed in other
-software), `predicted_risk` is all you need.
+software, so the model object is not needed (e.g. a published model given as
+coefficients, or risks computed in other software).
 
 ```{r glm}
 fit_glm <- glm(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
                family = binomial, data = dev)
 val$p_glm <- predict(fit_glm, val, type = "response")
 
-res_glm <- nb(predicted_risk = val$p_glm, data = val, outcome = "day30",
+res_glm <- nb(val, predicted_risk = val$p_glm, outcome = "day30",
               thresholds = seq(0, 0.30, by = 0.01), label = "Logistic")
 res_glm
 ```
 
 The name of the column of `data` that holds the risks works too:
-`predicted_risk = "p_glm"` gives the same result.
+`nb(val, "p_glm", "day30")` gives the same result.
 
-Instead of the risks, the fitted model can be given, as `model = fit_glm` or
-in place of the risks (`nb(fit_glm, val, "day30")`). voipred then predicts
-the risks from the model itself, once (part 3). The rest of this guide gives
-the models this way.
-
-The result has one row per threshold:
+Printing the result shows what was evaluated and the first rows of its
+table, which has one row per threshold:
 
 - `NB_model`: net benefit of treating the patients whose predicted risk is at
   or above the threshold;
@@ -121,53 +117,64 @@ The result has one row per threshold:
 - `delta_NB`: $NB_{model} - \max(NB_{all}, NB_{none})$, the gain of the model
   over the best default strategy. The model is useful where it is positive.
 
+The result is a list, like a `glm` fit: its parts are read with `$`. The
+whole table is `res_glm$estimates` (or `as.data.frame(res_glm)`), and
+`res_glm$risk`, `res_glm$outcome` and `res_glm$counts` hold the predicted
+risks, the outcome and the counts of true and false positives and negatives.
+`summary()` gives the best strategy along the thresholds, and, at each
+threshold, the sensitivity and specificity of the model and the best
+strategy (`summary(res_glm, thresholds = c(0.05, 0.1))` for chosen
+thresholds):
+
+```{r summary-glm}
+summary(res_glm)
+```
+
 ## Plots
 
-`plot_dca()` draws the decision curve (`type = "nb"`, the default) or
+`plot()` draws the decision curve (`type = "nb"`, the default) or
 `delta_NB` (`type = "delta"`):
 
 ```{r plot-glm}
-plot_dca(res_glm)
-plot_dca(res_glm, type = "delta")
+plot(res_glm)
+plot(res_glm, type = "delta")
 ```
 
 ## Comparing models
 
 Compute `nb()` for each model on the same data and thresholds, then give all
-the results to `plot_dca()`:
+the results to `plot()`:
 
 ```{r compare}
 fit_rf <- ranger::ranger(factor(day30) ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
                          data = dev, probability = TRUE, num.trees = 500, seed = 1)
-res_rf <- nb(fit_rf, val, "day30", thresholds = seq(0, 0.30, by = 0.01),
+val$p_rf <- predict(fit_rf, val)$predictions[, "1"]
+res_rf <- nb(val, val$p_rf, "day30", thresholds = seq(0, 0.30, by = 0.01),
              label = "Random forest")
 
 library(bayespred)
 fit_bpm <- bpmfit(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
                   data = dev, prior = log_f(m = 2))
-res_bpm <- nb(fit_bpm, val, "day30", thresholds = seq(0, 0.30, by = 0.01),
+val$p_bpm <- predict(fit_bpm, val, type = "response")   # posterior mean of risk
+res_bpm <- nb(val, val$p_bpm, "day30", thresholds = seq(0, 0.30, by = 0.01),
               label = "Bayesian logistic")
 
-plot_dca(res_glm, res_rf, res_bpm)
-plot_dca(res_glm, res_rf, res_bpm, type = "delta")
+plot(res_glm, res_rf, res_bpm)
+plot(res_glm, res_rf, res_bpm, type = "delta")
 ```
-
-For the bayespred model the risk is the posterior mean of risk.
 
 ## Options of `nb()` for a binary outcome
 
 | Argument | What it does |
 |---|---|
+| `data` | The validation sample (first argument). |
 | `predicted_risk` | The predicted risks of the patients in `data`: a vector, one per row (e.g. `val$p_glm`), or the name of the column of `data` that holds them (`"p_glm"`). This is all the validation needs. |
-| `model` | Optional, instead of `predicted_risk`: the fitted model. voipred predicts the risks from it, once (part 3). Give either `predicted_risk` or `model`. |
-| `data` | The validation sample. With a `model`, it must contain every covariate the model uses. |
 | `outcome` | The binary outcome: a column name (`"day30"`), a vector, or a formula (`~ day30`); 0/1, logical, or a two-level factor. |
 | `thresholds` | Risk thresholds in [0, 1). Default `seq(0, 0.99, by = 0.01)`. A patient is treated when the risk is at or above the threshold. |
-| `weights` | Optional case weights, one per patient (sampling weights, or a bootstrap draw). |
-| `predict_function` | Optional, with `model` only: your own function that returns the predicted risks (part 3). |
-| `bayesian` | `TRUE` for the Bayesian net benefit (posterior means; see below). Default `FALSE`. |
-| `prior` | With `bayesian = TRUE`: `nb_uniform()` (default), `nb_jeffreys()` or your own Beta priors with `nb_beta()`. |
-| `label` | Name of the model in printed output and plots. Default: the name of the risks (e.g. `p_glm`) or of the model object. |
+| `weights` | Optional case weights, one per patient (sampling weights, or a bootstrap draw). Only with the default prior. |
+| `prior` | The prior of the Bayesian net benefit (see below): `nb_improper()` (default, the usual net benefit), `nb_uniform()`, `nb_jeffreys()` or your own Beta priors with `nb_beta()`. |
+| `model`, `predict_function` | Optional, instead of `predicted_risk`: the fitted model, and your own function to predict from it (see "The model instead of the risks" below). |
+| `label` | Name of the model in printed output and plots. Default: the name of the risks (e.g. `p_glm`). |
 
 See `?nb` for the details of each argument.
 
@@ -183,64 +190,60 @@ set.seed(2)
 w_boot <- tabulate(sample(n, replace = TRUE), nbins = n)
 w_bb   <- rexp(n); w_bb <- n * w_bb / sum(w_bb)
 
-draws <- rbind(original  = nb(fit_glm, val, "day30", z)$NB_model,
-               bootstrap = nb(fit_glm, val, "day30", z, weights = w_boot)$NB_model,
-               bayesian  = nb(fit_glm, val, "day30", z, weights = w_bb)$NB_model)
+draws <- rbind(original  = nb(val, val$p_glm, "day30", z)$estimates$NB_model,
+               bootstrap = nb(val, val$p_glm, "day30", z, weights = w_boot)$estimates$NB_model,
+               bayesian  = nb(val, val$p_glm, "day30", z, weights = w_bb)$estimates$NB_model)
 colnames(draws) <- paste("z =", z)
 round(draws, 4)
 ```
 
 ## Bayesian net benefit
 
-With `bayesian = TRUE`, `nb()` gives the Bayesian net benefit of bayesDCA
-(binary outcome only): the prevalence, and the sensitivity and specificity
-of the model at each threshold, have conjugate Beta posteriors, and the net
-benefit columns are the posterior means,
+The net benefit of `nb()` is the Bayesian net benefit of bayesDCA: the
+prevalence, and the sensitivity and specificity of the model at each
+threshold, have conjugate Beta posteriors, and the net benefit columns are
+the posterior means,
 $E[\pi] E[Se] - (1 - E[\pi])(1 - E[Sp]) \frac{z}{1-z}$ for the model and
-$E[\pi] - (1 - E[\pi]) \frac{z}{1-z}$ for treating everyone. The prior is
-`nb_uniform()` (Beta(1, 1) for all three, the default), `nb_jeffreys()`
-(Beta(0.5, 0.5)) or your own with `nb_beta()`:
+$E[\pi] - (1 - E[\pi]) \frac{z}{1-z}$ for treating everyone. The default
+prior, `nb_improper()` (Beta(0, 0) for all three), gives exactly the usual
+(frequentist) net benefit, so all the results above are the usual ones. For
+a binary outcome the prior can also be `nb_uniform()` (Beta(1, 1)),
+`nb_jeffreys()` (Beta(0.5, 0.5)) or your own with `nb_beta()`:
 
 ```{r bayes-nb}
-res_glm_b <- nb(predicted_risk = val$p_glm, data = val, outcome = "day30",
-                thresholds = seq(0, 0.30, by = 0.01), bayesian = TRUE,
-                label = "Logistic")
-head(res_glm_b)
-plot_dca(res_glm_b)
+res_glm_u <- nb(val, val$p_glm, "day30", thresholds = seq(0, 0.30, by = 0.01),
+                prior = nb_uniform(), label = "Logistic")
+res_glm_u
+plot(res_glm_u)
 
 # Jeffreys prior, or your own Beta priors (here for the prevalence only)
-nb(predicted_risk = val$p_glm, data = val, outcome = "day30",
-   thresholds = c(0.05, 0.1), bayesian = TRUE, prior = nb_jeffreys())
+nb(val, val$p_glm, "day30", thresholds = c(0.05, 0.1), prior = nb_jeffreys())
 nb_beta(prevalence = c(2, 20))
 ```
 
-With 5000 patients the posterior means are close to the ordinary estimates;
-the prior matters more in small samples. Bayesian and ordinary results are
-different estimates, so `plot_dca()` does not draw them together. Case
-weights cannot be used with `bayesian = TRUE`.
+With 5000 patients the posterior means are close to the usual estimates;
+the prior matters more in small samples. Results with different priors are
+different estimates, so `plot()` does not draw them together. Case weights
+can only be used with the default prior, and survival and competing-risks
+outcomes use the default prior.
 
 ## Checks
 
-voipred stops with a clear message when the risks cannot be
-right. Some examples:
+voipred stops with a clear message when the risks cannot be right. Some
+examples:
 
 ```{r checks, error = TRUE}
-# a covariate is missing from the validation data
-nb(fit_glm, val[, setdiff(names(val), "sysbp")], "day30")
+# log-odds given as predicted risks are not probabilities
+nb(val, qlogis(val$p_glm), "day30")
 
-# a forest that only predicts classes (fitted without probability = TRUE)
-fit_class <- ranger::ranger(factor(day30) ~ age + Killip + sysbp + pulse,
-                            data = dev, num.trees = 100, seed = 1)
-nb(fit_class, val, "day30")
+# predicted classes are not probabilities either
+nb(val, as.numeric(val$p_glm > 0.1), "day30")
 
-# predictions outside [0, 1] are not probabilities
-nb(lm(day30 ~ age + Killip, data = dev), val, "day30")
-
-# log-odds given as predicted risks are not probabilities either
-nb(predicted_risk = qlogis(val$p_glm), data = val, outcome = "day30")
+# one risk per patient
+nb(val, val$p_glm[-1], "day30")
 ```
 
-## Options of `plot_dca()`
+## Options of `plot()`
 
 | Argument | What it does |
 |---|---|
@@ -248,12 +251,72 @@ nb(predicted_risk = qlogis(val$p_glm), data = val, outcome = "day30")
 | `type` | `"nb"`: decision curve with Treat All and Treat None (default). `"delta"`: $\Delta NB$ of each model, with a dashed line at 0. |
 | `labels` | Names of the curves, one per result. Default: the `label` of each result. |
 
-See `?plot_dca` for details. The plot is a ggplot object, so it can be
+See `?plot.voipred_nb` for details. The plot is a ggplot object, so it can be
 changed with `+` or saved with `ggplot2::ggsave()`:
 
 ```{r plot-custom, message = FALSE}
-p <- plot_dca(res_glm, res_rf, labels = c("Logistic regression", "Forest"))
+p <- plot(res_glm, res_rf, labels = c("Logistic regression", "Forest"))
 p + ggplot2::coord_cartesian(xlim = c(0, 0.2), ylim = c(-0.005, 0.07))
+```
+
+## The model instead of the risks (optional)
+
+Instead of the risks, the fitted model can be given, as `model = fit_glm` or
+in place of the risks. voipred then predicts the risks from it itself, once,
+and every later step reuses them. The result is the same:
+
+```{r model-binary}
+res_glm_m <- nb(val, fit_glm, "day30", thresholds = seq(0, 0.30, by = 0.01),
+                label = "Logistic")
+all.equal(res_glm_m$estimates, res_glm$estimates)
+```
+
+**By default** voipred predicts from the model alone, with `predict()`
+(`type = "response"` or `"prob"`) or `riskRegression::predictRisk()`, and
+with its own code for the models these get wrong. These binary models work
+this way, each tested against its package's own predictions: `glm` (logit,
+probit, cloglog), `logistf`, `mgcv::gam`, `earth`, `rpart`,
+`partykit::ctree`, `randomForest`, `ranger` (`probability = TRUE`), `gbm`,
+`xgboost`, `lightgbm`, `catboost`, `glmnet`, `cv.glmnet`, `e1071::svm`
+(`probability = TRUE`), `e1071::naiveBayes`, `naivebayes`, `nnet`,
+`MASS::lda`, `MASS::qda`, `kknn`, and **bayespred** (`bpmfit`, `bpm`; the
+risk is the posterior mean of risk). Any other model whose `predict()`
+returns probabilities in the usual way works too. "Works" means only that
+voipred knows how to get predicted probabilities from the model; it says
+nothing about whether the model is good, which is what the net benefit is
+for.
+
+**With `predict_function`**: for any other model, give a function of
+`(model, newdata, horizon, cause)` that returns one predicted risk per row
+of `newdata`. voipred calls it once, with `newdata = data`; when given, it
+always replaces voipred's own route. An SVM, which voipred also handles by
+itself:
+
+```{r pf-binary}
+fit_svm <- e1071::svm(factor(day30) ~ age + Killip + sysbp + pulse, data = dev,
+                      probability = TRUE)
+vars <- c("age", "Killip", "sysbp", "pulse")
+nb(val, fit_svm, "day30", thresholds = c(0.05, 0.1, 0.2),
+   predict_function = function(model, newdata, ...) {
+     pr <- predict(model, newdata[, vars], probability = TRUE)
+     attr(pr, "probabilities")[, "1"]
+   })
+```
+
+The risks from a model are checked like any others, and voipred also stops
+when the model cannot give them:
+
+```{r checks-model, error = TRUE}
+# a covariate is missing from the validation data
+nb(val[, setdiff(names(val), "sysbp")], fit_glm, "day30")
+
+# a forest that only predicts classes (fitted without probability = TRUE)
+fit_class <- ranger::ranger(factor(day30) ~ age + Killip + sysbp + pulse,
+                            data = dev, num.trees = 100, seed = 1)
+nb(val, fit_class, "day30")
+
+# predictions outside [0, 1] are not probabilities
+nb(val, lm(day30 ~ age + Killip, data = dev), "day30")
 ```
 
 # Part 2: survival outcome
@@ -274,30 +337,35 @@ sval <- rott[j[1501:nrow(rott)], ]
 
 ## Net benefit of one model
 
-The outcome is given with `Surv()` and the `horizon` is required:
+The predicted risks must be the risks of the event by the horizon. The
+outcome is given with `Surv()` and the `horizon` is required:
 
 ```{r cox}
 fit_cox <- coxph(Surv(years, death) ~ age + size + nodes + grade + hormon + chemo,
-                 data = sdev)
+                 data = sdev, x = TRUE)
+sval$p_cox <- as.vector(riskRegression::predictRisk(fit_cox, sval, times = 5))
 
-res_cox <- nb(fit_cox, sval, ~ Surv(years, death), horizon = 5,
+res_cox <- nb(sval, sval$p_cox, ~ Surv(years, death), horizon = 5,
               thresholds = seq(0, 0.6, by = 0.01), label = "Cox")
-head(res_cox)
+res_cox
 ```
 
 The columns are the same as for a binary outcome; the event is "death by 5
-years". The prevalence is the estimated risk of death by 5 years. Predicted
-risks given with `predicted_risk` must be the risks of the event by the
-horizon (for competing risks, of the cause by the horizon).
+years". The header gives the estimated risk of death by 5 years and the
+censoring method. `summary()` gives the share of patients treated instead of
+the sensitivity and specificity.
+
+The outcome can also be a `Surv` object (`Surv(sval$years, sval$death)`) or
+the name of a column of `data` that holds one.
 
 ## Plots
 
-The same `plot_dca()` as for a binary outcome: the decision curve and
+The same `plot()` as for a binary outcome: the decision curve and
 `delta_NB`.
 
 ```{r cox-plot}
-plot_dca(res_cox)
-plot_dca(res_cox, type = "delta")
+plot(res_cox)
+plot(res_cox, type = "delta")
 ```
 
 ## Comparing models
@@ -305,11 +373,12 @@ plot_dca(res_cox, type = "delta")
 ```{r surv-plot}
 fit_aft <- survreg(Surv(years, death) ~ age + size + nodes, data = sdev,
                    dist = "weibull")
-res_aft <- nb(fit_aft, sval, ~ Surv(years, death), horizon = 5,
+sval$p_aft <- as.vector(riskRegression::predictRisk(fit_aft, sval, times = 5))
+res_aft <- nb(sval, sval$p_aft, ~ Surv(years, death), horizon = 5,
               thresholds = seq(0, 0.6, by = 0.01), label = "Weibull AFT")
 
-plot_dca(res_cox, res_aft)
-plot_dca(res_cox, res_aft, type = "delta")
+plot(res_cox, res_aft)
+plot(res_cox, res_aft, type = "delta")
 ```
 
 ## Options of `nb()` for a survival outcome
@@ -318,7 +387,8 @@ All the options of part 1 apply. In addition:
 
 | Argument | What it does |
 |---|---|
-| `outcome` | `~ Surv(time, status)`, with status 1 = event and 0 = censored. For competing risks, status is a factor whose first level is censoring (see below). |
+| `predicted_risk` | The risk of the event by `horizon` (for competing risks, of `cause` by `horizon`). |
+| `outcome` | `~ Surv(time, status)`, with status 1 = event and 0 = censored, a `Surv` object, or the name of a `Surv` column. For competing risks, status is a factor whose first level is censoring (see below). |
 | `horizon` | The time by which the risk is predicted and the event counted (required), in the units of the survival times. |
 | `censoring` | How censoring is handled: `"km"` (default) or `"cipcw"` (see below). |
 | `cipcw` | With `censoring = "cipcw"`: the censoring model or weights, made with `cipcw_control()`. |
@@ -336,30 +406,30 @@ cannot be estimated: it is `NA`, with a warning.
 weighting allows censoring to depend on covariates. Fit a model to the
 censoring times of the validation data, with censoring as the event
 (`Surv(time, status == 0)`), and give it with `cipcw_control()`. The
-censoring model can be any of the survival models voipred supports as
-prediction models (part 3), e.g. a Cox model, a parametric model or a
-random survival forest; for any other model, give its `predict_function` in
+censoring model can be any of the survival models voipred can predict from
+(listed below), e.g. a Cox model, a parametric model or a random survival
+forest; for any other model, give its `predict_function` in
 `cipcw_control()`, or give the weights directly.
 
 ```{r cipcw}
 cens <- coxph(Surv(years, death == 0) ~ age + nodes + grade, data = sval)
 
-res_cipcw <- nb(fit_cox, sval, ~ Surv(years, death), horizon = 5,
+res_cipcw <- nb(sval, sval$p_cox, ~ Surv(years, death), horizon = 5,
                 thresholds = seq(0, 0.6, by = 0.01),
                 censoring = "cipcw", cipcw = cipcw_control(model = cens),
                 label = "Cox")
-plot_dca(res_cipcw)
-plot_dca(res_cipcw, type = "delta")
+plot(res_cipcw)
+plot(res_cipcw, type = "delta")
 ```
 
 Results with different censoring methods are different estimates, so
-`plot_dca()` does not draw them together.
+`plot()` does not draw them together.
 
 The options of `cipcw_control()`:
 
 | Argument | What it does |
 |---|---|
-| `model` | A survival model fitted to the censoring times of the validation data: any of the survival models voipred supports (part 3). |
+| `model` | A survival model fitted to the censoring times of the validation data. |
 | `predict_function` | Optional: your own function giving the probability of remaining uncensored, for a censoring model voipred cannot predict from. |
 | `weight_event`, `weight_horizon` | Instead of a model: the censoring weights themselves, e.g. from a cross-fitted flexible model. |
 | `min_prob` | Optional truncation of small censoring probabilities (large weights). Off by default. |
@@ -371,7 +441,8 @@ See `?cipcw_control` for the details.
 
 With competing risks, the status is a factor whose first level is censoring
 and whose other levels are the event types. Here the events are recurrence and
-death, whichever comes first, and the model is a cause-specific Cox model:
+death, whichever comes first, and the model is a cause-specific Cox model;
+the predicted risks are the cumulative incidence of recurrence by 5 years:
 
 ```{r competing}
 crdat <- function(d) {
@@ -385,12 +456,13 @@ sval <- crdat(sval)
 
 fit_csc <- riskRegression::CSC(prodlim::Hist(cr_time, cr_code) ~ age + size + nodes + grade,
                                data = sdev)
-res_csc <- nb(fit_csc, sval, ~ Surv(cr_time, cr_status), horizon = 5,
+sval$p_csc <- as.vector(riskRegression::predictRisk(fit_csc, sval, times = 5, cause = 1))
+res_csc <- nb(sval, sval$p_csc, ~ Surv(cr_time, cr_status), horizon = 5,
               cause = "recurrence", thresholds = seq(0, 0.6, by = 0.01),
               label = "Cause-specific Cox")
-head(res_csc)
-plot_dca(res_csc)
-plot_dca(res_csc, type = "delta")
+res_csc
+plot(res_csc)
+plot(res_csc, type = "delta")
 ```
 
 The net benefit is for "recurrence by 5 years": a patient who died first
@@ -406,30 +478,34 @@ causes instead.
 cens_cr <- coxph(Surv(cr_time, cr_status == "censored") ~ age + nodes + grade,
                  data = sval)
 
-res_csc_cipcw <- nb(fit_csc, sval, ~ Surv(cr_time, cr_status), horizon = 5,
+res_csc_cipcw <- nb(sval, sval$p_csc, ~ Surv(cr_time, cr_status), horizon = 5,
                     cause = "recurrence", thresholds = seq(0, 0.6, by = 0.01),
                     censoring = "cipcw", cipcw = cipcw_control(model = cens_cr),
                     label = "Cause-specific Cox")
-plot_dca(res_csc_cipcw)
-plot_dca(res_csc_cipcw, type = "delta")
+plot(res_csc_cipcw)
+plot(res_csc_cipcw, type = "delta")
 ```
 
-# Part 3: which models work
+## The model instead of the risks (optional)
 
-## Models voipred supports
+As for a binary outcome, the fitted model can be given instead of the
+risks. voipred then predicts the risk of the event by the horizon (for
+competing risks, of `cause` by the horizon) from it, once. The result is the
+same:
 
-When the fitted model is given instead of the predicted risks, voipred
-predicts the risks from it, once: the probability of the event (binary), of
-the event by the horizon (survival), or of the cause by the horizon
-(competing risks). For the following models this works without anything
-else, and each is tested against the model's own predictions:
+```{r model-survival}
+res_cox_m <- nb(sval, fit_cox, ~ Surv(years, death), horizon = 5,
+                thresholds = seq(0, 0.6, by = 0.01), label = "Cox")
+all.equal(res_cox_m$estimates, res_cox$estimates)
+res_csc_m <- nb(sval, fit_csc, ~ Surv(cr_time, cr_status), horizon = 5,
+                cause = "recurrence", thresholds = seq(0, 0.6, by = 0.01),
+                label = "Cause-specific Cox")
+all.equal(res_csc_m$estimates, res_csc$estimates)
+```
 
-- **Binary:** `glm` (logit, probit, cloglog), `logistf`, `mgcv::gam`,
-  `earth`, `rpart`, `partykit::ctree`, `randomForest`, `ranger`
-  (`probability = TRUE`), `gbm`, `xgboost`, `lightgbm`, `catboost`,
-  `glmnet`, `cv.glmnet`, `e1071::svm` (`probability = TRUE`),
-  `e1071::naiveBayes`, `naivebayes`, `nnet`, `MASS::lda`, `MASS::qda`,
-  `kknn`, and **bayespred** (`bpmfit`, `bpm`).
+**By default** these models work from the model alone, each tested against
+the model's own predictions:
+
 - **Survival:** `coxph`, `rms::cph`, `survreg`, `rms::psm`, `flexsurvreg`,
   `flexsurvspline`, `rstpm2::stpm2`, `mgcv::gam` (`cox.ph()`), `ranger`,
   `randomForestSRC`, `aorsf`, `partykit::ctree`, `prodlim`, and
@@ -437,45 +513,19 @@ else, and each is tested against the model's own predictions:
 - **Competing risks:** `riskRegression::CSC`, `riskRegression::FGR`,
   `cmprsk::crr`, competing-risks `randomForestSRC`, and survival's multi-state
   `coxph`.
-- **Censoring models (cIPCW):** the same survival models as above, fitted to
-  the censoring times. voipred gets from them the probability of remaining
+- **Censoring models (cIPCW):** the same survival models, fitted to the
+  censoring times. voipred gets from them the probability of remaining
   uncensored, for survival and competing-risks outcomes alike.
 
-"Supported" means only that voipred knows how to get predicted probabilities
-from the fitted model. It says nothing about whether the model is a good
-one, which is what the net benefit is for. Any other model whose `predict()`
-returns probabilities in the usual way, or that has a
-`riskRegression::predictRisk()` method, works too. See `?predict_risk` for how
-the risks are obtained.
+Any other model with a `riskRegression::predictRisk()` method works too.
 
-## Any other model: `predict_function`
-
-For a model voipred cannot predict from, either compute the risks yourself
-and give them with `predicted_risk`, or give the model with
-`predict_function`: a function
-of `(model, newdata, horizon, cause)` that returns one predicted risk per row
-of `newdata`. voipred calls it once, with `newdata = data`. It is optional:
-voipred uses its own route by default, and `predict_function` only when you
-give it, in which case it always replaces voipred's own route.
-
-A binary example (an SVM, which voipred also handles by itself):
-
-```{r pf-binary}
-fit_svm <- e1071::svm(factor(day30) ~ age + Killip + sysbp + pulse, data = dev,
-                      probability = TRUE)
-vars <- c("age", "Killip", "sysbp", "pulse")
-nb(fit_svm, val, "day30", thresholds = c(0.05, 0.1, 0.2),
-   predict_function = function(model, newdata, ...) {
-     pr <- predict(model, newdata[, vars], probability = TRUE)
-     attr(pr, "probabilities")[, "1"]
-   })
-```
-
-A survival example: the function receives the `horizon` and returns the risk
-of the event by then (here from `survfit()`, for illustration):
+**With `predict_function`**: the function receives the `horizon` and returns
+the risk of the event by then (here from `survfit()`, for illustration). A
+censoring model can be given its own `predict_function` in the same way, in
+`cipcw_control()`.
 
 ```{r pf-survival}
-nb(fit_cox, sval, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3),
+nb(sval, fit_cox, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.3),
    predict_function = function(model, newdata, horizon, ...) {
      sf <- survfit(model, newdata = newdata)
      1 - as.vector(summary(sf, times = horizon)$surv)
@@ -483,5 +533,7 @@ nb(fit_cox, sval, ~ Surv(years, death), horizon = 5, thresholds = c(0.1, 0.2, 0.
 ```
 
 The function's output is checked like any other: it must be one probability
-per patient, in [0, 1], and not only 0s and 1s. A censoring model can be
-given its own `predict_function` in the same way, in `cipcw_control()`.
+per patient, in [0, 1], and not only 0s and 1s. With a model, voipred also
+stops or warns if the model's own outcome does not match `outcome` (e.g. a binary
+model with a survival outcome), and warns if `horizon` is beyond the
+model's follow-up.

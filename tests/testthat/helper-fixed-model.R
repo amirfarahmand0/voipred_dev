@@ -8,8 +8,7 @@ predict.fixed_risk <- function(object, newdata, type = "response", ...) object$p
 registerS3method("predict", "fixed_risk", predict.fixed_risk)
 
 # For survival outcomes the standard route (riskRegression::predictRisk) does
-# not know this test class, so it gets a predict_risk() method, exactly as the
-# author of a new modelling package would add one.
+# not know this test class, so it gets an (internal) predict_risk() method.
 predict_risk.fixed_risk <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   if (is.null(horizon)) return(NextMethod())
   model$p

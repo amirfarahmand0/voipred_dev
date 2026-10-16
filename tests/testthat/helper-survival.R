@@ -31,25 +31,25 @@ surv_z <- seq(0, 0.99, by = 0.01)
 # cause of interest comes first, as dcurves always uses the first event level.
 expect_same_as_dcurves_surv <- function(res, data, time, status, horizon,
                                         levels = NULL) {
-  d <- data.frame(tt = data[[time]], ss = data[[status]], risk = attr(res, "risk"))
+  d <- data.frame(tt = data[[time]], ss = data[[status]], risk = res$risk)
   if (!is.null(levels)) d$ss <- factor(d$ss, levels = levels)
   ref <- suppressMessages(suppressWarnings(
     dcurves::dca(survival::Surv(tt, ss) ~ risk, data = d, time = horizon,
-                 thresholds = res$threshold)))$dca
+                 thresholds = res$estimates$threshold)))$dca
   m <- ref$net_benefit[ref$variable == "risk"]
   a <- ref$net_benefit[ref$variable == "all"]
   # dcurves quirk: NA when no treated patient has an event of interest by the
   # horizon (the risk among the treated is 0). nb() then gives -q z / (1 - z).
   ev <- as.integer(d$ss) == if (is.factor(d$ss)) 2L else 1L
-  quirk <- is.na(m) & !is.na(res$NB_model)
+  quirk <- is.na(m) & !is.na(res$estimates$NB_model)
   for (j in which(quirk)) {
-    z <- res$threshold[j]; tr <- d$risk >= z & d$risk > 0
+    z <- res$estimates$threshold[j]; tr <- d$risk >= z & d$risk > 0
     expect_false(any(tr & ev & d$tt <= horizon))
-    expect_equal(res$NB_model[j], -mean(tr) * z / (1 - z), tolerance = 1e-12)
+    expect_equal(res$estimates$NB_model[j], -mean(tr) * z / (1 - z), tolerance = 1e-12)
   }
-  expect_false(any(is.na(res$NB_model) & !is.na(m)))
-  expect_equal(res$NB_model[!is.na(m)], m[!is.na(m)], tolerance = 1e-10)
-  expect_equal(res$NB_all, a, tolerance = 1e-10)
+  expect_false(any(is.na(res$estimates$NB_model) & !is.na(m)))
+  expect_equal(res$estimates$NB_model[!is.na(m)], m[!is.na(m)], tolerance = 1e-10)
+  expect_equal(res$estimates$NB_all, a, tolerance = 1e-10)
 }
 
 quiet_nb <- function(...) suppressWarnings(nb(...))

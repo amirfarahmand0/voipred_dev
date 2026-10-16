@@ -2,46 +2,64 @@
 % Please edit documentation in R/bayes.R
 \name{nb_priors}
 \alias{nb_priors}
+\alias{nb_beta}
+\alias{nb_improper}
 \alias{nb_uniform}
 \alias{nb_jeffreys}
-\alias{nb_beta}
-\title{Priors for the Bayesian net benefit}
+\title{Priors for the net benefit}
 \usage{
+nb_beta(prevalence = c(1, 1), sensitivity = c(1, 1), specificity = c(1, 1))
+
+nb_improper()
+
 nb_uniform()
 
 nb_jeffreys()
-
-nb_beta(prevalence = c(1, 1), sensitivity = c(1, 1), specificity = c(1, 1))
 }
 \arguments{
 \item{prevalence, sensitivity, specificity}{The two shape parameters
-\eqn{(a, b)} of each Beta prior, positive numbers: prior mean
+\eqn{(a, b)} of each Beta prior, non-negative numbers: prior mean
 \eqn{a / (a + b)}, worth \eqn{a + b} patients. Default Beta(1, 1).}
 }
 \value{
-A prior specification object of class
-\code{c("prior_<type>", "nb_prior")}.
+A prior, an object of class \code{nb_prior}.
 }
 \description{
-Priors for \code{\link[=nb]{nb()}} with \code{bayesian = TRUE}, written like bayespred's priors
-(\code{flat()}, \code{jeffreys()}, \code{log_f()}). The Bayesian net benefit puts Beta
-priors on the prevalence of the outcome and, at every threshold, on the
-sensitivity and the specificity of the model (the probabilities of being
-treated among patients with the event, and of not being treated among
-patients without it). The net benefit at threshold \eqn{z} is
+The prior of \code{\link[=nb]{nb()}}. The net benefit puts Beta priors on the prevalence of
+the outcome and, at every threshold, on the sensitivity and the specificity
+of the model (the probabilities of being treated among patients with the
+event, and of not being treated among patients without it). The net benefit
+at threshold \eqn{z} is
 \deqn{NB = \pi \, Se - (1 - \pi)(1 - Sp) \frac{z}{1 - z},}
 and that of treating all \eqn{\pi - (1 - \pi) z / (1 - z)}. The posteriors
 are Beta distributions (conjugate), so their draws are exact (no MCMC).
 }
 \details{
 \itemize{
-\item \code{nb_uniform()} (default): Beta(1, 1) for all three, as in bayesDCA.
+\item \code{nb_beta()}: Beta priors with the shapes you give, e.g. an informative
+prior on the prevalence from earlier studies. The other priors are
+special cases of it.
+\item \code{nb_improper()} (default of \code{\link[=nb]{nb()}}): the improper (Haldane) prior,
+Beta(0, 0) for all three: the data only. For a binary outcome the
+posterior means are the observed proportions, so the net benefit of
+\code{\link[=nb]{nb()}} is exactly the frequentist net benefit,
+\eqn{TP/n - FP/n \cdot z/(1-z)}, and its posterior draws are, at each
+threshold, equal in distribution to the Bayesian bootstrap (not to the
+ordinary bootstrap, which is close in large samples but not identical).
+It is the only prior for survival and competing-risks outcomes: there the
+posterior is sampled with the Bayesian bootstrap (Rubin 1981), and the net
+benefit of \code{\link[=nb]{nb()}} is the frequentist Kaplan-Meier, Aalen-Johansen or cIPCW
+estimate.
+\item \code{nb_uniform()}: Beta(1, 1) for all three, as in bayesDCA.
 \item \code{nb_jeffreys()}: Jeffreys prior, Beta(1/2, 1/2) for all three.
-\item \code{nb_beta()}: your own Beta priors, e.g. an informative prior on the
-prevalence from earlier studies.
 }
+
+With the improper prior, a posterior is degenerate where a count is 0 (e.g.
+no patient with the event is left untreated at a threshold): it is then the
+observed proportion, as in the frequentist net benefit.
 }
 \examples{
+nb_improper()
 nb_uniform()
 nb_jeffreys()
 # an informative prior on the prevalence: mean 0.07, worth 100 patients
@@ -49,9 +67,10 @@ nb_beta(prevalence = c(7, 93))
 }
 \references{
 Cruz GNF, Korthauer K. Bayesian decision curve analysis with
-bayesDCA. arXiv 2023. Sadatsafavi M, et al. Expected value of sample
-information calculations for risk prediction model validation. Medical
-Decision Making 2025; 45(3): 232-244.
+bayesDCA. arXiv 2023. Rubin DB. The Bayesian bootstrap. Annals of
+Statistics 1981; 9(1): 130-134. Sadatsafavi M, et al. Expected value of
+sample information calculations for risk prediction model validation.
+Medical Decision Making 2025; 45(3): 232-244.
 }
 \seealso{
 \code{\link[=nb]{nb()}}

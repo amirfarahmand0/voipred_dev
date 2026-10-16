@@ -10,9 +10,9 @@ check_model <- function(model, s, own_risk, horizon = 5, outcome = surv_outcome,
                         time = "dtimey", status = "death", ...) {
   # The only warning allowed: no follow-up to the horizon at high thresholds.
   expect_no_warning(res <- suppress_matching(
-    nb(model, s$val, outcome, horizon = horizon, thresholds = surv_z, ...),
+    nb(s$val, model, outcome, horizon = horizon, thresholds = surv_z, ...),
     "^No patient treated"))
-  r <- attr(res, "risk")
+  r <- res$risk
   expect_true(all(r >= 0 & r <= 1))
   expect_equal(r, as.vector(own_risk), tolerance = 1e-6)
   expect_same_as_dcurves_surv(res, s$val, time, status, horizon)
@@ -145,7 +145,7 @@ test_that("a coxph model that needs its (unavailable) data gives a clear error",
   s <- rott_split()
   fit <- function(d) survival::coxph(surv_formula, data = d, y = FALSE)
   ny <- fit(s$dev)                                  # data not reachable afterwards
-  expect_error(nb(ny, s$val, surv_outcome, horizon = 5),
+  expect_error(nb(s$val, ny, surv_outcome, horizon = 5),
                "Could not compute survival from this coxph model.*x = TRUE")
 })
 
@@ -184,7 +184,7 @@ test_that("rstpm2::stpm2 flexible parametric model (needs rstpm2 attached)", {
     survival::Surv(dtimey, death) ~ age + size + nodes + grade + hormon,
     data = s$dev, df = 3))
   nd <- s$val; nd$dtimey <- 5
-  expect_error(nb(st, s$val, surv_outcome, horizon = 5), "run library\\(rstpm2\\)")
+  expect_error(nb(s$val, st, surv_outcome, horizon = 5), "run library\\(rstpm2\\)")
   with_rstpm2(
     check_model(st, s, 1 - rstpm2::predict(st, newdata = nd, type = "surv")))
 })
@@ -195,7 +195,7 @@ test_that("mgcv::gam with the Cox PH family", {
                  family = mgcv::cox.ph(), weights = death, data = s$dev)
   nd <- s$val; nd$dtimey <- 5
   check_model(g, s, 1 - predict(g, newdata = nd, type = "response"))
-  expect_error(nb(g, s$val, "death"), "Cox PH family\\) is a survival model")
+  expect_error(nb(s$val, g, "death"), "Cox PH family\\) is a survival model")
 })
 
 
@@ -208,21 +208,21 @@ test_that("models giving only relative risks or times have no route: clear error
   xg <- xgboost::xgb.train(params = list(objective = "survival:cox"),
                            data = xgboost::xgb.DMatrix(X, label = yb), nrounds = 5)
   msg <- "Could not get predicted risks from this .* model.*give `predict_function"
-  expect_error(nb(xg, s$val, surv_outcome, horizon = 5), msg)
+  expect_error(nb(s$val, xg, surv_outcome, horizon = 5), msg)
   gb <- suppressWarnings(gbm::gbm(surv_formula, data = s$dev, distribution = "coxph",
                                   n.trees = 50))
-  expect_error(nb(gb, s$val, surv_outcome, horizon = 5), msg)
+  expect_error(nb(s$val, gb, surv_outcome, horizon = 5), msg)
   y <- survival::Surv(s$dev$dtimey, s$dev$death)
   gn <- suppressWarnings(glmnet::glmnet(X, y, family = "cox", lambda = 0.02))
-  expect_error(nb(gn, s$val, surv_outcome, horizon = 5), msg)
+  expect_error(nb(s$val, gn, surv_outcome, horizon = 5), msg)
   set.seed(1)
   cg <- suppressWarnings(glmnet::cv.glmnet(X, y, family = "cox", nfolds = 3))
-  expect_error(nb(cg, s$val, surv_outcome, horizon = 5), msg)
+  expect_error(nb(s$val, cg, surv_outcome, horizon = 5), msg)
   # rpart survival trees: riskRegression returns relative rates, stopped by the check
   rp <- rpart::rpart(surv_formula, data = s$dev)
-  expect_error(nb(rp, s$val, surv_outcome, horizon = 5), "outside \\[0, 1\\].*not probabilities")
+  expect_error(nb(s$val, rp, surv_outcome, horizon = 5), "outside \\[0, 1\\].*not probabilities")
   # with a predict_function returning their relative risks, the [0, 1] check stops them
-  expect_error(nb(xg, s$val, surv_outcome, horizon = 5,
+  expect_error(nb(s$val, xg, surv_outcome, horizon = 5,
                   predict_function = function(model, newdata, ...)
                     predict(model, as.matrix(newdata[, colnames(X)]))),
                "outside \\[0, 1\\].*not probabilities")
@@ -234,9 +234,9 @@ test_that("a binary model with a survival outcome works, with a warning", {
   dev$dead5 <- as.integer(dev$dtimey <= 5 & dev$death == 1)
   lg <- glm(dead5 ~ age + size + nodes + grade + hormon, family = binomial, data = dev)
   expect_warning(res <- suppress_matching(
-    nb(lg, s$val, surv_outcome, horizon = 5, thresholds = surv_z), "^No patient treated"),
+    nb(s$val, lg, surv_outcome, horizon = 5, thresholds = surv_z), "^No patient treated"),
     "fitted to a binary outcome, not a survival outcome")
-  expect_equal(attr(res, "risk"), unname(predict(lg, s$val, type = "response")))
+  expect_equal(res$risk, unname(predict(lg, s$val, type = "response")))
   expect_same_as_dcurves_surv(res, s$val, "dtimey", "death", 5)
 })
 
@@ -251,15 +251,15 @@ test_that("survival models with a binary outcome are rejected", {
     partykit::ctree(surv_formula, data = s$dev),
     aorsf::orsf(s$dev, surv_formula, n_tree = 5))
   for (m in models)
-    expect_error(nb(m, s$val, "death", thresholds = 0.1),
+    expect_error(nb(s$val, m, "death", thresholds = 0.1),
                  "fitted to a survival outcome: use it with a survival outcome")
   # ranger keeps no readable formula: the standard binary routes fail instead
   rg <- ranger::ranger(surv_formula, data = s$dev, num.trees = 20)
-  expect_error(nb(rg, s$val, "death", thresholds = 0.1), "Could not get predicted risks")
+  expect_error(nb(s$val, rg, "death", thresholds = 0.1), "Could not get predicted risks")
   # a model whose formula can no longer be found (fitted inside a function):
   # the Surv outcome it keeps is used
   fit_in <- function(d) { f <- surv_formula; flexsurv::flexsurvreg(f, data = d, dist = "weibull") }
-  expect_error(nb(fit_in(s$dev), s$val, "death", thresholds = 0.1),
+  expect_error(nb(s$val, fit_in(s$dev), "death", thresholds = 0.1),
                "fitted to a survival outcome: use it with a survival outcome")
 })
 
@@ -276,11 +276,11 @@ test_that("a horizon beyond the model's own follow-up gives a warning", {
                           dist = "weibull"),
     rms::cph(surv_formula, data = dev, x = TRUE, y = TRUE, surv = TRUE))
   for (m in models)
-    expect_warning(suppress_matching(nb(m, s$val, surv_outcome, horizon = 5, thresholds = 0.1),
+    expect_warning(suppress_matching(nb(s$val, m, surv_outcome, horizon = 5, thresholds = 0.1),
                                      "^No patient treated"),
                    "beyond the last time in the .* model's own data \\(4\\)")
   # within follow-up: no warning
-  expect_no_warning(nb(models[[1]], s$val, surv_outcome, horizon = 3, thresholds = 0.1))
+  expect_no_warning(nb(s$val, models[[1]], surv_outcome, horizon = 3, thresholds = 0.1))
 })
 
 test_that("missing covariates are reported for survival models", {
@@ -300,19 +300,19 @@ test_that("missing covariates are reported for survival models", {
     mgcv::gam(dtimey ~ age + nodes + grade, family = mgcv::cox.ph(),
               weights = death, data = s$dev))
   for (m in named)
-    expect_error(nb(m, v, surv_outcome, horizon = 5, thresholds = 0.1),
+    expect_error(nb(v, m, surv_outcome, horizon = 5, thresholds = 0.1),
                  "missing 2 covariates that the model was developed with: .*(grade|nodes)")
   # ranger: covariates cannot be read generically; ranger's own error is shown
   rg <- ranger::ranger(surv_formula, data = s$dev, num.trees = 20)
-  expect_error(nb(rg, v, surv_outcome, horizon = 5, thresholds = 0.1),
+  expect_error(nb(v, rg, surv_outcome, horizon = 5, thresholds = 0.1),
                "Could not get predicted risks from this ranger model.*If a covariate is missing")
 })
 
 test_that("each model's risk grows with the horizon", {
   s <- rott_split()
   cx <- survival::coxph(surv_formula, data = s$dev)
-  r2 <- attr(nb(cx, s$val, surv_outcome, horizon = 2, thresholds = 0.1), "risk")
-  r5 <- attr(nb(cx, s$val, surv_outcome, horizon = 5, thresholds = 0.1), "risk")
+  r2 <- nb(s$val, cx, surv_outcome, horizon = 2, thresholds = 0.1)$risk
+  r5 <- nb(s$val, cx, surv_outcome, horizon = 5, thresholds = 0.1)$risk
   expect_true(all(r5 >= r2))
   expect_gt(mean(r5 - r2), 0.05)
 })

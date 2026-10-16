@@ -1,6 +1,6 @@
 #' Plot decision curves
 #'
-#' Plots the results of [nb()]: the decision curve (`type = "nb"`), or the
+#' The plot of results of [nb()]: the decision curve (`type = "nb"`), or the
 #' difference in net benefit between the model and the best default strategy
 #' (`type = "delta"`). Give several results to draw their curves together.
 #' Optionally, the expected value of perfect and sample information (from
@@ -13,14 +13,21 @@
 #'   \eqn{\pi} the prevalence (risk by the horizon for survival outcomes), as
 #'   in dcurves.
 #' * `type = "delta"`: \eqn{\Delta NB = NB_{model} - \max(NB_{all},
-#'   NB_{none})} (column `delta_NB` of [nb()]) of each model, with a dashed
-#'   line at 0. Above 0 the model is better than both default strategies.
+#'   NB_{none})} (column `delta_NB` of the estimates) of each model, with a
+#'   dashed line at 0. Above 0 the model is better than both default
+#'   strategies.
 #'
 #' Results drawn together must come from the same data, outcome, horizon,
-#' cause, censoring method and thresholds (voipred checks this). Thresholds
-#' where the net benefit is `NA` are left out. Each curve is named by its
-#' `label` (see [nb()]), unless `labels` is given; a model has the same colour
-#' in both types of plot.
+#' cause, censoring method, prior and thresholds (voipred checks this).
+#' Thresholds where the net benefit is `NA` are left out. Each curve is named
+#' by its `label` (see [nb()]), unless `labels` is given; a model has the same
+#' colour in both types of plot.
+#'
+#' The panel below shows EVPI (from `evpi`) and EVSI for each future sample
+#' size (from `evsi`) against the threshold; without `evpi`, the EVPI of the
+#' `evsi` result is drawn. (EVSI against the threshold is a voipred addition:
+#' Sadatsafavi et al. (2025) plot EVSI against the future sample size, as
+#' [plot.voipred_evsi()] does.)
 #'
 #' The static plot is a ggplot object (a patchwork object with the
 #' value-of-information panel): it is drawn when printed, and can be changed
@@ -31,8 +38,8 @@
 #' with `htmlwidgets::saveWidget()`.
 #'
 #' @param x A result of [nb()].
-#' @param ... More results of [nb()] to draw on the same plot. A named result
-#'   is labelled with its name.
+#' @param ... More results of [nb()] to draw on the same plot. A result given
+#'   here with a name is labelled with its name.
 #' @param type `"nb"` (decision curve, default) or `"delta"` (\eqn{\Delta NB}).
 #' @param labels Optional names of the curves, one per result, in order;
 #'   default: the results' labels.
@@ -43,30 +50,33 @@
 #'   package). Default `FALSE`.
 #' @return A ggplot object, a patchwork object (with `evpi` or `evsi`), or a
 #'   plotly widget (`interactive = TRUE`).
-#' @seealso [plot_evpi()], [plot_evsi()], [plot_p_useful()], [plot_p_best()]
+#' @seealso [nb()], [plot.voipred_evpi()], [plot.voipred_evsi()],
+#'   [plot.voipred_p_useful()], [plot.voipred_p_best()]
 #' @examples
 #' dev <- gusto[1:5000, ]
 #' val <- gusto[5001:10000, ]
 #' fit1 <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
+#' val$p1 <- predict(fit1, val, type = "response")
 #' fit2 <- glm(day30 ~ age, family = binomial, data = dev)
+#' val$p2 <- predict(fit2, val, type = "response")
 #' z <- seq(0, 0.5, by = 0.01)
-#' res1 <- nb(fit1, val, "day30", thresholds = z, label = "Full model")
-#' res2 <- nb(fit2, val, "day30", thresholds = z, label = "Age only")
-#' plot_dca(res1)
-#' plot_dca(res1, res2)
-#' plot_dca(res1, res2, type = "delta")
+#' res1 <- nb(val, val$p1, "day30", thresholds = z, label = "Full model")
+#' res2 <- nb(val, val$p2, "day30", thresholds = z, label = "Age only")
+#' plot(res1)
+#' plot(res1, res2)
+#' plot(res1, res2, type = "delta")
 #' \donttest{
 #' set.seed(1)
 #' e <- evpi(res1, n_sim = 200)
-#' if (requireNamespace("patchwork", quietly = TRUE)) plot_dca(res1, evpi = e)
-#' if (requireNamespace("plotly", quietly = TRUE)) plot_dca(res1, evpi = e, interactive = TRUE)
+#' if (requireNamespace("patchwork", quietly = TRUE)) plot(res1, evpi = e)
+#' if (requireNamespace("plotly", quietly = TRUE)) plot(res1, evpi = e, interactive = TRUE)
 #' }
 #' @export
-plot_dca <- function(x, ..., type = c("nb", "delta"), labels = NULL, evpi = NULL,
-                     evsi = NULL, interactive = FALSE) {
+plot.voipred_nb <- function(x, ..., type = c("nb", "delta"), labels = NULL, evpi = NULL,
+                            evsi = NULL, interactive = FALSE) {
   type <- match.arg(type)
   check_interactive(interactive)
-  res <- collect_nb(x, list(...), labels,
+  res <- collect_nb(x, list(...), labels, fun = "plot()",
                     args = "`type`, `labels`, `evpi`, `evsi` and `interactive`")
   top <- dca_spec(res, type)
   if (is.null(evpi) && is.null(evsi)) return(render_plot(list(top), interactive))
@@ -90,7 +100,7 @@ new_spec <- function(data, colors, xlab, ylab, ylab_text = ylab, ylim = NULL,
 }
 
 dca_spec <- function(res, type) {
-  r1 <- res[[1]]
+  r1 <- res[[1]]$estimates
   lab <- names(res)
   # ggplot2's default colours for Treat All, Treat None and the models, so a
   # model has the same colour in both types of plot
@@ -98,15 +108,15 @@ dca_spec <- function(res, type) {
   if (type == "nb") {
     d <- rbind(curve_data(r1$threshold, "Treat All", r1$NB_all),
                curve_data(r1$threshold, "Treat None", r1$NB_none),
-               do.call(rbind, Map(function(r, l) curve_data(r$threshold, l, r$NB_model),
-                                  res, lab)))
+               do.call(rbind, Map(function(r, l)
+                 curve_data(r$estimates$threshold, l, r$estimates$NB_model), res, lab)))
     d$label <- factor(d$label, levels = c("Treat All", "Treat None", lab))
-    prev <- attr(r1, "prevalence")
+    prev <- res[[1]]$outcome$prevalence
     new_spec(d, stats::setNames(cols, levels(d$label)), "Threshold Probability",
              "Net Benefit", ylim = c(-0.1 * prev, prev))
   } else {
-    d <- do.call(rbind, Map(function(r, l) curve_data(r$threshold, l, r$delta_NB),
-                            res, lab))
+    d <- do.call(rbind, Map(function(r, l)
+      curve_data(r$estimates$threshold, l, r$estimates$delta_NB), res, lab))
     d$label <- factor(d$label, levels = lab)
     new_spec(d, stats::setNames(cols[-(1:2)], lab), "Threshold Probability",
              quote(Delta * NB ~ "(" * NB[model] - "max(" * NB[treat ~ all] * "," ~
@@ -124,17 +134,19 @@ voi_panel_spec <- function(evpi, evsi) {
   if (!is.null(evsi) && !inherits(evsi, "voipred_evsi"))
     stop("`evsi` must be a result of evsi().", call. = FALSE)
   d <- NULL
-  if (!is.null(evpi)) d <- curve_data(evpi$threshold, "EVPI", evpi$EVPI)
+  if (!is.null(evpi)) d <- curve_data(evpi$estimates$threshold, "EVPI", evpi$estimates$EVPI)
   else {
-    first <- evsi[evsi$future_n == evsi$future_n[1], ]
+    o <- evsi$estimates
+    first <- o[o$future_n == o$future_n[1], ]
     d <- curve_data(first$threshold, "EVPI", first$EVPI)
   }
   lev <- "EVPI"
   if (!is.null(evsi)) {
-    ns <- unique(evsi$future_n)
+    o <- evsi$estimates
+    ns <- unique(o$future_n)
     lev <- c(lev, paste0("EVSI (N = ", format(ns, big.mark = ",", trim = TRUE), ")"))
     for (i in seq_along(ns)) {
-      e <- evsi[evsi$future_n == ns[i], ]
+      e <- o[o$future_n == ns[i], ]
       d <- rbind(d, curve_data(e$threshold, lev[i + 1], e$EVSI))
     }
   }
@@ -292,7 +304,7 @@ percent_label <- function(x) ifelse(is.na(x), NA, paste0(format(100 * x, trim = 
 
 # The results to plot, named by their labels, after checking that they can be
 # drawn together.
-collect_nb <- function(object, more, labels, fun = "plot_dca()",
+collect_nb <- function(object, more, labels, fun = "plot()",
                        args = "`type` and `labels`") {
   nms <- names(more)
   if (is.null(nms)) nms <- rep("", length(more))
@@ -302,17 +314,14 @@ collect_nb <- function(object, more, labels, fun = "plot_dca()",
          fun, " are ", args, "; other arguments must be results of nb().",
          call. = FALSE)
   if (!inherits(object, "voipred_nb") || any(bad))
-    stop(if (fun == "plot_dca()") "Only results of nb() can be plotted together."
+    stop(if (fun == "plot()") "Only results of nb() can be plotted together."
          else paste0(fun, " needs results of nb()."), call. = FALSE)
   res <- c(list(object), more)
-  lab <- vapply(res, function(r) {
-    l <- attr(r, "label")
-    if (is.null(l)) "Model" else l
-  }, character(1))
+  lab <- vapply(res, function(r) r$label, character(1))
   lab[-1][nzchar(nms)] <- nms[nzchar(nms)]
   if (!is.null(labels)) {
     if (!is.character(labels) || length(labels) != length(res) || anyNA(labels))
-      stop("`labels` must be ", length(res), " strings, one per result.", call. = FALSE)
+      labels_error(length(res))
     lab <- labels
   }
   if (any(tolower(lab) %in% c("treat all", "treat none")))
@@ -326,24 +335,22 @@ collect_nb <- function(object, more, labels, fun = "plot_dca()",
 }
 
 check_comparable <- function(a, b, la, lb) {
-  same_attr <- function(k) identical(attr(a, k), attr(b, k))
+  same <- function(k) identical(a$outcome[[k]], b$outcome[[k]])
   what <- c(
-    "outcome type" = !same_attr("outcome_type"),
-    "horizon" = !same_attr("horizon"),
-    "cause" = !same_attr("cause"),
-    "censoring method" = !same_attr("censoring"),
-    "estimator (Bayesian or not)" = !identical(isTRUE(attr(a, "bayesian")),
-                                               isTRUE(attr(b, "bayesian"))),
-    "prior" = isTRUE(attr(a, "bayesian")) && isTRUE(attr(b, "bayesian")) &&
-      !same_attr("prior"),
-    "number of patients" = !same_attr("n"),
-    "thresholds" = !isTRUE(all.equal(a$threshold, b$threshold)))
+    "outcome type" = !same("type"),
+    "horizon" = !same("horizon"),
+    "cause" = !same("cause"),
+    "censoring method" = !same("censoring"),
+    "prior" = !identical(a$prior, b$prior),
+    "case weights" = !identical(a$weights, b$weights),
+    "number of patients" = !same("n"),
+    "thresholds" = !isTRUE(all.equal(a$estimates$threshold, b$estimates$threshold)))
   if (!any(what))
     what["data (net benefit of treating all)"] <-
-      !isTRUE(all.equal(a$NB_all, b$NB_all, tolerance = 1e-10))
+      !isTRUE(all.equal(a$estimates$NB_all, b$estimates$NB_all, tolerance = 1e-10))
   if (any(what))
     stop("\"", la, "\" and \"", lb, "\" cannot be used together: different ",
          paste(names(what)[what], collapse = ", "), ". Compute them with nb() on ",
-         "the same data, outcome, horizon, cause, censoring and thresholds.",
+         "the same data, outcome, horizon, cause, censoring, prior and thresholds.",
          call. = FALSE)
 }

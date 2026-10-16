@@ -67,8 +67,24 @@ fixed_draws <- function(..., W) {
 
 # Random draws for results of nb(), as the VoI functions make them (internal
 # nb_draws()), so several measures can be checked on the same draws.
-draws_t <- function(..., n_sim = 1000, method = "bayesian") {
+draws_t <- function(..., n_sim = 1000) {
   a <- list(...)
-  res <- collect_voi(a[[1]], a[-1], NULL, "draws_t()", "`n_sim` and `method`")
-  nb_draws(res, n_sim, method, method_given = !missing(method))
+  res <- collect_voi(a[[1]], a[-1], NULL, "draws_t()", "`n_sim`")
+  nb_draws(res, n_sim)
+}
+
+# Bayesian-bootstrap draws for results of nb() (internal), e.g. for a binary
+# outcome, whose VoI functions use the conjugate posterior instead.
+bb_draws_t <- function(..., n_sim = 1000) {
+  a <- list(...)
+  res <- collect_voi(a[[1]], a[-1], NULL, "bb_draws_t()", "`n_sim`")
+  n <- length(res[[1]]$risk)
+  W <- vapply(seq_len(n_sim), function(i) bb_weights(n), numeric(n))
+  draws_from(res, W, "Bayesian bootstrap")
+}
+
+# The bootstrap EVSI (internal evsi_bootstrap()) for results of nb().
+evsi_bb <- function(..., future_n, n_sim) {
+  a <- list(...)
+  evsi_bootstrap(collect_voi(a[[1]], a[-1], NULL, "evsi_bb()", ""), future_n, n_sim)
 }
