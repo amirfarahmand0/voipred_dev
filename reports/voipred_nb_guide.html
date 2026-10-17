@@ -1025,10 +1025,12 @@ for a binary outcome, with the event “death by 5 years”:</p>
 #&gt;       0.08   0.1888 0.1888  0.0000  0.0000000
 #&gt;       0.09   0.1792 0.1799  0.0000 -0.0006806
 #&gt; # 51 more rows; use summary() or as.data.frame()</code></pre>
-<p><strong><code>summary()</code></strong> has the same columns as for a
-binary outcome: at each threshold, the sensitivity (<code>Se</code>) and
-specificity (<code>Sp</code>) for the event by the horizon, and the best
-strategy. They come from the same estimates as the net benefit: with
+<p><strong><code>summary()</code></strong> gives the same as for a
+binary outcome: the best strategy along the thresholds and the largest
+gain of the model, and, at each threshold, the sensitivity
+(<code>Se</code>) and specificity (<code>Sp</code>) for the event by the
+horizon and the best strategy; <code>thresholds</code> picks some. Se
+and Sp come from the same estimates as the net benefit: with
 <code>censoring = &quot;km&quot;</code> (the dcurves estimator), from the
 Kaplan-Meier risk by the horizon overall and among the treated; with
 <code>censoring = &quot;cipcw&quot;</code>, the IPCW-weighted proportions of the

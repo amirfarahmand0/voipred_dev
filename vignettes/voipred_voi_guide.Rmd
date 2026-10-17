@@ -322,7 +322,9 @@ print(e)
 
 **`summary()`** gives the thresholds where EVPI is positive and its largest
 value, and at each threshold EVPI, relative EVPI, the strategy that is best
-now (highest expected net benefit) and its expected net benefit:
+now (highest expected net benefit) and its expected net benefit (all
+thresholds by default, of which the first 10 are printed, or those in
+`thresholds`):
 
 ```{r evpi-summary}
 summary(e, thresholds = c(0.02, 0.05, 0.1, 0.2))
