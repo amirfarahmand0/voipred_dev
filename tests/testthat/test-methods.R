@@ -77,8 +77,18 @@ test_that("print() and summary() of nb() are short and say what the result is", 
   expect_match(capture.output(print(k))[1],
                "^Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon [0-9.]+%; censoring cIPCW \\(coxph\\); prior improper")
   st <- summary(k)$table
-  expect_named(st, c("threshold", "treated", "NB_model", "NB_all", "delta_NB", "best"))
-  expect_equal(st$treated, c(mean(k$risk >= 0.1), mean(k$risk >= 0.3)))
+  expect_named(st, c("threshold", "Se", "Sp", "NB_model", "NB_all", "delta_NB", "best"))
+  # Se and Sp are those implied by the net benefit and the risk by the horizon
+  F <- k$outcome$prevalence
+  odds <- c(0.1, 0.3) / c(0.9, 0.7)
+  expect_equal(F * st$Se - (1 - F) * (1 - st$Sp) * odds, st$NB_model, tolerance = 1e-12)
+  # with cIPCW they are the estimator's own IPCW-weighted proportions
+  v <- voi_info(k)
+  we <- ifelse(v$status == 1 & v$time <= 5, v$weight_event, 0)
+  wh <- ifelse(v$time > 5, v$weight_horizon, 0)
+  tr <- outer(k$risk, c(0.1, 0.3), ">=")
+  expect_equal(st$Se, unname(colSums(tr * we) / sum(we)), tolerance = 1e-12)
+  expect_equal(st$Sp, unname(1 - colSums(tr * wh) / sum(wh)), tolerance = 1e-12)
   csc <- riskRegression::CSC(prodlim::Hist(cr_time, cr_code) ~ age + nodes, data = sv$dev)
   cr <- quiet_nb(sv$val, csc, cr_outcome, horizon = 5, thresholds = 0.2, cause = "death")
   expect_match(capture.output(print(cr))[1], "competing risks \\(cause death\\), horizon 5")
@@ -154,4 +164,21 @@ test_that("ranges of thresholds are written compactly", {
   expect_equal(segments_of(z, rep(FALSE, 10)), "none")
   expect_equal(segments_text(z, rep(c("model", "treat none"), c(6, 4))),
                "model 0.01-0.06, treat none 0.07-0.10")
+})
+
+test_that("summary() has the same columns for every outcome; without censoring Se and Sp equal the binary ones", {
+  # KM (dcurves) Se and Sp: from the Kaplan-Meier risk overall and among the treated
+  g <- gusto_split()
+  v <- g$val[1:2000, ]
+  p <- unname(predict(glm(gusto_formula, family = binomial, data = g$dev), v, type = "response"))
+  z <- c(0.02, 0.05, 0.1, 0.2)
+  b <- summary(nb(data = v, predicted_risk = p, outcome = "day30", thresholds = z))$table
+  # the same outcome as survival data with everyone followed to the horizon
+  v$t <- ifelse(v$day30 == 1, 10, 40)
+  k <- summary(nb(data = v, predicted_risk = p, outcome = ~ survival::Surv(t, day30),
+                  horizon = 30, thresholds = z))$table
+  expect_named(k, names(b))
+  expect_equal(k$Se, b$Se, tolerance = 1e-12)
+  expect_equal(k$Sp, b$Sp, tolerance = 1e-12)
+  expect_equal(k$NB_model, b$NB_model, tolerance = 1e-12)
 })

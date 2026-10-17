@@ -520,8 +520,9 @@ default strategy. The model is useful where it is positive.</li>
 </ul>
 <p><strong><code>summary()</code></strong> gives the best strategy along
 the thresholds and the largest gain of the model, and, at each
-threshold, the sensitivity and specificity of the model and the best
-strategy; <code>thresholds</code> picks some:</p>
+threshold, the model’s sensitivity (<code>Se</code>) and specificity
+(<code>Sp</code>) and the best strategy; <code>thresholds</code> picks
+some:</p>
 <pre class="r"><code>summary(res_glm)
 #&gt; Net benefit of Logistic: binary, n = 5000, 346 events (6.9%); prior improper Beta(0, 0)
 #&gt; Best strategy: treat all 0.00, model 0.01-0.30
@@ -1024,38 +1025,42 @@ for a binary outcome, with the event “death by 5 years”:</p>
 #&gt;       0.08   0.1888 0.1888  0.0000  0.0000000
 #&gt;       0.09   0.1792 0.1799  0.0000 -0.0006806
 #&gt; # 51 more rows; use summary() or as.data.frame()</code></pre>
-<p><strong><code>summary()</code></strong> gives the best strategy along
-the thresholds and the largest gain of the model, and, at each
-threshold, the share of patients treated (<code>treated</code>) instead
-of the sensitivity and specificity, and the best strategy:</p>
+<p><strong><code>summary()</code></strong> has the same columns as for a
+binary outcome: at each threshold, the sensitivity (<code>Se</code>) and
+specificity (<code>Sp</code>) for the event by the horizon, and the best
+strategy. They come from the same estimates as the net benefit: with
+<code>censoring = &quot;km&quot;</code> (the dcurves estimator), from the
+Kaplan-Meier risk by the horizon overall and among the treated; with
+<code>censoring = &quot;cipcw&quot;</code>, the IPCW-weighted proportions of the
+cIPCW estimator:</p>
 <pre class="r"><code>summary(res_cox)
 #&gt; Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon 25.4%; censoring KM; prior improper Beta(0, 0)
 #&gt; Best strategy: treat all 0.00-0.10, model 0.11-0.52, treat none 0.53-0.54, model 0.55, treat none 0.56, model 0.57-0.60
 #&gt; Largest delta_NB: 0.0842 at 0.25
 #&gt; 
-#&gt;  threshold treated NB_model NB_all  delta_NB      best
-#&gt;       0.00    1.00    0.254  0.254  0.000000 treat all
-#&gt;       0.01    1.00    0.246  0.246  0.000000 treat all
-#&gt;       0.02    1.00    0.238  0.238  0.000000 treat all
-#&gt;       0.03    1.00    0.231  0.231  0.000000 treat all
-#&gt;       0.04    1.00    0.223  0.223  0.000000 treat all
-#&gt;       0.05    1.00    0.214  0.214  0.000000 treat all
-#&gt;       0.06    1.00    0.206  0.206  0.000000 treat all
-#&gt;       0.07    1.00    0.198  0.198  0.000000 treat all
-#&gt;       0.08    1.00    0.189  0.189  0.000000 treat all
-#&gt;       0.09    1.00    0.179  0.180 -0.000681 treat all
+#&gt;  threshold   Se    Sp NB_model NB_all  delta_NB      best
+#&gt;       0.00 1.00 0.000    0.254  0.254  0.000000 treat all
+#&gt;       0.01 1.00 0.000    0.246  0.246  0.000000 treat all
+#&gt;       0.02 1.00 0.000    0.238  0.238  0.000000 treat all
+#&gt;       0.03 1.00 0.000    0.231  0.231  0.000000 treat all
+#&gt;       0.04 1.00 0.000    0.223  0.223  0.000000 treat all
+#&gt;       0.05 1.00 0.000    0.214  0.214  0.000000 treat all
+#&gt;       0.06 1.00 0.000    0.206  0.206  0.000000 treat all
+#&gt;       0.07 1.00 0.000    0.198  0.198  0.000000 treat all
+#&gt;       0.08 1.00 0.000    0.189  0.189  0.000000 treat all
+#&gt;       0.09 1.00 0.000    0.179  0.180 -0.000681 treat all
 #&gt; # 51 more rows; summary(x, thresholds = ) to choose
 summary(res_cox, thresholds = c(0.1, 0.2, 0.3, 0.4, 0.5))
 #&gt; Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon 25.4%; censoring KM; prior improper Beta(0, 0)
 #&gt; Best strategy: treat all 0.00-0.10, model 0.11-0.52, treat none 0.53-0.54, model 0.55, treat none 0.56, model 0.57-0.60
 #&gt; Largest delta_NB: 0.0842 at 0.25
 #&gt; 
-#&gt;  threshold treated NB_model NB_all delta_NB      best
-#&gt;        0.1   0.991    0.170  0.171  -0.0005 treat all
-#&gt;        0.2   0.587    0.115  0.067   0.0482     model
-#&gt;        0.3   0.280    0.066 -0.066   0.0655     model
-#&gt;        0.4   0.148    0.044 -0.244   0.0441     model
-#&gt;        0.5   0.076    0.007 -0.493   0.0073     model</code></pre>
+#&gt;  threshold    Se    Sp NB_model NB_all delta_NB      best
+#&gt;        0.1 0.995 0.010    0.170  0.171  -0.0005 treat all
+#&gt;        0.2 0.826 0.494    0.115  0.067   0.0482     model
+#&gt;        0.3 0.512 0.799    0.066 -0.066   0.0655     model
+#&gt;        0.4 0.337 0.917    0.044 -0.244   0.0441     model
+#&gt;        0.5 0.165 0.954    0.007 -0.493   0.0073     model</code></pre>
 <p><strong><code>as.data.frame()</code></strong> gives the whole table,
 as for a binary outcome:</p>
 <pre class="r"><code>d_cox &lt;- as.data.frame(res_cox)
@@ -1320,12 +1325,12 @@ summary(res_csc, thresholds = c(0.1, 0.2, 0.3, 0.4, 0.5))
 #&gt; Best strategy: treat all 0.00-0.14, model 0.15-0.60
 #&gt; Largest delta_NB: 0.122 at 0.40
 #&gt; 
-#&gt;  threshold treated NB_model NB_all delta_NB      best
-#&gt;        0.1    1.00    0.338  0.338    0.000 treat all
-#&gt;        0.2    0.98    0.256  0.255    0.001     model
-#&gt;        0.3    0.74    0.186  0.149    0.038     model
-#&gt;        0.4    0.41    0.128  0.007    0.122     model
-#&gt;        0.5    0.20    0.080 -0.192    0.080     model
+#&gt;  threshold    Se    Sp NB_model NB_all delta_NB      best
+#&gt;        0.1 1.000 0.000    0.338  0.338    0.000 treat all
+#&gt;        0.2 0.990 0.034    0.256  0.255    0.001     model
+#&gt;        0.3 0.876 0.344    0.186  0.149    0.038     model
+#&gt;        0.4 0.601 0.711    0.128  0.007    0.122     model
+#&gt;        0.5 0.348 0.898    0.080 -0.192    0.080     model
 
 # the outcome as a Surv object, or as a column of data holding one, gives the same
 df_val_survival$surv_cr &lt;- Surv(df_val_survival$cr_time, df_val_survival$cr_status)

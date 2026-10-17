@@ -129,8 +129,9 @@ table, which has one row per threshold:
   over the best default strategy. The model is useful where it is positive.
 
 **`summary()`** gives the best strategy along the thresholds and the
-largest gain of the model, and, at each threshold, the sensitivity and
-specificity of the model and the best strategy; `thresholds` picks some:
+largest gain of the model, and, at each threshold, the model's sensitivity
+(`Se`) and specificity (`Sp`) and the best strategy; `thresholds` picks
+some:
 
 ```{r summary-glm}
 summary(res_glm)
@@ -489,10 +490,13 @@ the prior; the columns are the same as for a binary outcome, with the event
 print(res_cox)
 ```
 
-**`summary()`** gives the best strategy along the thresholds and the largest
-gain of the model, and, at each threshold, the share of patients treated
-(`treated`) instead of the sensitivity and specificity, and the best
-strategy:
+**`summary()`** has the same columns as for a binary outcome: at each
+threshold, the sensitivity (`Se`) and specificity (`Sp`) for the event by the
+horizon, and the best strategy. They come from the same estimates as the net
+benefit: with `censoring = "km"` (the dcurves estimator), from the
+Kaplan-Meier risk by the horizon overall and among the treated; with
+`censoring = "cipcw"`, the IPCW-weighted proportions of the cIPCW
+estimator:
 
 ```{r summary-cox}
 summary(res_cox)

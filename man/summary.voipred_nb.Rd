@@ -31,16 +31,22 @@ shown. \code{as.data.frame()}: the \code{estimates} data frame (columns \code{th
 }
 \description{
 \code{print()} shows the net benefit at the first thresholds; \code{summary()} adds
-the best strategy at each threshold, where the model is useful, and (binary
-outcome) its sensitivity and specificity, or (survival outcomes) the share
-of patients treated; \code{as.data.frame()} returns the estimates at every
-threshold.
+the best strategy at each threshold, where the model is useful, and the
+model's sensitivity and specificity;
+\code{as.data.frame()} returns the estimates at every threshold.
 }
 \details{
 The best strategy at a threshold is the model where
 \code{delta_NB > 0}, otherwise treat all if its net benefit is positive,
-otherwise treat none. Sensitivity and specificity are posterior means (the
-observed proportions with the default improper prior).
+otherwise treat none. For a binary outcome, sensitivity and
+specificity are posterior means (the observed proportions with the default
+improper prior). For survival and competing-risks outcomes they are those
+of the event by the horizon, from the same estimates as the net benefit:
+with \code{censoring = "km"}, from the Kaplan-Meier (Aalen-Johansen) risk by
+the horizon \eqn{F}, the share treated \eqn{q} and the risk among the
+treated \eqn{F_+}, \eqn{Se = q F_+ / F} and
+\eqn{Sp = 1 - q (1 - F_+) / (1 - F)}; with \code{censoring = "cipcw"}, the
+IPCW-weighted proportions of the cIPCW estimator.
 }
 \examples{
 df_dev_binary <- gusto[1:5000, ]

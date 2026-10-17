@@ -7,10 +7,9 @@
 #' Summarise the net benefit of a model
 #'
 #' `print()` shows the net benefit at the first thresholds; `summary()` adds
-#' the best strategy at each threshold, where the model is useful, and (binary
-#' outcome) its sensitivity and specificity, or (survival outcomes) the share
-#' of patients treated; `as.data.frame()` returns the estimates at every
-#' threshold.
+#' the best strategy at each threshold, where the model is useful, and the
+#' model's sensitivity and specificity;
+#' `as.data.frame()` returns the estimates at every threshold.
 #'
 #' @param object,x A result of [nb()].
 #' @param thresholds Optional thresholds to show in the table (among those of
@@ -23,8 +22,15 @@
 #'   `NB_model`, `NB_all`, `NB_none`, `delta_NB`).
 #' @details The best strategy at a threshold is the model where
 #'   `delta_NB > 0`, otherwise treat all if its net benefit is positive,
-#'   otherwise treat none. Sensitivity and specificity are posterior means (the
-#'   observed proportions with the default improper prior).
+#'   otherwise treat none. For a binary outcome, sensitivity and
+#'   specificity are posterior means (the observed proportions with the default
+#'   improper prior). For survival and competing-risks outcomes they are those
+#'   of the event by the horizon, from the same estimates as the net benefit:
+#'   with `censoring = "km"`, from the Kaplan-Meier (Aalen-Johansen) risk by
+#'   the horizon \eqn{F}, the share treated \eqn{q} and the risk among the
+#'   treated \eqn{F_+}, \eqn{Se = q F_+ / F} and
+#'   \eqn{Sp = 1 - q (1 - F_+) / (1 - F)}; with `censoring = "cipcw"`, the
+#'   IPCW-weighted proportions of the cIPCW estimator.
 #' @seealso [nb()], [plot.voipred_nb()]
 #' @examples
 #' df_dev_binary <- gusto[1:5000, ]
@@ -58,15 +64,11 @@ summary.voipred_nb <- function(object, thresholds = NULL, ...) {
   best <- best_strategy(e)
   o <- order(e$threshold)
   tab <- data.frame(threshold = e$threshold)
-  if (object$outcome$type == "binary") {
-    ss <- sens_spec(object)
-    tab$Se <- ss$Se
-    tab$Sp <- ss$Sp
-  } else {
-    w <- if (is.null(object$weights)) rep(1, length(object$risk)) else object$weights
-    tab$treated <- vapply(e$threshold, function(z)
-      sum(w * treated_at(object$risk, z)) / sum(w), numeric(1))
-  }
+  ss <- if (object$outcome$type == "binary") sens_spec(object)
+        else if (object$outcome$censoring == "cipcw") sens_spec_cipcw(object)
+        else sens_spec_km(object)
+  tab$Se <- ss$Se
+  tab$Sp <- ss$Sp
   tab$NB_model <- e$NB_model
   tab$NB_all <- e$NB_all
   tab$delta_NB <- e$delta_NB
@@ -411,6 +413,34 @@ best_strategy <- function(e) {
 }
 
 # Posterior mean sensitivity and specificity at each threshold (binary).
+# KM (dcurves): sensitivity and specificity implied by the Kaplan-Meier net
+# benefit, the share treated q and the risk by the horizon F:
+# with F+ the risk among the treated, NB = q F+ - q (1 - F+) z/(1-z), so
+# q F+ = (NB + q z/(1-z)) / (1 + z/(1-z)); Se = q F+ / F and
+# Sp = 1 - q (1 - F+) / (1 - F). Then F Se - (1 - F)(1 - Sp) z/(1-z) = NB.
+sens_spec_km <- function(x) {
+  e <- x$estimates
+  F <- x$outcome$prevalence
+  w <- if (is.null(x$weights)) rep(1, length(x$risk)) else x$weights
+  q <- vapply(e$threshold, function(z) sum(w * treated_at(x$risk, z)) / sum(w),
+              numeric(1))                                  # share treated
+  odds <- e$threshold / (1 - e$threshold)
+  qf <- (e$NB_model + q * odds) / (1 + odds)              # q F+
+  se <- if (F > 0) qf / F else rep(NA_real_, length(q))
+  sp <- if (F < 1) 1 - (q - qf) / (1 - F) else rep(NA_real_, length(q))
+  clamp <- function(v) ifelse(is.finite(v), pmin(pmax(v, 0), 1), NA)
+  list(Se = clamp(se), Sp = clamp(sp))
+}
+
+# cIPCW: the estimator's own Se and Sp, IPCW-weighted proportions (the net
+# benefit is prevalence * Se - (1 - prevalence) * (1 - Sp) * z/(1-z)).
+sens_spec_cipcw <- function(x) {
+  v <- voi_info(x)
+  r <- nb_core_cipcw(v$time, v$status, v$k, v$risk, v$thresholds, v$horizon,
+                     v$weight_event, v$weight_horizon, v$weights)
+  list(Se = r$Se, Sp = r$Sp)
+}
+
 sens_spec <- function(x) {
   cn <- x$counts
   p <- x$prior

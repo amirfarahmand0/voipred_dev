@@ -218,8 +218,7 @@
 #'   Like a `glm` fit, it is a list whose parts are read with `$` (e.g.
 #'   `res$estimates`), and it has methods: `print()` shows what was evaluated
 #'   and the first rows of `estimates`; [summary()][summary.voipred_nb] gives
-#'   the best strategy, sensitivity and specificity (share treated for
-#'   survival) at each threshold; [plot()][plot.voipred_nb] draws the decision
+#'   the best strategy, sensitivity and specificity at each threshold; [plot()][plot.voipred_nb] draws the decision
 #'   curve or the \eqn{\Delta NB} curve; `as.data.frame()` returns
 #'   `estimates`.
 #' @seealso [summary.voipred_nb()], [plot.voipred_nb()], [nb_priors],
@@ -732,7 +731,7 @@ nb_core_cipcw <- function(time, status, k, p, thresholds, horizon,
   odds <- thresholds / (1 - thresholds)
   list(NB_model = prev * se - (1 - prev) * (1 - sp) * odds,
        NB_all = prev - (1 - prev) * odds,
-       prevalence = prev)
+       prevalence = prev, Se = se, Sp = sp)
 }
 
 # ---- internal: predicted risks given directly -------------------------------

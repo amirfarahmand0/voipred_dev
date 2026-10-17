@@ -143,8 +143,7 @@ censoring settings, used by the value-of-information functions.
 Like a \code{glm} fit, it is a list whose parts are read with \code{$} (e.g.
 \code{res$estimates}), and it has methods: \code{print()} shows what was evaluated
 and the first rows of \code{estimates}; \link[=summary.voipred_nb]{summary()} gives
-the best strategy, sensitivity and specificity (share treated for
-survival) at each threshold; \link[=plot.voipred_nb]{plot()} draws the decision
+the best strategy, sensitivity and specificity at each threshold; \link[=plot.voipred_nb]{plot()} draws the decision
 curve or the \eqn{\Delta NB} curve; \code{as.data.frame()} returns
 \code{estimates}.
 }
