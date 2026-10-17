@@ -65,7 +65,7 @@
 #' @return An object of class `voipred_evpi`, a list with `estimates` (a data
 #'   frame with one row per threshold and columns `threshold`, `ENB_current`,
 #'   `ENB_perfect`, `EVPI` and `rEVPI`), `ENB` (the expected net benefit of
-#'   each strategy at each threshold), `models`, `outcome`, `prior`, `draws`
+#'   each strategy at each threshold), `models`, `outcome`, `censoring`, `prior`, `draws`
 #'   (`"posterior"` or `"Bayesian bootstrap"`), `n_sim` and `call`. It has
 #'   `print()`, `summary()`, `plot()` and `as.data.frame()` methods; EVPI can
 #'   also be drawn under the decision curve with `plot(<nb result>, evpi = )`.
@@ -129,7 +129,7 @@ evpi <- function(x, ..., n_sim = 1000, labels = NULL) {
 #' @param n_sim Number of draws. Default 1000.
 #' @return An object of class `voipred_p_useful`, a list with `estimates` (a
 #'   data frame with columns `threshold`, `model` and `p_useful`, one row per
-#'   threshold), `models` (the model's label), `outcome`, `prior`, `draws`,
+#'   threshold), `models` (the model's label), `outcome`, `censoring`, `prior`, `draws`,
 #'   `n_sim` and `call`, with `print()`, `summary()`, `plot()` and
 #'   `as.data.frame()` methods.
 #' @seealso [p_best()], [evpi()], [plot.voipred_p_useful()], [summary.voipred_voi()]
@@ -174,7 +174,7 @@ p_useful <- function(x, ..., n_sim = 1000) {
 #' @inheritParams evpi
 #' @return An object of class `voipred_p_best`, a list with `estimates` (a
 #'   data frame with columns `threshold`, `strategy` and `p_best`, one row per
-#'   threshold and strategy), `strategies`, `models`, `outcome`, `prior`,
+#'   threshold and strategy), `strategies`, `models`, `outcome`, `censoring`, `prior`,
 #'   `draws`, `n_sim` and `call`, with `print()`, `summary()`, `plot()` and
 #'   `as.data.frame()` methods.
 #' @seealso [p_useful()], [evpi()], [plot.voipred_p_best()], [summary.voipred_voi()]
@@ -254,6 +254,8 @@ voi_result <- function(estimates, d, res, call, cls, ...) {
   r1 <- res[[1]]
   structure(c(list(call = call, estimates = estimates), list(...),
               list(models = d$models, outcome = r1$outcome, prior = r1$prior,
+                   censoring = if (!is.null(r1) && r1$outcome$type != "binary")
+                     censoring_text(r1),
                    case_weights = !is.null(r1$weights), draws = d$draws, n_sim = d$n_sim)),
             class = cls)
 }
@@ -345,7 +347,7 @@ p_best_from_draws <- function(d, res = NULL, call = NULL) {
 #' @return An object of class `voipred_evsi`, a list with `estimates` (a data
 #'   frame with columns `threshold`, `future_n`, `EVSI` and `EVPI`, one row per
 #'   threshold and future sample size), `future_n`, `models`, `outcome`,
-#'   `prior`, `draws`, `n_sim` and `call`. It has `print()`, `summary()`,
+#'   `censoring`, `prior`, `draws`, `n_sim` and `call`. It has `print()`, `summary()`,
 #'   `plot()` and `as.data.frame()` methods; EVSI can also be drawn under the
 #'   decision curve with `plot(<nb result>, evsi = )`.
 #' @references Sadatsafavi M, et al. Expected value of sample information

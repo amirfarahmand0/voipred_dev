@@ -492,7 +492,7 @@ model, the outcome, the number of patients and events, and the prior)
 and the first rows of the table (<code>print(res_glm, n = 30)</code>
 shows more):</p>
 <pre class="r"><code>print(res_glm)
-#&gt; Net benefit of Logistic: binary, n = 5000, 346 events (6.9%); prior improper Beta(0, 0)
+#&gt; Net benefit of Logistic: binary, n = 5000, 346 events (6.9%), prior improper Beta(0, 0)
 #&gt; 
 #&gt;  threshold NB_model   NB_all NB_none delta_NB
 #&gt;       0.00  0.06920  0.06920  0.0000  0.00000
@@ -524,7 +524,7 @@ threshold, the model’s sensitivity (<code>Se</code>) and specificity
 (<code>Sp</code>) and the best strategy; <code>thresholds</code> picks
 some:</p>
 <pre class="r"><code>summary(res_glm)
-#&gt; Net benefit of Logistic: binary, n = 5000, 346 events (6.9%); prior improper Beta(0, 0)
+#&gt; Net benefit of Logistic: binary, n = 5000, 346 events (6.9%), prior improper Beta(0, 0)
 #&gt; Best strategy: treat all 0.00, model 0.01-0.30
 #&gt; Largest delta_NB: 0.0294 at 0.07
 #&gt; 
@@ -541,7 +541,7 @@ some:</p>
 #&gt;       0.09 0.60 0.827   0.0255 -0.0229   0.0255     model
 #&gt; # 21 more rows; summary(x, thresholds = ) to choose
 summary(res_glm, thresholds = c(0.05, 0.1, 0.2))
-#&gt; Net benefit of Logistic: binary, n = 5000, 346 events (6.9%); prior improper Beta(0, 0)
+#&gt; Net benefit of Logistic: binary, n = 5000, 346 events (6.9%), prior improper Beta(0, 0)
 #&gt; Best strategy: treat all 0.00, model 0.01-0.30
 #&gt; Largest delta_NB: 0.0294 at 0.07
 #&gt; 
@@ -790,7 +790,7 @@ three:</p>
                 prior = nb_uniform(),
                 label = &quot;Logistic&quot;)
 res_glm_u
-#&gt; Net benefit of Logistic: binary, n = 5000, 346 events (6.9%); prior uniform Beta(1, 1)
+#&gt; Net benefit of Logistic: binary, n = 5000, 346 events (6.9%), prior uniform Beta(1, 1)
 #&gt; 
 #&gt;  threshold NB_model   NB_all NB_none delta_NB
 #&gt;       0.00  0.06917  0.06937  0.0000 -0.00020
@@ -812,7 +812,7 @@ the prevalence from earlier studies:</p>
    outcome = &quot;day30&quot;,
    thresholds = c(0.05, 0.1),
    prior = nb_jeffreys())
-#&gt; Net benefit of p_glm: binary, n = 5000, 346 events (6.9%); prior Jeffreys Beta(0.5, 0.5)
+#&gt; Net benefit of p_glm: binary, n = 5000, 346 events (6.9%), prior Jeffreys Beta(0.5, 0.5)
 #&gt; 
 #&gt;  threshold NB_model   NB_all NB_none delta_NB
 #&gt;       0.05  0.03833  0.02030  0.0000  0.01802
@@ -822,7 +822,7 @@ nb(data = df_val_binary,
    outcome = &quot;day30&quot;,
    thresholds = c(0.05, 0.1),
    prior = nb_beta(prevalence = c(7, 93)))   # prevalence ~7%, worth 100 patients
-#&gt; Net benefit of p_glm: binary, n = 5000, 346 events (6.9%); prior Beta: prevalence Beta(7, 93), sensitivity Beta(1, 1), specificity Beta(1, 1)
+#&gt; Net benefit of p_glm: binary, n = 5000, 346 events (6.9%), prior Beta: prevalence Beta(7, 93), sensitivity Beta(1, 1), specificity Beta(1, 1)
 #&gt; 
 #&gt;  threshold NB_model   NB_all NB_none delta_NB
 #&gt;       0.05  0.03821  0.02023  0.0000  0.01798
@@ -946,7 +946,7 @@ nb(data = df_val_binary,
      pr &lt;- predict(model, newdata[, vars], probability = TRUE)
      attr(pr, &quot;probabilities&quot;)[, &quot;1&quot;]
    })
-#&gt; Net benefit of fit_svm: binary, n = 5000, 346 events (6.9%); prior improper Beta(0, 0)
+#&gt; Net benefit of fit_svm: binary, n = 5000, 346 events (6.9%), prior improper Beta(0, 0)
 #&gt; 
 #&gt;  threshold NB_model  NB_all NB_none  delta_NB
 #&gt;       0.05  0.01747  0.0202  0.0000 -0.002737
@@ -1011,7 +1011,7 @@ the horizon, the number of patients, the estimated risk of death by 5
 years, the censoring method and the prior; the columns are the same as
 for a binary outcome, with the event “death by 5 years”:</p>
 <pre class="r"><code>print(res_cox)
-#&gt; Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon 25.4%; censoring KM; prior improper Beta(0, 0)
+#&gt; Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon 25.4%, censoring KM, prior improper Beta(0, 0)
 #&gt; 
 #&gt;  threshold NB_model NB_all NB_none   delta_NB
 #&gt;       0.00   0.2537 0.2537  0.0000  0.0000000
@@ -1034,7 +1034,7 @@ Kaplan-Meier risk by the horizon overall and among the treated; with
 <code>censoring = &quot;cipcw&quot;</code>, the IPCW-weighted proportions of the
 cIPCW estimator:</p>
 <pre class="r"><code>summary(res_cox)
-#&gt; Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon 25.4%; censoring KM; prior improper Beta(0, 0)
+#&gt; Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon 25.4%, censoring KM, prior improper Beta(0, 0)
 #&gt; Best strategy: treat all 0.00-0.10, model 0.11-0.52, treat none 0.53-0.54, model 0.55, treat none 0.56, model 0.57-0.60
 #&gt; Largest delta_NB: 0.0842 at 0.25
 #&gt; 
@@ -1051,7 +1051,7 @@ cIPCW estimator:</p>
 #&gt;       0.09 1.00 0.000    0.179  0.180 -0.000681 treat all
 #&gt; # 51 more rows; summary(x, thresholds = ) to choose
 summary(res_cox, thresholds = c(0.1, 0.2, 0.3, 0.4, 0.5))
-#&gt; Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon 25.4%; censoring KM; prior improper Beta(0, 0)
+#&gt; Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon 25.4%, censoring KM, prior improper Beta(0, 0)
 #&gt; Best strategy: treat all 0.00-0.10, model 0.11-0.52, treat none 0.53-0.54, model 0.55, treat none 0.56, model 0.57-0.60
 #&gt; Largest delta_NB: 0.0842 at 0.25
 #&gt; 
@@ -1306,7 +1306,7 @@ res_csc &lt;- nb(data = df_val_survival,
               thresholds = seq(0, 0.6, by = 0.01),
               label = &quot;Cause-specific Cox&quot;)
 print(res_csc)
-#&gt; Net benefit of Cause-specific Cox: competing risks (cause recurrence), horizon 5, n = 1482, risk by horizon 40.4%; censoring KM; prior improper Beta(0, 0)
+#&gt; Net benefit of Cause-specific Cox: competing risks (cause recurrence), horizon 5, n = 1482, risk by horizon 40.4%, censoring KM, prior improper Beta(0, 0)
 #&gt; 
 #&gt;  threshold NB_model NB_all NB_none delta_NB
 #&gt;       0.00   0.4040 0.4040  0.0000   0.0000
@@ -1321,7 +1321,7 @@ print(res_csc)
 #&gt;       0.09   0.3450 0.3450  0.0000   0.0000
 #&gt; # 51 more rows; use summary() or as.data.frame()
 summary(res_csc, thresholds = c(0.1, 0.2, 0.3, 0.4, 0.5))
-#&gt; Net benefit of Cause-specific Cox: competing risks (cause recurrence), horizon 5, n = 1482, risk by horizon 40.4%; censoring KM; prior improper Beta(0, 0)
+#&gt; Net benefit of Cause-specific Cox: competing risks (cause recurrence), horizon 5, n = 1482, risk by horizon 40.4%, censoring KM, prior improper Beta(0, 0)
 #&gt; Best strategy: treat all 0.00-0.14, model 0.15-0.60
 #&gt; Largest delta_NB: 0.122 at 0.40
 #&gt; 
@@ -1433,7 +1433,7 @@ way, in <code>cipcw_control()</code>.</p>
      sf &lt;- survfit(model, newdata = newdata)
      1 - as.vector(summary(sf, times = horizon)$surv)
    })
-#&gt; Net benefit of fit_cox: survival, horizon 5, n = 1482, risk by horizon 25.4%; censoring KM; prior improper Beta(0, 0)
+#&gt; Net benefit of fit_cox: survival, horizon 5, n = 1482, risk by horizon 25.4%, censoring KM, prior improper Beta(0, 0)
 #&gt; 
 #&gt;  threshold NB_model  NB_all NB_none delta_NB
 #&gt;        0.1   0.1703  0.1708  0.0000 -0.00050

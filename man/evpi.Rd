@@ -22,7 +22,7 @@ default: the results' labels.}
 An object of class \code{voipred_evpi}, a list with \code{estimates} (a data
 frame with one row per threshold and columns \code{threshold}, \code{ENB_current},
 \code{ENB_perfect}, \code{EVPI} and \code{rEVPI}), \code{ENB} (the expected net benefit of
-each strategy at each threshold), \code{models}, \code{outcome}, \code{prior}, \code{draws}
+each strategy at each threshold), \code{models}, \code{outcome}, \code{censoring}, \code{prior}, \code{draws}
 (\code{"posterior"} or \code{"Bayesian bootstrap"}), \code{n_sim} and \code{call}. It has
 \code{print()}, \code{summary()}, \code{plot()} and \code{as.data.frame()} methods; EVPI can
 also be drawn under the decision curve with \verb{plot(<nb result>, evpi = )}.

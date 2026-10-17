@@ -25,7 +25,7 @@ default: the results' labels.}
 An object of class \code{voipred_evsi}, a list with \code{estimates} (a data
 frame with columns \code{threshold}, \code{future_n}, \code{EVSI} and \code{EVPI}, one row per
 threshold and future sample size), \code{future_n}, \code{models}, \code{outcome},
-\code{prior}, \code{draws}, \code{n_sim} and \code{call}. It has \code{print()}, \code{summary()},
+\code{censoring}, \code{prior}, \code{draws}, \code{n_sim} and \code{call}. It has \code{print()}, \code{summary()},
 \code{plot()} and \code{as.data.frame()} methods; EVSI can also be drawn under the
 decision curve with \verb{plot(<nb result>, evsi = )}.
 }

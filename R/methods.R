@@ -312,9 +312,9 @@ nb_header <- function(x) {
            if (is.null(x$weights))
              sprintf(", %s events (%s)", fmt_count(o$events), fmt_pct(o$prevalence))
            else sprintf(", weighted prevalence %s", fmt_pct(o$prevalence))
-         } else sprintf(", risk by horizon %s; censoring %s", fmt_pct(o$prevalence),
+         } else sprintf(", risk by horizon %s, censoring %s", fmt_pct(o$prevalence),
                         censoring_text(x)),
-         "; prior ", prior_text(x$prior))
+         ", prior ", prior_text(x$prior))
 }
 
 outcome_text <- function(o, weights = NULL) {
@@ -336,7 +336,8 @@ censoring_text <- function(x) {
 voi_header <- function(what, x) {
   paste0(what, ": ", paste(x$models, collapse = ", "), "; ",
          outcome_text(x$outcome, if (isTRUE(x$case_weights)) TRUE),
-         if (x$outcome$type == "binary") paste0(", prior ", prior_text(x$prior)), "; ",
+         if (!is.null(x$censoring)) paste0(", censoring ", x$censoring),
+         ", prior ", prior_text(x$prior), ", ",
          x$n_sim, if (x$draws == "posterior") " posterior draws" else
            " Bayesian bootstrap draws")
 }

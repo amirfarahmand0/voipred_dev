@@ -108,7 +108,7 @@ test_that("the predicted risks can be given directly, without the model", {
 
 test_that("print shows a header and the table", {
   res <- nb(toy, fixed_model(toy$p), "y", thresholds = c(0.1, 0.3))
-  expect_output(print(res), "Net benefit of Model: binary, n = 5, 2 events \\(40.0%\\); prior improper Beta\\(0, 0\\)")
+  expect_output(print(res), "Net benefit of Model: binary, n = 5, 2 events \\(40.0%\\), prior improper Beta\\(0, 0\\)")
   expect_output(print(res), "NB_model")
 })
 

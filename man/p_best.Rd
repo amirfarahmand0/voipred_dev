@@ -21,7 +21,7 @@ default: the results' labels.}
 \value{
 An object of class \code{voipred_p_best}, a list with \code{estimates} (a
 data frame with columns \code{threshold}, \code{strategy} and \code{p_best}, one row per
-threshold and strategy), \code{strategies}, \code{models}, \code{outcome}, \code{prior},
+threshold and strategy), \code{strategies}, \code{models}, \code{outcome}, \code{censoring}, \code{prior},
 \code{draws}, \code{n_sim} and \code{call}, with \code{print()}, \code{summary()}, \code{plot()} and
 \code{as.data.frame()} methods.
 }

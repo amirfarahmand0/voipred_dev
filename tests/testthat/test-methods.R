@@ -43,7 +43,7 @@ test_that("nb() returns a list with its parts, not attributes", {
 test_that("print() and summary() of nb() are short and say what the result is", {
   s <- methods_setup()
   out <- capture.output(print(s$r1))
-  expect_match(out[1], "^Net benefit of Full: binary, n = 500, [0-9]+ events \\([0-9.]+%\\); prior improper Beta\\(0, 0\\)$")
+  expect_match(out[1], "^Net benefit of Full: binary, n = 500, [0-9]+ events \\([0-9.]+%\\), prior improper Beta\\(0, 0\\)$")
   expect_length(out, 1 + 1 + 1 + 10 + 1)                     # header, blank, column names, 10 rows, footer
   expect_match(out[length(out)], "^# 20 more rows; use summary\\(\\) or as.data.frame\\(\\)$")
   expect_length(capture.output(print(s$r1, n = 3)), 1 + 1 + 1 + 3 + 1)
@@ -75,7 +75,7 @@ test_that("print() and summary() of nb() are short and say what the result is", 
   k <- nb(sv$val, cx, surv_outcome, horizon = 5, thresholds = c(0.1, 0.3),
           censoring = "cipcw", cipcw = cipcw_control(model = cens), label = "Cox")
   expect_match(capture.output(print(k))[1],
-               "^Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon [0-9.]+%; censoring cIPCW \\(coxph\\); prior improper")
+               "^Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon [0-9.]+%, censoring cIPCW \\(coxph\\), prior improper")
   st <- summary(k)$table
   expect_named(st, c("threshold", "Se", "Sp", "NB_model", "NB_all", "delta_NB", "best"))
   # Se and Sp are those implied by the net benefit and the risk by the horizon
@@ -111,7 +111,7 @@ test_that("the value-of-information results are lists with print(), summary() an
     expect_identical(as.data.frame(x), x$estimates)
     out <- capture.output(print(x))
     expect_match(out[1], paste0(paste(models, collapse = ", "), "; binary, n = 500, prior ",
-                                "improper Beta\\(0, 0\\); 200 posterior draws$"))
+                                "improper Beta\\(0, 0\\), 200 posterior draws$"))
     expect_lte(length(out), 15)
     expect_output(print(summary(x)), paste(models, collapse = ", "))
   }
@@ -154,7 +154,17 @@ test_that("the value-of-information results are lists with print(), summary() an
   ek <- evpi(k, n_sim = 20)
   expect_equal(ek$draws, "Bayesian bootstrap")
   expect_match(capture.output(print(ek))[1],
-               "^EVPI: Cox; survival, horizon 5, n = 1482; 20 Bayesian bootstrap draws$")
+               paste0("^EVPI: Cox; survival, horizon 5, n = 1482, censoring KM, prior improper ",
+                      "Beta\\(0, 0\\), 20 Bayesian bootstrap draws$"))
+  # the same parts as the header of nb(): the censoring method and the prior
+  cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes, data = sv$val)
+  kc <- quiet_nb(sv$val, cx, surv_outcome, horizon = 5, thresholds = c(0.2, 0.3), label = "Cox",
+                 censoring = "cipcw", cipcw = cipcw_control(model = cens))
+  set.seed(1)
+  for (x in list(evpi(kc, n_sim = 5), p_useful(kc, n_sim = 5), p_best(kc, n_sim = 5),
+                 evsi(kc, future_n = 100, n_sim = 5)))
+    expect_match(capture.output(print(x))[1],
+                 "survival, horizon 5, n = 1482, censoring cIPCW \\(coxph\\), prior improper")
 })
 
 test_that("ranges of thresholds are written compactly", {

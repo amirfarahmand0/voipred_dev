@@ -16,7 +16,7 @@ p_useful(x, ..., n_sim = 1000)
 \value{
 An object of class \code{voipred_p_useful}, a list with \code{estimates} (a
 data frame with columns \code{threshold}, \code{model} and \code{p_useful}, one row per
-threshold), \code{models} (the model's label), \code{outcome}, \code{prior}, \code{draws},
+threshold), \code{models} (the model's label), \code{outcome}, \code{censoring}, \code{prior}, \code{draws},
 \code{n_sim} and \code{call}, with \code{print()}, \code{summary()}, \code{plot()} and
 \code{as.data.frame()} methods.
 }
