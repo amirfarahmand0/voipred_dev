@@ -106,7 +106,8 @@ as.data.frame.voipred_nb <- function(x, row.names = NULL, optional = FALSE, ...)
 #' `print()` shows the results at the first thresholds; `summary()` gives the
 #' main findings:
 #' * [p_useful()]: the thresholds where P(useful) is above
-#'   0.95, between 0.5 and 0.95, and below 0.5;
+#'   0.95, between 0.5 and 0.95, and below 0.5, and with `thresholds`,
+#'   P(useful) at each of them;
 #' * [p_best()]: the most likely best strategy at each threshold;
 #' * [evpi()]: where EVPI is positive and where it is largest, and the
 #'   strategy that is best now (highest expected net benefit) with its
@@ -120,7 +121,8 @@ as.data.frame.voipred_nb <- function(x, row.names = NULL, optional = FALSE, ...)
 #' @param object,x A result of [p_useful()], [p_best()], [evpi()] or [evsi()].
 #' @param thresholds Optional thresholds to show (among those of the result).
 #'   Default: all (the first 10 are printed); for `evsi()`, the 3 with the
-#'   largest EVPI.
+#'   largest EVPI; for `p_useful()`, none (only the bands), and with
+#'   `thresholds` also P(useful) at each of them.
 #' @param n Number of thresholds printed. Default 10.
 #' @param row.names,optional Not used (as in [as.data.frame()]).
 #' @param ... Not used.
@@ -227,7 +229,7 @@ print.voipred_p_useful <- function(x, n = 10, ...) {
 
 #' @rdname summary.voipred_voi
 #' @export
-summary.voipred_p_useful <- function(object, ...) {
+summary.voipred_p_useful <- function(object, thresholds = NULL, ...) {
   e <- object$estimates
   bands <- t(vapply(object$models, function(m) {
     d <- e[e$model == m, ]
@@ -239,9 +241,16 @@ summary.voipred_p_useful <- function(object, ...) {
   }, character(3)))
   tab <- data.frame(model = object$models, bands, check.names = FALSE)
   names(tab) <- c("model", "P > 0.95", "0.5 to 0.95", "P < 0.5")
+  at <- NULL
+  if (!is.null(thresholds)) {
+    rows <- select_rows(e$threshold, thresholds)
+    at <- data.frame(threshold = e$threshold[rows], p = e$p_useful[rows],
+                     check.names = FALSE)
+    names(at)[2] <- "P(useful)"
+  }
   structure(list(header = voi_header("P(useful)", object),
                  lines = "Thresholds where the probability that the model is useful is:",
-                 table = tab, all_rows = FALSE),
+                 table = tab, all_rows = FALSE, at = at),
             class = "summary.voipred_p_useful")
 }
 
@@ -277,7 +286,14 @@ print.summary.voipred_evpi <- function(x, n = 10, ...) print_voi_summary(x, n, 4
 print.summary.voipred_evsi <- function(x, n = 10, ...) print_voi_summary(x, n, 4)
 
 #' @export
-print.summary.voipred_p_useful <- function(x, n = 10, ...) print_voi_summary(x, n, 3)
+print.summary.voipred_p_useful <- function(x, n = 10, ...) {
+  print_voi_summary(x, n, 3)
+  if (!is.null(x$at)) {
+    cat("\nAt the chosen thresholds:\n\n")
+    print_rows(x$at, Inf, "", digits = 3, fixed = TRUE)
+  }
+  invisible(x)
+}
 
 #' @export
 print.summary.voipred_p_best <- function(x, n = 10, ...) print_voi_summary(x, n, 3, TRUE)

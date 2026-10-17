@@ -26,7 +26,7 @@
 
 \method{print}{voipred_p_useful}(x, n = 10, ...)
 
-\method{summary}{voipred_p_useful}(object, ...)
+\method{summary}{voipred_p_useful}(object, thresholds = NULL, ...)
 
 \method{print}{voipred_p_best}(x, n = 10, ...)
 
@@ -49,7 +49,8 @@
 
 \item{thresholds}{Optional thresholds to show (among those of the result).
 Default: all (the first 10 are printed); for \code{evsi()}, the 3 with the
-largest EVPI.}
+largest EVPI; for \code{p_useful()}, none (only the bands), and with
+\code{thresholds} also P(useful) at each of them.}
 
 \item{row.names, optional}{Not used (as in \code{\link[=as.data.frame]{as.data.frame()}}).}
 }
@@ -62,7 +63,8 @@ largest EVPI.}
 main findings:
 \itemize{
 \item \code{\link[=p_useful]{p_useful()}}: the thresholds where P(useful) is above
-0.95, between 0.5 and 0.95, and below 0.5;
+0.95, between 0.5 and 0.95, and below 0.5, and with \code{thresholds},
+P(useful) at each of them;
 \item \code{\link[=p_best]{p_best()}}: the most likely best strategy at each threshold;
 \item \code{\link[=evpi]{evpi()}}: where EVPI is positive and where it is largest, and the
 strategy that is best now (highest expected net benefit) with its

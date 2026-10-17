@@ -224,10 +224,11 @@ print(pu_full)
 
 **`summary()`** gives the thresholds where the model is almost surely useful
 ($P > 0.95$), likely useful ($0.5$ to $0.95$), or unlikely to be useful
-($P < 0.5$):
+($P < 0.5$); with `thresholds`, it also gives P(useful) at each of them:
 
 ```{r pu-summary}
 summary(pu_full)
+summary(pu_full, thresholds = c(0.05, 0.1, 0.2))
 ```
 
 **`plot()`** draws P(useful) against the threshold, one curve per result,

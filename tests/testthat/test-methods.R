@@ -143,6 +143,16 @@ test_that("the value-of-information results are lists with print(), summary() an
   sp <- summary(s$pu)
   expect_named(sp$table, c("model", "P > 0.95", "0.5 to 0.95", "P < 0.5"))
   expect_equal(sp$table$model, "Full")
+  expect_null(sp$at)
+  # chosen thresholds: P(useful) at each of them, after the bands
+  sp2 <- summary(s$pu, thresholds = c(0.05, 0.2))
+  expect_equal(sp2$at$threshold, c(0.05, 0.2), tolerance = 1e-12)
+  expect_equal(sp2$at[["P(useful)"]],
+               s$pu$estimates$p_useful[match(c(5, 20), round(100 * s$pu$estimates$threshold))])
+  po <- capture.output(sp2)
+  expect_true(any(grepl("At the chosen thresholds", po)))
+  expect_true(any(grepl("P > 0.95", po)))
+  expect_error(summary(s$pu, thresholds = 0.055), "not among the thresholds")
   sb <- summary(s$pb)
   w <- as.matrix(wide(s$pb$estimates, "strategy", "p_best", s$pb$strategies)[, -1])
   expect_equal(sb$table[["P(best)"]], apply(w, 1, max))
