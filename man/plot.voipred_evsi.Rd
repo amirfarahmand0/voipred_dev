@@ -25,7 +25,7 @@ The plot of a result of \code{\link[=evsi]{evsi()}}: EVSI against the future sam
 curve per threshold, starting at 0 for no new data, with that threshold's
 EVPI as a dashed line (the limit as the future sample grows), as in
 Sadatsafavi et al. (2025). To draw EVSI under the decision curve, use
-\verb{plot(<nb result>, evsi = )} (\code{\link[=plot.voipred_nb]{plot.voipred_nb()}}).
+\verb{plot(<nb_val result>, evsi = )} (\code{\link[=plot.voipred_nb]{plot.voipred_nb()}}).
 }
 \examples{
 df_dev_binary <- gusto[1:5000, ]
@@ -33,10 +33,10 @@ df_val_binary <- gusto[5001:5500, ]
 fit <- glm(day30 ~ age + Killip + sysbp + pulse,
            family = binomial, data = df_dev_binary)
 df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
-res <- nb(data = df_val_binary,
-          predicted_risk = df_val_binary$p,
-          outcome = "day30",
-          thresholds = c(0.02, 0.05, 0.1))
+res <- nb_val(data = df_val_binary,
+              predicted_risk = df_val_binary$p,
+              outcome = "day30",
+              thresholds = c(0.02, 0.05, 0.1))
 set.seed(1)
 o <- evsi(res, future_n = c(250, 500, 1000, 2000), n_sim = 500)
 plot(o)

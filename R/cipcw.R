@@ -1,7 +1,7 @@
 #' Settings for conditional IPCW net benefit
 #'
 #' `cipcw_control()` says how the censoring weights are obtained when
-#' [nb()] is called with `censoring = "cipcw"`. Conditional inverse
+#' [nb_val()] is called with `censoring = "cipcw"`. Conditional inverse
 #' probability of censoring weighting (cIPCW) allows censoring to depend on
 #' covariates: it assumes censoring is independent of the event time *given*
 #' the covariates of the censoring model.
@@ -15,7 +15,7 @@
 #' (`Surv(time, status == "censored")`, not `status != cause`). voipred
 #' predicts from the model the probability of remaining uncensored just before
 #' each patient's own time and at the horizon, in the same way as it predicts
-#' risks from a model in [nb()]: through `riskRegression::predictRisk()` (e.g.
+#' risks from a model in [nb_val()]: through `riskRegression::predictRisk()` (e.g.
 #' `coxph` with `x = TRUE`, `rms::cph`, `survreg`, `flexsurvreg`, `ranger`,
 #' `randomForestSRC`, a Kaplan-Meier `prodlim` fit), or voipred's own code for
 #' models riskRegression cannot handle (`coxph` without `x = TRUE`, `aorsf`,
@@ -41,7 +41,7 @@
 #' weights are biased. Use cross-fitting: split `data` into folds, fit the
 #' censoring model on all folds but one, predict the censoring probabilities
 #' for the held-out fold, and give the resulting weights through option 2 (in
-#' [nb()] only: see "Uncertainty").
+#' [nb_val()] only: see "Uncertainty").
 #'
 #' **Truncation** is off by default. With `min_prob`, censoring probabilities
 #' below it (option 1) or weights above `1 / min_prob` (option 2) are
@@ -68,12 +68,12 @@
 #'   `case.weights` are sampling probabilities), so voipred does not guess.
 #'
 #' Patients with a weight of 0 in a draw are left out of the refit. Given
-#' weights (option 2) cannot be refitted, so they can be used in [nb()] but not
-#' in the value-of-information functions. `nb()` itself always uses the model
+#' weights (option 2) cannot be refitted, so they can be used in [nb_val()] but not
+#' in the value-of-information functions. `nb_val()` itself always uses the model
 #' as given.
 #'
 #' @param model Option 1: a survival model fitted to the censoring times of
-#'   the validation data `data` passed to [nb()] (same patients), with
+#'   the validation data `data` passed to [nb_val()] (same patients), with
 #'   censoring as the event, e.g. `coxph(Surv(time, status == 0) ~ x,
 #'   data = val)`. Give either `model` or the two weights, not both.
 #' @param weight_event,weight_horizon Option 2: two numeric vectors, one
@@ -106,9 +106,9 @@
 #'   (parametric) censoring models both give practically the same result.
 #' @param refit_function Option 1, optional: a `function(data, weights)`
 #'   returning the censoring model fitted to `data` (the validation data given
-#'   to [nb()], restricted to the patients with a positive weight in a draw)
+#'   to [nb_val()], restricted to the patients with a positive weight in a draw)
 #'   with case weights `weights` (the Bayesian-bootstrap weights of the draw,
-#'   positive and averaging 1, times the case weights of [nb()] if any; in
+#'   positive and averaging 1, times the case weights of [nb_val()] if any; in
 #'   [evsi()] also whole numbers for the pooled samples), e.g.
 #'   `function(data, weights)
 #'   coxph(Surv(time, status == 0) ~ x, data = data, weights = weights)`. Used
@@ -131,22 +131,22 @@
 #' # the censoring model: fitted on the validation data, censoring as the event
 #' cens_fit <- coxph(Surv(years, death == 0) ~ age + nodes + grade,
 #'                   data = df_val_survival)
-#' nb(data = df_val_survival,
-#'    predicted_risk = df_val_survival$p5,
-#'    outcome = ~ Surv(years, death),
-#'    horizon = 5,
-#'    thresholds = c(0.1, 0.2, 0.3),
-#'    censoring = "cipcw",
-#'    cipcw = cipcw_control(model = cens_fit))
+#' nb_val(data = df_val_survival,
+#'        predicted_risk = df_val_survival$p5,
+#'        outcome = ~ Surv(years, death),
+#'        horizon = 5,
+#'        thresholds = c(0.1, 0.2, 0.3),
+#'        censoring = "cipcw",
+#'        cipcw = cipcw_control(model = cens_fit))
 #'
 #' # truncating small probabilities of remaining uncensored
-#' nb(data = df_val_survival,
-#'    predicted_risk = df_val_survival$p5,
-#'    outcome = ~ Surv(years, death),
-#'    horizon = 5,
-#'    thresholds = c(0.1, 0.2, 0.3),
-#'    censoring = "cipcw",
-#'    cipcw = cipcw_control(model = cens_fit, min_prob = 0.05))
+#' nb_val(data = df_val_survival,
+#'        predicted_risk = df_val_survival$p5,
+#'        outcome = ~ Surv(years, death),
+#'        horizon = 5,
+#'        thresholds = c(0.1, 0.2, 0.3),
+#'        censoring = "cipcw",
+#'        cipcw = cipcw_control(model = cens_fit, min_prob = 0.05))
 #' @export
 cipcw_control <- function(model = NULL, weight_event = NULL,
                           weight_horizon = NULL, min_prob = NULL,

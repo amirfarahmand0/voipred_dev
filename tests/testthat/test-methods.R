@@ -7,15 +7,15 @@ methods_setup <- function() {
   f2 <- glm(day30 ~ age, family = binomial, data = g$dev)
   val <- g$val[1:500, ]
   z <- seq(0.01, 0.3, by = 0.01)
-  r1 <- nb(val, f1, "day30", thresholds = z, label = "Full")
-  r2 <- nb(val, f2, "day30", thresholds = z, label = "Age")
+  r1 <- nb_val(val, f1, "day30", thresholds = z, label = "Full")
+  r2 <- nb_val(val, f2, "day30", thresholds = z, label = "Age")
   set.seed(1)
   list(val = val, z = z, r1 = r1, r2 = r2,
        e = evpi(r1, r2, n_sim = 200), pu = p_useful(r1, n_sim = 200),
        pb = p_best(r1, r2, n_sim = 200), o = evsi(r1, r2, future_n = c(250, 1000), n_sim = 200))
 }
 
-test_that("nb() returns a list with its parts, not attributes", {
+test_that("nb_val() returns a list with its parts, not attributes", {
   s <- methods_setup()
   r <- s$r1
   expect_s3_class(r, "voipred_nb")
@@ -40,7 +40,7 @@ test_that("nb() returns a list with its parts, not attributes", {
   expect_null(k$cipcw)
 })
 
-test_that("print() and summary() of nb() are short and say what the result is", {
+test_that("print() and summary() of nb_val() are short and say what the result is", {
   s <- methods_setup()
   out <- capture.output(print(s$r1))
   expect_match(out[1], "^Net benefit of Full: binary, n = 500, [0-9]+ events \\([0-9.]+%\\), prior improper Beta\\(0, 0\\)$")
@@ -72,8 +72,8 @@ test_that("print() and summary() of nb() are short and say what the result is", 
   sv <- rott_split()
   cx <- survival::coxph(surv_formula, data = sv$dev)
   cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes, data = sv$val)
-  k <- nb(sv$val, cx, surv_outcome, horizon = 5, thresholds = c(0.1, 0.3),
-          censoring = "cipcw", cipcw = cipcw_control(model = cens), label = "Cox")
+  k <- nb_val(sv$val, cx, surv_outcome, horizon = 5, thresholds = c(0.1, 0.3),
+              censoring = "cipcw", cipcw = cipcw_control(model = cens), label = "Cox")
   expect_match(capture.output(print(k))[1],
                "^Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon [0-9.]+%, censoring cIPCW \\(coxph\\), prior improper")
   st <- summary(k)$table
@@ -94,7 +94,7 @@ test_that("print() and summary() of nb() are short and say what the result is", 
   expect_match(capture.output(print(cr))[1], "competing risks \\(cause death\\), horizon 5")
   # case weights
   w <- rep(1:2, 250)
-  rw <- nb(s$val, s$val$day30 * 0.5 + 0.1, "day30", thresholds = 0.2, weights = w, label = "W")
+  rw <- nb_val(s$val, s$val$day30 * 0.5 + 0.1, "day30", thresholds = 0.2, weights = w, label = "W")
   expect_match(capture.output(print(rw))[1], "n = 500 \\(case weights\\), weighted prevalence")
 })
 
@@ -166,7 +166,7 @@ test_that("the value-of-information results are lists with print(), summary() an
   expect_match(capture.output(print(ek))[1],
                paste0("^EVPI: Cox; survival, horizon 5, n = 1482, censoring KM, prior improper ",
                       "Beta\\(0, 0\\), 20 Bayesian bootstrap draws$"))
-  # the same parts as the header of nb(): the censoring method and the prior
+  # the same parts as the header of nb_val(): the censoring method and the prior
   cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes, data = sv$val)
   kc <- quiet_nb(sv$val, cx, surv_outcome, horizon = 5, thresholds = c(0.2, 0.3), label = "Cox",
                  censoring = "cipcw", cipcw = cipcw_control(model = cens))
@@ -192,11 +192,11 @@ test_that("summary() has the same columns for every outcome; without censoring S
   v <- g$val[1:2000, ]
   p <- unname(predict(glm(gusto_formula, family = binomial, data = g$dev), v, type = "response"))
   z <- c(0.02, 0.05, 0.1, 0.2)
-  b <- summary(nb(data = v, predicted_risk = p, outcome = "day30", thresholds = z))$table
+  b <- summary(nb_val(data = v, predicted_risk = p, outcome = "day30", thresholds = z))$table
   # the same outcome as survival data with everyone followed to the horizon
   v$t <- ifelse(v$day30 == 1, 10, 40)
-  k <- summary(nb(data = v, predicted_risk = p, outcome = ~ survival::Surv(t, day30),
-                  horizon = 30, thresholds = z))$table
+  k <- summary(nb_val(data = v, predicted_risk = p, outcome = ~ survival::Surv(t, day30),
+                      horizon = 30, thresholds = z))$table
   expect_named(k, names(b))
   expect_equal(k$Se, b$Se, tolerance = 1e-12)
   expect_equal(k$Sp, b$Sp, tolerance = 1e-12)

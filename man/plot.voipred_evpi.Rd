@@ -4,7 +4,13 @@
 \alias{plot.voipred_evpi}
 \title{Plot the expected value of perfect information}
 \usage{
-\method{plot}{voipred_evpi}(x, ..., type = c("evpi", "relative"), labels = NULL, interactive = FALSE)
+\method{plot}{voipred_evpi}(
+  x,
+  ...,
+  type = c("evpi", "relative", "p_useful", "p_best"),
+  labels = NULL,
+  interactive = FALSE
+)
 }
 \arguments{
 \item{x}{A result of \code{\link[=evpi]{evpi()}}.}
@@ -12,10 +18,13 @@
 \item{...}{More results of \code{\link[=evpi]{evpi()}} to draw on the same plot. A result given
 here with a name is labelled with its name.}
 
-\item{type}{\code{"evpi"} (default) or \code{"relative"} (relative EVPI, with a dashed
-line at 1; infinite values are left out).}
+\item{type}{\code{"evpi"} (default), \code{"relative"} (relative EVPI, with a dashed
+line at 1; infinite values are left out), \code{"p_useful"} (P(useful) of each
+model) or \code{"p_best"} (P(best) of each strategy); the last two for one
+result.}
 
-\item{labels}{Optional names of the curves, one per result, in order.
+\item{labels}{Optional names of the curves, one per result, in order
+(\code{type = "p_useful"}: one per model).
 Default: \code{"EVPI"} for one result, the argument names (or \code{"EVPI 1"},
 \code{"EVPI 2"}, ...) for several.}
 
@@ -28,8 +37,10 @@ A ggplot object, or a plotly widget with \code{interactive = TRUE}.
 \description{
 The plot of results of \code{\link[=evpi]{evpi()}}: EVPI (or relative EVPI) against the
 threshold, for one or more results, e.g. for different validation samples
-or sets of models. To draw EVPI under the decision curve, use
-\verb{plot(<nb result>, evpi = )} (\code{\link[=plot.voipred_nb]{plot.voipred_nb()}}).
+or sets of models; or, for one result, P(useful) or P(best) from the same
+draws (as \code{\link[=plot.voipred_p_useful]{plot.voipred_p_useful()}} and \code{\link[=plot.voipred_p_best]{plot.voipred_p_best()}} draw
+them). To draw EVPI under the decision curve, use
+\verb{plot(<nb_val result>, evpi = )} (\code{\link[=plot.voipred_nb]{plot.voipred_nb()}}).
 }
 \examples{
 df_dev_binary <- gusto[1:5000, ]
@@ -37,14 +48,16 @@ df_val_binary <- gusto[5001:5500, ]
 fit <- glm(day30 ~ age + Killip + sysbp + pulse,
            family = binomial, data = df_dev_binary)
 df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
-res <- nb(data = df_val_binary,
-          predicted_risk = df_val_binary$p,
-          outcome = "day30",
-          thresholds = seq(0.01, 0.3, by = 0.01))
+res <- nb_val(data = df_val_binary,
+              predicted_risk = df_val_binary$p,
+              outcome = "day30",
+              thresholds = seq(0.01, 0.3, by = 0.01))
 set.seed(1)
 e <- evpi(res, n_sim = 500)
 plot(e)
 plot(e, type = "relative")
+plot(e, type = "p_useful")
+plot(e, type = "p_best")
 }
 \seealso{
 \code{\link[=evpi]{evpi()}}, \code{\link[=plot.voipred_nb]{plot.voipred_nb()}}

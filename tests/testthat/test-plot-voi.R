@@ -7,8 +7,8 @@ voi_plot_setup <- function() {
   f2 <- glm(day30 ~ age, family = binomial, data = g$dev)
   val <- g$val[1:1500, ]
   z <- c(0.01, 0.02, 0.05, 0.1, 0.2)
-  r1 <- nb(val, f1, "day30", thresholds = z, label = "Full")
-  r2 <- nb(val, f2, "day30", thresholds = z, label = "Age")
+  r1 <- nb_val(val, f1, "day30", thresholds = z, label = "Full")
+  r2 <- nb_val(val, f2, "day30", thresholds = z, label = "Age")
   set.seed(1)
   d <- draws_t(r1, r2, n_sim = 100)
   set.seed(2)
@@ -90,7 +90,7 @@ test_that("plot() of p_useful() and p_best(): probabilities, in the colours of t
   expect_error(plot(s$pb, foo = 1), "Unknown argument")
 })
 
-test_that("plot() of nb() with an EVPI / EVSI panel below", {
+test_that("plot() of nb_val() with an EVPI / EVSI panel below", {
   skip_if_not_installed("patchwork")
   s <- voi_plot_setup()
   p <- plot(s$r1, evpi = s$e1, evsi = s$o)

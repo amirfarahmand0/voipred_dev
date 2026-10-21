@@ -21,7 +21,7 @@ dcurves_nb <- function(risk, data, outcome, thresholds) {
              NB_model = pick("risk"), NB_all = pick("all"), NB_none = pick("none"))
 }
 
-# nb() result vs dcurves::dca() on the same predicted risks: model, treat all
+# nb_val() result vs dcurves::dca() on the same predicted risks: model, treat all
 # and treat none at every threshold.
 expect_same_as_dcurves <- function(res, val) {
   ref <- dcurves_nb(res$risk, val, "day30", all_z)

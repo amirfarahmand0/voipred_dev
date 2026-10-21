@@ -7,19 +7,20 @@
 evsi(x, ..., future_n, n_sim = 1000, labels = NULL)
 }
 \arguments{
-\item{x}{A result of \code{\link[=nb]{nb()}}.}
+\item{x}{A result of \code{\link[=nb_val]{nb_val()}}, for one model or several.}
 
-\item{...}{More results of \code{\link[=nb]{nb()}}, for other models evaluated on the same
-data, outcome, thresholds and prior (and horizon, cause and censoring). A
-result given here with a name is labelled with its name.}
+\item{...}{More results of \code{\link[=nb_val]{nb_val()}}, for other models evaluated on the same
+data, outcome, thresholds and prior (and horizon, cause and censoring),
+combined as by \link[=c.voipred_nb]{c()}. A result with one model given here
+with a name is labelled with its name.}
 
 \item{future_n}{Sizes of the future validation sample: one or more
 positive integers.}
 
 \item{n_sim}{Number of draws. Default 1000.}
 
-\item{labels}{Optional names of the models, one per result, in order;
-default: the results' labels.}
+\item{labels}{Optional names of the models, one per model, in order;
+default: the models' labels.}
 }
 \value{
 An object of class \code{voipred_evsi}, a list with \code{estimates} (a data
@@ -27,7 +28,7 @@ frame with columns \code{threshold}, \code{future_n}, \code{EVSI} and \code{EVPI
 threshold and future sample size), \code{future_n}, \code{models}, \code{outcome},
 \code{censoring}, \code{prior}, \code{draws}, \code{n_sim} and \code{call}. It has \code{print()}, \code{summary()},
 \code{plot()} and \code{as.data.frame()} methods; EVSI can also be drawn under the
-decision curve with \verb{plot(<nb result>, evsi = )}.
+decision curve with \verb{plot(<nb_val result>, evsi = )}.
 }
 \description{
 The expected gain in net benefit from a future validation study of size
@@ -53,7 +54,7 @@ algorithm. The draw's Bayesian-bootstrap weights \eqn{W} define the
 population; the future sample is \eqn{N} patients drawn from it
 (multinomial counts with probabilities \eqn{W}, a future patient being a
 current patient, with the same follow-up), pooled with the current sample,
-and the net benefit recomputed with the same estimator as \code{\link[=nb]{nb()}}. With
+and the net benefit recomputed with the same estimator as \code{\link[=nb_val]{nb_val()}}. With
 \code{censoring = "cipcw"} the censoring model is refitted in every draw and
 every pooled sample (see \code{\link[=cipcw_control]{cipcw_control()}}).
 }
@@ -69,11 +70,11 @@ error; more draws make it smaller): read such values as 0.
 \section{Uncertainty}{
 
 The uncertainty about the net benefit is its posterior (see the prior of
-\code{\link[=nb]{nb()}}), represented by \code{n_sim} draws, in each of which the net benefit of
+\code{\link[=nb_val]{nb_val()}}), represented by \code{n_sim} draws, in each of which the net benefit of
 every model, of treating all and of treating none is computed:
 \itemize{
 \item binary outcome: draws from the conjugate posterior of the prevalence and
-of each model's sensitivity and specificity, with the prior of \code{\link[=nb]{nb()}}
+of each model's sensitivity and specificity, with the prior of \code{\link[=nb_val]{nb_val()}}
 (exact Beta / Dirichlet draws, as in bayesDCA). Several models are drawn
 jointly (a Dirichlet over the patterns of treat / do not treat across the
 models), so their correlation on the same patients is kept, and each model
@@ -82,15 +83,18 @@ keeps its own posterior;
 weights (improper prior): the Bayesian bootstrap. Each
 draw gives the patients Dirichlet(1, ..., 1) weights (times the case
 weights) and recomputes the net benefit with the same estimator as
-\code{\link[=nb]{nb()}}. With \code{censoring = "cipcw"}, the censoring model is refitted in
+\code{\link[=nb_val]{nb_val()}}. With \code{censoring = "cipcw"}, the censoring model is refitted in
 every draw and the censoring weights recomputed from it (see
 \code{\link[=cipcw_control]{cipcw_control()}}).
 }
 
 The predicted risks are kept fixed in every draw. The expected net benefits
-are the means of the draws. \code{evpi()}, \code{\link[=p_useful]{p_useful()}} and \code{\link[=p_best]{p_best()}} called
-with the same seed (and the same results and \code{n_sim}) use the same draws
-(for \code{\link[=p_useful]{p_useful()}}, one model).
+are the means of the draws. \code{evpi()} also computes P(useful) and P(best)
+from its draws, so the three come from the same draws: read them with
+\code{p_useful(e)} and \code{p_best(e)} for a result \code{e} of \code{evpi()}. \code{\link[=p_useful]{p_useful()}}
+and \code{\link[=p_best]{p_best()}} given results of \code{\link[=nb_val]{nb_val()}} instead draw again; called
+with the same seed (and the same models and \code{n_sim}) as \code{evpi()}, they
+use the same draws.
 }
 
 \examples{
@@ -99,10 +103,10 @@ df_val_binary <- gusto[5001:5500, ]
 fit <- glm(day30 ~ age + Killip + sysbp + pulse,
            family = binomial, data = df_dev_binary)
 df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
-res <- nb(data = df_val_binary,
-          predicted_risk = df_val_binary$p,
-          outcome = "day30",
-          thresholds = c(0.02, 0.05, 0.1))
+res <- nb_val(data = df_val_binary,
+              predicted_risk = df_val_binary$p,
+              outcome = "day30",
+              thresholds = c(0.02, 0.05, 0.1))
 set.seed(1)
 o <- evsi(res, future_n = c(250, 500, 1000, 4000))
 o

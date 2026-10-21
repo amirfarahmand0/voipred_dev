@@ -1,4 +1,4 @@
-# delta_NB, labels, and plot() / plot() of nb() results.
+# delta_NB, labels, and plot() / plot() of nb_val() results.
 
 toy <- data.frame(y = c(1, 0, 1, 0, 0), p = c(0.9, 0.2, 0.4, 0.05, 0.6))
 z <- c(0, 0.1, 0.3, 0.5, 0.7)
@@ -10,7 +10,7 @@ curves <- function(p) {
 }
 
 test_that("delta_NB is NB_model - max(NB_all, NB_none)", {
-  res <- nb(toy, fixed_model(toy$p), "y", thresholds = z)
+  res <- nb_val(toy, fixed_model(toy$p), "y", thresholds = z)
   expect_equal(res$estimates$delta_NB, res$estimates$NB_model - pmax(res$estimates$NB_all, res$estimates$NB_none))
   # survival and competing risks, with NA where NB_model is NA
   s <- rott_split()
@@ -25,18 +25,18 @@ test_that("delta_NB is NB_model - max(NB_all, NB_none)", {
 
 test_that("label: default from the model's name, given, or reserved", {
   fit <- fixed_model(toy$p)
-  expect_equal(nb(toy, fit, "y", thresholds = z)$label, "fit")
-  expect_equal(nb(toy, fixed_model(toy$p), "y", thresholds = z)$label, "Model")
-  expect_equal(nb(toy, fit, "y", thresholds = z, label = "A")$label, "A")
-  expect_output(print(nb(toy, fit, "y", thresholds = z, label = "A")),
+  expect_equal(nb_val(toy, fit, "y", thresholds = z)$label, "fit")
+  expect_equal(nb_val(toy, fixed_model(toy$p), "y", thresholds = z)$label, "Model")
+  expect_equal(nb_val(toy, fit, "y", thresholds = z, label = "A")$label, "A")
+  expect_output(print(nb_val(toy, fit, "y", thresholds = z, label = "A")),
                 "Net benefit of A.*delta_NB")
-  expect_error(nb(toy, fit, "y", label = "treat all"), "default strategies")
-  expect_error(nb(toy, fit, "y", label = c("a", "b")), "single non-empty string")
-  expect_error(nb(toy, fit, "y", label = ""), "single non-empty string")
+  expect_error(nb_val(toy, fit, "y", label = "treat all"), "default strategies")
+  expect_error(nb_val(toy, fit, "y", label = c("a", "b")), "single non-empty string")
+  expect_error(nb_val(toy, fit, "y", label = ""), "single non-empty string")
 })
 
 test_that("decision curve: model, Treat All and Treat None", {
-  res <- nb(toy, fixed_model(toy$p), "y", thresholds = z, label = "M")
+  res <- nb_val(toy, fixed_model(toy$p), "y", thresholds = z, label = "M")
   p <- plot(res)
   expect_s3_class(p, "ggplot")
   expect_equal(levels(p$data$label), c("Treat All", "Treat None", "M"))
@@ -51,7 +51,7 @@ test_that("decision curve: model, Treat All and Treat None", {
 })
 
 test_that("delta plot: delta_NB of each model, line at 0", {
-  res <- nb(toy, fixed_model(toy$p), "y", thresholds = z, label = "M")
+  res <- nb_val(toy, fixed_model(toy$p), "y", thresholds = z, label = "M")
   p <- plot(res, type = "delta")
   expect_equal(levels(p$data$label), "M")
   expect_equal(curves(p)[["M"]], res$estimates$delta_NB)
@@ -63,8 +63,8 @@ test_that("several results on one plot, for both types", {
   f1 <- glm(gusto_formula, family = binomial, data = g$dev)
   f2 <- glm(day30 ~ age, family = binomial, data = g$dev)
   zz <- seq(0, 0.5, 0.01)
-  r1 <- nb(g$val, f1, "day30", thresholds = zz, label = "Full")
-  r2 <- nb(g$val, f2, "day30", thresholds = zz, label = "Age")
+  r1 <- nb_val(g$val, f1, "day30", thresholds = zz, label = "Full")
+  r2 <- nb_val(g$val, f2, "day30", thresholds = zz, label = "Age")
   p <- plot(r1, r2)
   expect_equal(levels(p$data$label), c("Treat All", "Treat None", "Full", "Age"))
   expect_equal(curves(p)[["Age"]], r2$estimates$NB_model)
@@ -101,12 +101,12 @@ test_that("results that cannot be drawn together are refused", {
   g <- gusto_split()
   f <- glm(gusto_formula, family = binomial, data = g$dev)
   zz <- seq(0, 0.5, 0.01)
-  r1 <- nb(g$val, f, "day30", thresholds = zz, label = "A")
-  expect_error(plot(r1, nb(g$dev, f, "day30", thresholds = zz, label = "B")),
+  r1 <- nb_val(g$val, f, "day30", thresholds = zz, label = "A")
+  expect_error(plot(r1, nb_val(g$dev, f, "day30", thresholds = zz, label = "B")),
                "different data")
-  expect_error(plot(r1, nb(g$val, f, "day30", thresholds = seq(0, 0.4, 0.01), label = "B")),
+  expect_error(plot(r1, nb_val(g$val, f, "day30", thresholds = seq(0, 0.4, 0.01), label = "B")),
                "different thresholds")
-  expect_error(plot(r1, nb(g$val[1:4000, ], f, "day30", thresholds = zz, label = "B")),
+  expect_error(plot(r1, nb_val(g$val[1:4000, ], f, "day30", thresholds = zz, label = "B")),
                "different number of patients")
   s <- rott_split()
   cx <- survival::coxph(surv_formula, data = s$dev)

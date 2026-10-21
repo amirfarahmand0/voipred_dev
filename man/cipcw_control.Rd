@@ -16,7 +16,7 @@ cipcw_control(
 }
 \arguments{
 \item{model}{Option 1: a survival model fitted to the censoring times of
-the validation data \code{data} passed to \code{\link[=nb]{nb()}} (same patients), with
+the validation data \code{data} passed to \code{\link[=nb_val]{nb_val()}} (same patients), with
 censoring as the event, e.g. \code{coxph(Surv(time, status == 0) ~ x, data = val)}. Give either \code{model} or the two weights, not both.}
 
 \item{weight_event, weight_horizon}{Option 2: two numeric vectors, one
@@ -52,9 +52,9 @@ voipred's own prediction. Requires \code{model}.}
 
 \item{refit_function}{Option 1, optional: a \verb{function(data, weights)}
 returning the censoring model fitted to \code{data} (the validation data given
-to \code{\link[=nb]{nb()}}, restricted to the patients with a positive weight in a draw)
+to \code{\link[=nb_val]{nb_val()}}, restricted to the patients with a positive weight in a draw)
 with case weights \code{weights} (the Bayesian-bootstrap weights of the draw,
-positive and averaging 1, times the case weights of \code{\link[=nb]{nb()}} if any; in
+positive and averaging 1, times the case weights of \code{\link[=nb_val]{nb_val()}} if any; in
 \code{\link[=evsi]{evsi()}} also whole numbers for the pooled samples), e.g.
 \code{function(data, weights) coxph(Surv(time, status == 0) ~ x, data = data, weights = weights)}. Used
 by the value-of-information functions to refit the censoring model in
@@ -66,7 +66,7 @@ An object of class \code{cipcw_control}.
 }
 \description{
 \code{cipcw_control()} says how the censoring weights are obtained when
-\code{\link[=nb]{nb()}} is called with \code{censoring = "cipcw"}. Conditional inverse
+\code{\link[=nb_val]{nb_val()}} is called with \code{censoring = "cipcw"}. Conditional inverse
 probability of censoring weighting (cIPCW) allows censoring to depend on
 covariates: it assumes censoring is independent of the event time \emph{given}
 the covariates of the censoring model.
@@ -81,7 +81,7 @@ censoring is censoring: patients with a competing event are not censored
 (\code{Surv(time, status == "censored")}, not \code{status != cause}). voipred
 predicts from the model the probability of remaining uncensored just before
 each patient's own time and at the horizon, in the same way as it predicts
-risks from a model in \code{\link[=nb]{nb()}}: through \code{riskRegression::predictRisk()} (e.g.
+risks from a model in \code{\link[=nb_val]{nb_val()}}: through \code{riskRegression::predictRisk()} (e.g.
 \code{coxph} with \code{x = TRUE}, \code{rms::cph}, \code{survreg}, \code{flexsurvreg}, \code{ranger},
 \code{randomForestSRC}, a Kaplan-Meier \code{prodlim} fit), or voipred's own code for
 models riskRegression cannot handle (\code{coxph} without \code{x = TRUE}, \code{aorsf},
@@ -107,7 +107,7 @@ evaluated on the same patients overfits their censoring times, and its
 weights are biased. Use cross-fitting: split \code{data} into folds, fit the
 censoring model on all folds but one, predict the censoring probabilities
 for the held-out fold, and give the resulting weights through option 2 (in
-\code{\link[=nb]{nb()}} only: see "Uncertainty").
+\code{\link[=nb_val]{nb_val()}} only: see "Uncertainty").
 
 \strong{Truncation} is off by default. With \code{min_prob}, censoring probabilities
 below it (option 1) or weights above \code{1 / min_prob} (option 2) are
@@ -136,8 +136,8 @@ weights under other names or with another meaning (e.g. \code{ranger}'s
 }
 
 Patients with a weight of 0 in a draw are left out of the refit. Given
-weights (option 2) cannot be refitted, so they can be used in \code{\link[=nb]{nb()}} but not
-in the value-of-information functions. \code{nb()} itself always uses the model
+weights (option 2) cannot be refitted, so they can be used in \code{\link[=nb_val]{nb_val()}} but not
+in the value-of-information functions. \code{nb_val()} itself always uses the model
 as given.
 }
 \examples{
@@ -155,20 +155,20 @@ df_val_survival$p5 <- 1 - summary(sf, times = 5)$surv[1, ]
 # the censoring model: fitted on the validation data, censoring as the event
 cens_fit <- coxph(Surv(years, death == 0) ~ age + nodes + grade,
                   data = df_val_survival)
-nb(data = df_val_survival,
-   predicted_risk = df_val_survival$p5,
-   outcome = ~ Surv(years, death),
-   horizon = 5,
-   thresholds = c(0.1, 0.2, 0.3),
-   censoring = "cipcw",
-   cipcw = cipcw_control(model = cens_fit))
+nb_val(data = df_val_survival,
+       predicted_risk = df_val_survival$p5,
+       outcome = ~ Surv(years, death),
+       horizon = 5,
+       thresholds = c(0.1, 0.2, 0.3),
+       censoring = "cipcw",
+       cipcw = cipcw_control(model = cens_fit))
 
 # truncating small probabilities of remaining uncensored
-nb(data = df_val_survival,
-   predicted_risk = df_val_survival$p5,
-   outcome = ~ Surv(years, death),
-   horizon = 5,
-   thresholds = c(0.1, 0.2, 0.3),
-   censoring = "cipcw",
-   cipcw = cipcw_control(model = cens_fit, min_prob = 0.05))
+nb_val(data = df_val_survival,
+       predicted_risk = df_val_survival$p5,
+       outcome = ~ Surv(years, death),
+       horizon = 5,
+       thresholds = c(0.1, 0.2, 0.3),
+       censoring = "cipcw",
+       cipcw = cipcw_control(model = cens_fit, min_prob = 0.05))
 }

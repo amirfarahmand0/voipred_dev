@@ -1,8 +1,10 @@
 #' Plot decision curves
 #'
-#' The plot of results of [nb()]: the decision curve (`type = "nb"`), or the
-#' difference in net benefit between the model and the best default strategy
-#' (`type = "delta"`). Give several results to draw their curves together.
+#' The plot of results of [nb_val()]: the decision curve (`type = "nb"`), or the
+#' difference in net benefit between each model and the best default strategy
+#' (`type = "delta"`). A result of [nb_val()] with several models draws all of
+#' them; several results are drawn together, combined as by
+#' [c()][c.voipred_nb].
 #' Optionally, the expected value of perfect and sample information (from
 #' [evpi()] and [evsi()]) is drawn in a panel below, on the same threshold
 #' axis.
@@ -20,7 +22,7 @@
 #' Results drawn together must come from the same data, outcome, horizon,
 #' cause, censoring method, prior and thresholds (voipred checks this).
 #' Thresholds where the net benefit is `NA` are left out. Each curve is named
-#' by its `label` (see [nb()]), unless `labels` is given; a model has the same
+#' by its `label` (see [nb_val()]), unless `labels` is given; a model has the same
 #' colour in both types of plot.
 #'
 #' The panel below shows EVPI (from `evpi`) and EVSI for each future sample
@@ -37,12 +39,12 @@
 #' zoom together, and clicking a legend entry hides or shows a curve; save it
 #' with `htmlwidgets::saveWidget()`.
 #'
-#' @param x A result of [nb()].
-#' @param ... More results of [nb()] to draw on the same plot. A result given
-#'   here with a name is labelled with its name.
+#' @param x A result of [nb_val()], for one model or several.
+#' @param ... More results of [nb_val()] to draw on the same plot. A result with
+#'   one model given here with a name is labelled with its name.
 #' @param type `"nb"` (decision curve, default) or `"delta"` (\eqn{\Delta NB}).
-#' @param labels Optional names of the curves, one per result, in order;
-#'   default: the results' labels.
+#' @param labels Optional names of the curves, one per model, in order;
+#'   default: the models' labels.
 #' @param evpi,evsi Optional results of [evpi()] and [evsi()], drawn in a panel
 #'   below the decision curve: EVPI, and EVSI for each future sample size,
 #'   against the threshold. The static version needs the patchwork package.
@@ -50,7 +52,7 @@
 #'   package). Default `FALSE`.
 #' @return A ggplot object, a patchwork object (with `evpi` or `evsi`), or a
 #'   plotly widget (`interactive = TRUE`).
-#' @seealso [nb()], [plot.voipred_evpi()], [plot.voipred_evsi()],
+#' @seealso [nb_val()], [plot.voipred_evpi()], [plot.voipred_evsi()],
 #'   [plot.voipred_p_useful()], [plot.voipred_p_best()]
 #' @examples
 #' df_dev_binary <- gusto[1:5000, ]
@@ -61,16 +63,16 @@
 #' fit2 <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
 #' df_val_binary$p2 <- predict(fit2, newdata = df_val_binary, type = "response")
 #' z <- seq(0, 0.5, by = 0.01)
-#' res1 <- nb(data = df_val_binary,
-#'            predicted_risk = df_val_binary$p1,
-#'            outcome = "day30",
-#'            thresholds = z,
-#'            label = "Full model")
-#' res2 <- nb(data = df_val_binary,
-#'            predicted_risk = df_val_binary$p2,
-#'            outcome = "day30",
-#'            thresholds = z,
-#'            label = "Age only")
+#' res1 <- nb_val(data = df_val_binary,
+#'                predicted_risk = df_val_binary$p1,
+#'                outcome = "day30",
+#'                thresholds = z,
+#'                label = "Full model")
+#' res2 <- nb_val(data = df_val_binary,
+#'                predicted_risk = df_val_binary$p2,
+#'                outcome = "day30",
+#'                thresholds = z,
+#'                label = "Age only")
 #' plot(res1)
 #' plot(res1, res2)
 #' plot(res1, res2, type = "delta")
@@ -108,24 +110,27 @@ new_spec <- function(data, colors, xlab, ylab, ylab_text = ylab, ylim = NULL,
        ylim = ylim, hline = hline, ref = ref, percent = percent, fmt = fmt)
 }
 
-dca_spec <- function(res, type) {
-  r1 <- res[[1]]$estimates
-  lab <- names(res)
+dca_spec <- function(x, type) {
+  e <- x$estimates
+  lab <- x$models
+  z <- nb_thresholds(x)
   # ggplot2's default colours for Treat All, Treat None and the models, so a
   # model has the same colour in both types of plot
   cols <- default_hues(length(lab) + 2)
+  models <- do.call(rbind, lapply(lab, function(l) {
+    d <- e[e$model == l, ]
+    curve_data(d$threshold, l, if (type == "nb") d$NB_model else d$delta_NB)
+  }))
   if (type == "nb") {
-    d <- rbind(curve_data(r1$threshold, "Treat All", r1$NB_all),
-               curve_data(r1$threshold, "Treat None", r1$NB_none),
-               do.call(rbind, Map(function(r, l)
-                 curve_data(r$estimates$threshold, l, r$estimates$NB_model), res, lab)))
+    d <- rbind(curve_data(z, "Treat All", nb_all(x)),
+               curve_data(z, "Treat None", rep(0, length(z))),
+               models)
     d$label <- factor(d$label, levels = c("Treat All", "Treat None", lab))
-    prev <- res[[1]]$outcome$prevalence
+    prev <- x$outcome$prevalence
     new_spec(d, stats::setNames(cols, levels(d$label)), "Threshold Probability",
              "Net Benefit", ylim = c(-0.1 * prev, prev))
   } else {
-    d <- do.call(rbind, Map(function(r, l)
-      curve_data(r$estimates$threshold, l, r$estimates$delta_NB), res, lab))
+    d <- models
     d$label <- factor(d$label, levels = lab)
     new_spec(d, stats::setNames(cols[-(1:2)], lab), "Threshold Probability",
              quote(Delta * NB ~ "(" * NB[model] - "max(" * NB[treat ~ all] * "," ~
@@ -311,8 +316,8 @@ plain_label <- function(x)
 
 percent_label <- function(x) ifelse(is.na(x), NA, paste0(format(100 * x, trim = TRUE), "%"))
 
-# The results to plot, named by their labels, after checking that they can be
-# drawn together.
+# The results of nb_val() given to plot() or a value-of-information function,
+# checked and merged into one result with all their models.
 collect_nb <- function(object, more, labels, fun = "plot()",
                        args = "`type` and `labels`") {
   nms <- names(more)
@@ -320,27 +325,88 @@ collect_nb <- function(object, more, labels, fun = "plot()",
   bad <- !vapply(more, inherits, logical(1), "voipred_nb")
   if (any(bad & nzchar(nms)))
     stop("Unknown argument `", nms[bad & nzchar(nms)][1], "`. The arguments of ",
-         fun, " are ", args, "; other arguments must be results of nb().",
+         fun, " are ", args, "; other arguments must be results of nb_val().",
          call. = FALSE)
   if (!inherits(object, "voipred_nb") || any(bad))
-    stop(if (fun == "plot()") "Only results of nb() can be plotted together."
-         else paste0(fun, " needs results of nb()."), call. = FALSE)
+    stop(if (fun == "plot()") "Only results of nb_val() can be plotted together."
+         else paste0(fun, " needs results of nb_val()."), call. = FALSE)
   res <- c(list(object), more)
-  lab <- vapply(res, function(r) r$label, character(1))
-  lab[-1][nzchar(nms)] <- nms[nzchar(nms)]
+  names(res) <- c("", nms)
+  merge_nb(res, labels)
+}
+
+#' Combine results of nb_val()
+#'
+#' Combines results of [nb_val()] for different models, computed on the same
+#' data, outcome, thresholds and prior (and horizon, cause and censoring),
+#' into one result with all their models, as if they had been given together
+#' to [nb_val()]. A result given with a name (e.g. `c(Full = res1, res2)`) is
+#' labelled with it (results with one model only). `plot()` and the
+#' value-of-information functions combine the results given to them in the
+#' same way.
+#'
+#' @param ... Results of [nb_val()].
+#' @return A result of [nb_val()] with the models of all the results, in
+#'   order.
+#' @seealso [nb_val()]
+#' @examples
+#' df_val_binary <- gusto[5001:5500, ]
+#' fit1 <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial,
+#'             data = gusto[1:5000, ])
+#' fit2 <- glm(day30 ~ age, family = binomial, data = gusto[1:5000, ])
+#' z <- seq(0.01, 0.3, by = 0.01)
+#' res1 <- nb_val(df_val_binary, fit1, "day30", thresholds = z)
+#' res2 <- nb_val(df_val_binary, fit2, "day30", thresholds = z)
+#' both <- c(Full = res1, `Age only` = res2)
+#' both
+#' @export
+c.voipred_nb <- function(...) {
+  res <- list(...)
+  if (!all(vapply(res, inherits, logical(1), "voipred_nb")))
+    stop("c() combines results of nb_val() only.", call. = FALSE)
+  merge_nb(res)
+}
+
+# One result with the models of the results `res` (a list, whose names, if
+# any, relabel results with one model), relabelled with `labels` if given.
+merge_nb <- function(res, labels = NULL) {
+  nms <- names(res)
+  if (is.null(nms)) nms <- rep("", length(res))
+  groups <- lapply(seq_along(res), function(i) {
+    r <- res[[i]]
+    if (!nzchar(nms[i])) return(r$models)
+    if (length(r$models) > 1)
+      stop("A name relabels a result with one model, but the result named \"", nms[i],
+           "\" has ", length(r$models), " (", paste(r$models, collapse = ", "),
+           "). Relabel its models with `labels` or nb_val(label = ).", call. = FALSE)
+    nms[i]
+  })
+  sizes <- lengths(groups)
   if (!is.null(labels)) {
-    if (!is.character(labels) || length(labels) != length(res) || anyNA(labels))
-      labels_error(length(res))
-    lab <- labels
+    if (!is.character(labels) || length(labels) != sum(sizes) || anyNA(labels))
+      labels_error(sum(sizes), "model")
+    groups <- split(unname(labels), rep(seq_along(res), sizes))
   }
-  if (any(tolower(lab) %in% c("treat all", "treat none")))
-    stop("\"Treat All\" and \"Treat None\" cannot be used as labels.", call. = FALSE)
-  if (anyDuplicated(lab))
-    stop("The results have the same label (\"", lab[anyDuplicated(lab)], "\"); ",
-         "give each a different one with `labels` or nb(label = ).", call. = FALSE)
-  for (i in seq_along(res)[-1]) check_comparable(res[[1]], res[[i]], lab[1], lab[i])
-  names(res) <- lab
-  res
+  lab <- unlist(groups, use.names = FALSE)
+  check_model_labels(lab, "give each a different one with `labels` or nb_val(label = )")
+  for (i in seq_along(res)[-1])
+    check_comparable(res[[1]], res[[i]], groups[[1]], groups[[i]])
+  relabel <- function(df, r, new) {
+    if (is.null(df)) return(NULL)
+    df$model <- new[match(df$model, r$models)]
+    df
+  }
+  out <- res[[1]]
+  out$models <- lab
+  out$estimates <- do.call(rbind, Map(function(r, g) relabel(r$estimates, r, g), res, groups))
+  rownames(out$estimates) <- NULL
+  if (!is.null(out$counts)) {
+    out$counts <- do.call(rbind, Map(function(r, g) relabel(r$counts, r, g), res, groups))
+    rownames(out$counts) <- NULL
+  }
+  out$risk <- do.call(cbind, lapply(res, function(r) r$risk))
+  colnames(out$risk) <- lab
+  out
 }
 
 check_comparable <- function(a, b, la, lb) {
@@ -353,13 +419,19 @@ check_comparable <- function(a, b, la, lb) {
     "prior" = !identical(a$prior, b$prior),
     "case weights" = !identical(a$weights, b$weights),
     "number of patients" = !same("n"),
-    "thresholds" = !isTRUE(all.equal(a$estimates$threshold, b$estimates$threshold)))
-  if (!any(what))
+    "thresholds" = !isTRUE(all.equal(nb_thresholds(a), nb_thresholds(b))))
+  if (!any(what)) {
     what["data (net benefit of treating all)"] <-
-      !isTRUE(all.equal(a$estimates$NB_all, b$estimates$NB_all, tolerance = 1e-10))
+      !isTRUE(all.equal(nb_all(a), nb_all(b), tolerance = 1e-10))
+    if (identical(a$outcome$censoring, "cipcw"))
+      what["censoring weights"] <-
+        !isTRUE(all.equal(a$cipcw[c("weight_event", "weight_horizon")],
+                          b$cipcw[c("weight_event", "weight_horizon")]))
+  }
   if (any(what))
-    stop("\"", la, "\" and \"", lb, "\" cannot be used together: different ",
-         paste(names(what)[what], collapse = ", "), ". Compute them with nb() on ",
-         "the same data, outcome, horizon, cause, censoring, prior and thresholds.",
-         call. = FALSE)
+    stop("\"", paste(la, collapse = ", "), "\" and \"", paste(lb, collapse = ", "),
+         "\" cannot be used together: different ",
+         paste(names(what)[what], collapse = ", "), ". Compute them with nb_val() on ",
+         "the same data, outcome, horizon, cause, censoring, prior and thresholds, ",
+         "or together in one call of nb_val().", call. = FALSE)
 }

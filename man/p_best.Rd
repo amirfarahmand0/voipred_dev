@@ -7,16 +7,18 @@
 p_best(x, ..., n_sim = 1000, labels = NULL)
 }
 \arguments{
-\item{x}{A result of \code{\link[=nb]{nb()}}.}
+\item{x}{A result of \code{\link[=nb_val]{nb_val()}}, for one model or several, or a result of
+\code{\link[=evpi]{evpi()}}.}
 
-\item{...}{More results of \code{\link[=nb]{nb()}}, for other models evaluated on the same
-data, outcome, thresholds and prior (and horizon, cause and censoring). A
-result given here with a name is labelled with its name.}
+\item{...}{More results of \code{\link[=nb_val]{nb_val()}}, for other models evaluated on the same
+data, outcome, thresholds and prior (and horizon, cause and censoring),
+combined as by \link[=c.voipred_nb]{c()}. A result with one model given here
+with a name is labelled with its name.}
 
 \item{n_sim}{Number of draws. Default 1000.}
 
-\item{labels}{Optional names of the models, one per result, in order;
-default: the results' labels.}
+\item{labels}{Optional names of the models, one per model, in order;
+default: the models' labels.}
 }
 \value{
 An object of class \code{voipred_p_best}, a list with \code{estimates} (a
@@ -33,14 +35,19 @@ estimated as the share of the posterior draws in which it is the best.
 Exact ties are shared equally, so the probabilities of all strategies add up
 to 1 at each threshold.
 }
+\details{
+\code{\link[=evpi]{evpi()}} computes P(best) from its own draws: \code{p_best(e)}, with \code{e} a
+result of \code{\link[=evpi]{evpi()}}, returns it (with no new draws, and no other
+arguments).
+}
 \section{Uncertainty}{
 
 The uncertainty about the net benefit is its posterior (see the prior of
-\code{\link[=nb]{nb()}}), represented by \code{n_sim} draws, in each of which the net benefit of
+\code{\link[=nb_val]{nb_val()}}), represented by \code{n_sim} draws, in each of which the net benefit of
 every model, of treating all and of treating none is computed:
 \itemize{
 \item binary outcome: draws from the conjugate posterior of the prevalence and
-of each model's sensitivity and specificity, with the prior of \code{\link[=nb]{nb()}}
+of each model's sensitivity and specificity, with the prior of \code{\link[=nb_val]{nb_val()}}
 (exact Beta / Dirichlet draws, as in bayesDCA). Several models are drawn
 jointly (a Dirichlet over the patterns of treat / do not treat across the
 models), so their correlation on the same patients is kept, and each model
@@ -49,15 +56,18 @@ keeps its own posterior;
 weights (improper prior): the Bayesian bootstrap. Each
 draw gives the patients Dirichlet(1, ..., 1) weights (times the case
 weights) and recomputes the net benefit with the same estimator as
-\code{\link[=nb]{nb()}}. With \code{censoring = "cipcw"}, the censoring model is refitted in
+\code{\link[=nb_val]{nb_val()}}. With \code{censoring = "cipcw"}, the censoring model is refitted in
 every draw and the censoring weights recomputed from it (see
 \code{\link[=cipcw_control]{cipcw_control()}}).
 }
 
 The predicted risks are kept fixed in every draw. The expected net benefits
-are the means of the draws. \code{evpi()}, \code{\link[=p_useful]{p_useful()}} and \code{\link[=p_best]{p_best()}} called
-with the same seed (and the same results and \code{n_sim}) use the same draws
-(for \code{\link[=p_useful]{p_useful()}}, one model).
+are the means of the draws. \code{evpi()} also computes P(useful) and P(best)
+from its draws, so the three come from the same draws: read them with
+\code{p_useful(e)} and \code{p_best(e)} for a result \code{e} of \code{evpi()}. \code{\link[=p_useful]{p_useful()}}
+and \code{\link[=p_best]{p_best()}} given results of \code{\link[=nb_val]{nb_val()}} instead draw again; called
+with the same seed (and the same models and \code{n_sim}) as \code{evpi()}, they
+use the same draws.
 }
 
 \examples{
@@ -69,16 +79,16 @@ df_val_binary$p1 <- predict(fit1, newdata = df_val_binary, type = "response")
 fit2 <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
 df_val_binary$p2 <- predict(fit2, newdata = df_val_binary, type = "response")
 z <- seq(0.01, 0.3, by = 0.01)
-res1 <- nb(data = df_val_binary,
-           predicted_risk = df_val_binary$p1,
-           outcome = "day30",
-           thresholds = z,
-           label = "Full")
-res2 <- nb(data = df_val_binary,
-           predicted_risk = df_val_binary$p2,
-           outcome = "day30",
-           thresholds = z,
-           label = "Age only")
+res1 <- nb_val(data = df_val_binary,
+               predicted_risk = df_val_binary$p1,
+               outcome = "day30",
+               thresholds = z,
+               label = "Full")
+res2 <- nb_val(data = df_val_binary,
+               predicted_risk = df_val_binary$p2,
+               outcome = "day30",
+               thresholds = z,
+               label = "Age only")
 set.seed(1)
 pb <- p_best(res1, res2)
 pb

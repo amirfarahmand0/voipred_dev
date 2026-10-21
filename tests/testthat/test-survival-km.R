@@ -12,7 +12,7 @@ test_that("KM net benefit equals dcurves at every threshold, including NA thresh
 test_that("the risk by the horizon (treat all) is 1 - Kaplan-Meier", {
   s <- rott_split()
   cx <- survival::coxph(surv_formula, data = s$dev)
-  res <- nb(s$val, cx, surv_outcome, horizon = 5, thresholds = 0.1)
+  res <- nb_val(s$val, cx, surv_outcome, horizon = 5, thresholds = 0.1)
   km <- survival::survfit(survival::Surv(dtimey, death) ~ 1, data = s$val)
   expect_equal(res$outcome$prevalence,
                1 - summary(km, times = 5)$surv, tolerance = 1e-12)
@@ -40,7 +40,7 @@ test_that("no follow-up to the horizon among the treated gives NA and a warning"
   m <- fixed_model(c(0.9, 0.8, 0.7, 0.2, 0.1, 0.1))  # the high-risk are followed < 5 years
   expect_warning(
     res <- withCallingHandlers(
-      nb(d, m, ~ survival::Surv(time, status), horizon = 5, thresholds = c(0.05, 0.5)),
+      nb_val(d, m, ~ survival::Surv(time, status), horizon = 5, thresholds = c(0.05, 0.5)),
       warning = function(w) if (grepl("not a survival model", conditionMessage(w)))
         invokeRestart("muffleWarning")),
     "threshold 0.5 is followed up to the horizon")
@@ -50,20 +50,20 @@ test_that("no follow-up to the horizon among the treated gives NA and a warning"
 
 test_that("nobody treated gives NB_model = 0", {
   d <- data.frame(time = c(1, 2, 6, 8), status = c(1, 0, 1, 0))
-  res <- suppressWarnings(nb(d,
-                             fixed_model(c(0.1, 0.2, 0.15, 0.05)), ~ survival::Surv(time, status), horizon = 5,
-                             thresholds = 0.5))
+  res <- suppressWarnings(nb_val(d,
+                                 fixed_model(c(0.1, 0.2, 0.15, 0.05)), ~ survival::Surv(time, status), horizon = 5,
+                                 thresholds = 0.5))
   expect_equal(res$estimates$NB_model, 0)
 })
 
 test_that("a risk at the threshold is treated and a risk of 0 never is", {
   d <- data.frame(time = c(1, 2, 6, 7), status = c(1, 1, 0, 0))
-  r1 <- suppressWarnings(nb(d, fixed_model(c(0.3, 0.1, 0.3, 0.1)),
-                            ~ survival::Surv(time, status), horizon = 5, thresholds = 0.3))
+  r1 <- suppressWarnings(nb_val(d, fixed_model(c(0.3, 0.1, 0.3, 0.1)),
+                                ~ survival::Surv(time, status), horizon = 5, thresholds = 0.3))
   # treated: rows 1 and 3, one event by 5 of two -> q = 0.5, F = 0.5
   expect_equal(r1$estimates$NB_model, 0.5 * 0.5 - 0.5 * 0.5 * 0.3 / 0.7)
-  r0 <- suppressWarnings(nb(d, fixed_model(c(0.5, 0, 0.4, 0)),
-                            ~ survival::Surv(time, status), horizon = 5, thresholds = 0))
+  r0 <- suppressWarnings(nb_val(d, fixed_model(c(0.5, 0, 0.4, 0)),
+                                ~ survival::Surv(time, status), horizon = 5, thresholds = 0))
   expect_equal(r0$estimates$NB_model, 0.5 * 0.5)           # rows with risk 0 not treated
 })
 
@@ -111,8 +111,8 @@ test_that("KM is unbiased with independent censoring and biased with informative
     d <- sim_surv(20000, informative = inf, seed = 11)
     p <- 1 - exp(-0.15 * exp(d$lp1) * tau^1.3)          # true risk by tau
     truth <- true_nb(d, p, z, tau)
-    res <- nb(d, fixed_model(p), ~ survival::Surv(time, status), horizon = tau,
-              thresholds = z) |> suppressWarnings()
+    res <- nb_val(d, fixed_model(p), ~ survival::Surv(time, status), horizon = tau,
+                  thresholds = z) |> suppressWarnings()
     err <- max(abs(res$estimates$NB_model - truth))
     if (!inf) expect_lt(err, 0.01) else expect_gt(err, 0.02)
   }

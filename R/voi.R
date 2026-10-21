@@ -1,13 +1,13 @@
 # Value of information for model validation: P(useful), P(best), EVPI,
 # relative EVPI and EVSI (Sadatsafavi et al. 2023, 2025).
 #
-# The uncertainty about the net benefit is its posterior (see nb()): for a
+# The uncertainty about the net benefit is its posterior (see nb_val()): for a
 # binary outcome without case weights, draws from the conjugate Beta /
 # Dirichlet posterior of the prevalence, sensitivity and specificity (with
-# nb()'s prior); otherwise (survival, competing risks, case weights; improper
+# nb_val()'s prior); otherwise (survival, competing risks, case weights; improper
 # prior) the Bayesian bootstrap: each draw re-weights the patients with
 # Dirichlet(1, ..., 1) weights and the net benefit of every strategy is
-# recomputed with the same estimator as nb() (Kaplan-Meier / Aalen-Johansen,
+# recomputed with the same estimator as nb_val() (Kaplan-Meier / Aalen-Johansen,
 # or cIPCW with the censoring model refitted in each draw).
 
 #' Expected value of perfect information (EVPI) for model validation
@@ -34,10 +34,10 @@
 #'
 #' @section Uncertainty:
 #' The uncertainty about the net benefit is its posterior (see the prior of
-#' [nb()]), represented by `n_sim` draws, in each of which the net benefit of
+#' [nb_val()]), represented by `n_sim` draws, in each of which the net benefit of
 #' every model, of treating all and of treating none is computed:
 #' * binary outcome: draws from the conjugate posterior of the prevalence and
-#'   of each model's sensitivity and specificity, with the prior of [nb()]
+#'   of each model's sensitivity and specificity, with the prior of [nb_val()]
 #'   (exact Beta / Dirichlet draws, as in bayesDCA). Several models are drawn
 #'   jointly (a Dirichlet over the patterns of treat / do not treat across the
 #'   models), so their correlation on the same patients is kept, and each model
@@ -46,29 +46,37 @@
 #'   weights (improper prior): the Bayesian bootstrap. Each
 #'   draw gives the patients Dirichlet(1, ..., 1) weights (times the case
 #'   weights) and recomputes the net benefit with the same estimator as
-#'   [nb()]. With `censoring = "cipcw"`, the censoring model is refitted in
+#'   [nb_val()]. With `censoring = "cipcw"`, the censoring model is refitted in
 #'   every draw and the censoring weights recomputed from it (see
 #'   [cipcw_control()]).
 #'
 #' The predicted risks are kept fixed in every draw. The expected net benefits
-#' are the means of the draws. `evpi()`, [p_useful()] and [p_best()] called
-#' with the same seed (and the same results and `n_sim`) use the same draws
-#' (for [p_useful()], one model).
+#' are the means of the draws. `evpi()` also computes P(useful) and P(best)
+#' from its draws, so the three come from the same draws: read them with
+#' `p_useful(e)` and `p_best(e)` for a result `e` of `evpi()`. [p_useful()]
+#' and [p_best()] given results of [nb_val()] instead draw again; called
+#' with the same seed (and the same models and `n_sim`) as `evpi()`, they
+#' use the same draws.
 #'
-#' @param x A result of [nb()].
-#' @param ... More results of [nb()], for other models evaluated on the same
-#'   data, outcome, thresholds and prior (and horizon, cause and censoring). A
-#'   result given here with a name is labelled with its name.
+#' @param x A result of [nb_val()], for one model or several.
+#' @param ... More results of [nb_val()], for other models evaluated on the same
+#'   data, outcome, thresholds and prior (and horizon, cause and censoring),
+#'   combined as by [c()][c.voipred_nb]. A result with one model given here
+#'   with a name is labelled with its name.
 #' @param n_sim Number of draws. Default 1000.
-#' @param labels Optional names of the models, one per result, in order;
-#'   default: the results' labels.
+#' @param labels Optional names of the models, one per model, in order;
+#'   default: the models' labels.
 #' @return An object of class `voipred_evpi`, a list with `estimates` (a data
 #'   frame with one row per threshold and columns `threshold`, `ENB_current`,
 #'   `ENB_perfect`, `EVPI` and `rEVPI`), `ENB` (the expected net benefit of
-#'   each strategy at each threshold), `models`, `outcome`, `censoring`, `prior`, `draws`
-#'   (`"posterior"` or `"Bayesian bootstrap"`), `n_sim` and `call`. It has
-#'   `print()`, `summary()`, `plot()` and `as.data.frame()` methods; EVPI can
-#'   also be drawn under the decision curve with `plot(<nb result>, evpi = )`.
+#'   each strategy at each threshold), `p_useful` and `p_best` (the results of
+#'   [p_useful()] and [p_best()] from the same draws, also returned by
+#'   `p_useful(e)` and `p_best(e)`), `models`, `outcome`, `censoring`,
+#'   `prior`, `draws` (`"posterior"` or `"Bayesian bootstrap"`), `n_sim` and
+#'   `call`. It has `print()`, `summary()` (which adds the probability that
+#'   the strategy that is best now is the best), `plot()` (EVPI, relative
+#'   EVPI, P(useful) or P(best)) and `as.data.frame()` methods; EVPI can also
+#'   be drawn under the decision curve with `plot(<nb_val result>, evpi = )`.
 #' @references Sadatsafavi M, Lee TY, Wynants L, Vickers AJ, Gustafson P.
 #'   Value-of-information analysis for external validation of risk prediction
 #'   models. Medical Decision Making 2023; 43(5): 564-575. Rubin DB. The
@@ -83,22 +91,26 @@
 #' fit2 <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
 #' df_val_binary$p2 <- predict(fit2, newdata = df_val_binary, type = "response")
 #' z <- seq(0.01, 0.3, by = 0.01)
-#' res1 <- nb(data = df_val_binary,
-#'            predicted_risk = df_val_binary$p1,
-#'            outcome = "day30",
-#'            thresholds = z,
-#'            label = "Full")
-#' res2 <- nb(data = df_val_binary,
-#'            predicted_risk = df_val_binary$p2,
-#'            outcome = "day30",
-#'            thresholds = z,
-#'            label = "Age only")
+#' res1 <- nb_val(data = df_val_binary,
+#'                predicted_risk = df_val_binary$p1,
+#'                outcome = "day30",
+#'                thresholds = z,
+#'                label = "Full")
+#' res2 <- nb_val(data = df_val_binary,
+#'                predicted_risk = df_val_binary$p2,
+#'                outcome = "day30",
+#'                thresholds = z,
+#'                label = "Age only")
 #' set.seed(1)
 #' e <- evpi(res1, res2)
 #' e
 #' summary(e)
 #' plot(e)
 #' plot(e, type = "relative")
+#' # P(useful) and P(best), from the same draws
+#' p_useful(e)
+#' p_best(e)
+#' plot(e, type = "p_best")
 #' @export
 evpi <- function(x, ..., n_sim = 1000, labels = NULL) {
   call <- match.call()
@@ -108,30 +120,34 @@ evpi <- function(x, ..., n_sim = 1000, labels = NULL) {
 
 #' Probability that a model is useful
 #'
-#' For one model, at each threshold, the probability that using the model gives
-#' a higher net benefit than both default strategies (treat all and treat
-#' none):
+#' For each model, at each threshold, the probability that using the model
+#' gives a higher net benefit than both default strategies (treat all and
+#' treat none):
 #' \deqn{P(useful) = P\{NB_{model} > \max(NB_{all}, 0)\} = P(\Delta NB > 0),}
 #' estimated as the share of the posterior draws in which the model's net
 #' benefit is strictly higher. A model that ties with a default strategy (e.g.
 #' at a threshold where it treats everyone, or no one) is not counted as
 #' useful.
 #'
-#' P(useful) compares a model only with treat all and treat none, so it does
-#' not depend on other models: `p_useful()` takes one model. To compare
-#' models, compute it for each and draw them together with
-#' `plot(pu_1, pu_2)` ([plot.voipred_p_useful()]); to compare the models with
-#' each other, use [p_best()].
+#' P(useful) compares each model only with treat all and treat none, so a
+#' model's P(useful) does not depend on the other models; to compare the
+#' models with each other, use [p_best()].
+#'
+#' [evpi()] computes P(useful) from its own draws: `p_useful(e)`, with `e` a
+#' result of [evpi()], returns it (with no new draws, and no other
+#' arguments).
 #'
 #' @inheritSection evpi Uncertainty
-#' @param x A result of [nb()], for one model.
-#' @param ... Not used.
+#' @param x A result of [nb_val()], for one model or several, or a result of
+#'   [evpi()].
+#' @param ... More results of [nb_val()] (see [evpi()]).
 #' @param n_sim Number of draws. Default 1000.
+#' @param labels Optional names of the models, one per model, in order.
 #' @return An object of class `voipred_p_useful`, a list with `estimates` (a
 #'   data frame with columns `threshold`, `model` and `p_useful`, one row per
-#'   threshold), `models` (the model's label), `outcome`, `censoring`, `prior`, `draws`,
-#'   `n_sim` and `call`, with `print()`, `summary()`, `plot()` and
-#'   `as.data.frame()` methods.
+#'   model and threshold), `models` (the labels of the models), `outcome`,
+#'   `censoring`, `prior`, `draws`, `n_sim` and `call`, with `print()`,
+#'   `summary()`, `plot()` and `as.data.frame()` methods.
 #' @seealso [p_best()], [evpi()], [plot.voipred_p_useful()], [summary.voipred_voi()]
 #' @examples
 #' df_dev_binary <- gusto[1:5000, ]
@@ -139,25 +155,25 @@ evpi <- function(x, ..., n_sim = 1000, labels = NULL) {
 #' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
 #'            family = binomial, data = df_dev_binary)
 #' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
-#' res <- nb(data = df_val_binary,
-#'           predicted_risk = df_val_binary$p,
-#'           outcome = "day30",
-#'           thresholds = seq(0.01, 0.3, by = 0.01))
+#' res <- nb_val(data = df_val_binary,
+#'               predicted_risk = df_val_binary$p,
+#'               outcome = "day30",
+#'               thresholds = seq(0.01, 0.3, by = 0.01))
 #' set.seed(1)
 #' pu <- p_useful(res)
 #' pu
 #' summary(pu)
 #' plot(pu)
+#' # the same draws as evpi()
+#' set.seed(1)
+#' e <- evpi(res)
+#' all.equal(p_useful(e)$estimates, pu$estimates)
 #' @export
-p_useful <- function(x, ..., n_sim = 1000) {
+p_useful <- function(x, ..., n_sim = 1000, labels = NULL) {
   call <- match.call()
-  dots <- list(...)
-  if (any(vapply(dots, inherits, logical(1), "voipred_nb")))
-    stop("p_useful() takes one result of nb(): the probability that a model is ",
-         "useful does not depend on the other models. Compute it for each model ",
-         "and draw them together with plot(pu_1, pu_2); use p_best() to compare ",
-         "the models with each other.", call. = FALSE)
-  res <- collect_voi(x, dots, NULL, "p_useful()", "`n_sim`")
+  if (inherits(x, "voipred_evpi"))
+    return(from_evpi(x, "p_useful", list(...), missing(n_sim) && is.null(labels)))
+  res <- collect_voi(x, list(...), labels, "p_useful()", "`n_sim` and `labels`")
   p_useful_from_draws(nb_draws(res, n_sim), res, call)
 }
 
@@ -170,8 +186,14 @@ p_useful <- function(x, ..., n_sim = 1000) {
 #' Exact ties are shared equally, so the probabilities of all strategies add up
 #' to 1 at each threshold.
 #'
+#' [evpi()] computes P(best) from its own draws: `p_best(e)`, with `e` a
+#' result of [evpi()], returns it (with no new draws, and no other
+#' arguments).
+#'
 #' @inheritSection evpi Uncertainty
 #' @inheritParams evpi
+#' @param x A result of [nb_val()], for one model or several, or a result of
+#'   [evpi()].
 #' @return An object of class `voipred_p_best`, a list with `estimates` (a
 #'   data frame with columns `threshold`, `strategy` and `p_best`, one row per
 #'   threshold and strategy), `strategies`, `models`, `outcome`, `censoring`, `prior`,
@@ -187,16 +209,16 @@ p_useful <- function(x, ..., n_sim = 1000) {
 #' fit2 <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
 #' df_val_binary$p2 <- predict(fit2, newdata = df_val_binary, type = "response")
 #' z <- seq(0.01, 0.3, by = 0.01)
-#' res1 <- nb(data = df_val_binary,
-#'            predicted_risk = df_val_binary$p1,
-#'            outcome = "day30",
-#'            thresholds = z,
-#'            label = "Full")
-#' res2 <- nb(data = df_val_binary,
-#'            predicted_risk = df_val_binary$p2,
-#'            outcome = "day30",
-#'            thresholds = z,
-#'            label = "Age only")
+#' res1 <- nb_val(data = df_val_binary,
+#'                predicted_risk = df_val_binary$p1,
+#'                outcome = "day30",
+#'                thresholds = z,
+#'                label = "Full")
+#' res2 <- nb_val(data = df_val_binary,
+#'                predicted_risk = df_val_binary$p2,
+#'                outcome = "day30",
+#'                thresholds = z,
+#'                label = "Age only")
 #' set.seed(1)
 #' pb <- p_best(res1, res2)
 #' pb
@@ -205,38 +227,37 @@ p_useful <- function(x, ..., n_sim = 1000) {
 #' @export
 p_best <- function(x, ..., n_sim = 1000, labels = NULL) {
   call <- match.call()
+  if (inherits(x, "voipred_evpi"))
+    return(from_evpi(x, "p_best", list(...), missing(n_sim) && is.null(labels)))
   res <- collect_voi(x, list(...), labels, "p_best()", "`n_sim` and `labels`")
   p_best_from_draws(nb_draws(res, n_sim), res, call)
 }
 
 # ---- draws (internal) ---------------------------------------------------------
 
-# Results of nb() whose posterior is conjugate: binary outcome, no case weights.
-is_conjugate <- function(res) {
-  v <- voi_info(res[[1]])
-  v$type == "binary" && is.null(v$weights)
-}
+# Results of nb_val() whose posterior is conjugate: binary outcome, no case weights.
+is_conjugate <- function(res) res$outcome$type == "binary" && is.null(res$weights)
 
 draws_name <- function(res) if (is_conjugate(res)) "posterior" else "Bayesian bootstrap"
 
-# Posterior draws of the net benefit of every strategy for the results `res`
-# (a named list from collect_voi()): a list with `nb` (draw x threshold x
+# Posterior draws of the net benefit of every strategy for the models of the
+# result `res` (from collect_voi()): a list with `nb` (draw x threshold x
 # strategy), `thresholds`, `strategies`, `models`, `draws` and `n_sim`.
 nb_draws <- function(res, n_sim) {
   check_n_sim(n_sim)
   if (is_conjugate(res)) return(finish_draws(res, bayes_draws(res, n_sim), "posterior"))
-  v <- voi_info(res[[1]])
-  n <- length(v$risk)
+  v <- voi_info(res)
+  n <- nrow(v$risk)
   W <- vapply(seq_len(n_sim), function(i) bb_weights(n, v$weights), numeric(n))
   if (n == 1) W <- matrix(W, nrow = 1)
   draws_from(res, W, "Bayesian bootstrap")
 }
 
-# The draws for the results `res` and given patient weights W (n x draws).
+# The draws for the models of `res` and given patient weights W (n x draws).
 draws_from <- function(res, W, draws) finish_draws(res, nb_eval(res, W), draws)
 
 finish_draws <- function(res, nbs, draws) {
-  v <- voi_info(res[[1]])
+  v <- voi_info(res)
   bad <- apply(nbs, 2, anyNA)
   if (any(bad))
     warning("The net benefit could not be estimated in some draws at ",
@@ -245,13 +266,13 @@ finish_draws <- function(res, nbs, draws) {
             " (no treated patient followed up to the horizon); the value of ",
             "information is NA there.", call. = FALSE)
   list(nb = nbs, thresholds = v$thresholds,
-       strategies = c(names(res), "Treat All", "Treat None"), models = names(res),
+       strategies = c(res$models, "Treat All", "Treat None"), models = res$models,
        draws = draws, n_sim = dim(nbs)[1])
 }
 
 # The parts every value-of-information result shares.
 voi_result <- function(estimates, d, res, call, cls, ...) {
-  r1 <- res[[1]]
+  r1 <- res
   structure(c(list(call = call, estimates = estimates), list(...),
               list(models = d$models, outcome = r1$outcome, prior = r1$prior,
                    censoring = if (!is.null(r1) && r1$outcome$type != "binary")
@@ -273,7 +294,23 @@ evpi_from_draws <- function(d, res = NULL, call = NULL) {
                     ENB_perfect = perfect, EVPI = perfect - current,
                     rEVPI = relative_evpi(perfect, current, default))
   ENB <- data.frame(threshold = d$thresholds, enb, check.names = FALSE)
-  voi_result(est, d, res, call, "voipred_evpi", ENB = ENB)
+  out <- voi_result(est, d, res, call, "voipred_evpi", ENB = ENB)
+  # from the same draws
+  out$p_useful <- p_useful_from_draws(d, res, call)
+  out$p_best <- p_best_from_draws(d, res, call)
+  out
+}
+
+# P(useful) or P(best) kept in a result of evpi() (from the same draws).
+from_evpi <- function(x, what, dots, no_args) {
+  if (length(dots) || !no_args)
+    stop(what, "() of a result of evpi() returns the ", what, " computed by evpi() ",
+         "from its draws, and takes no other arguments. To compute it again, give ",
+         "results of nb_val().", call. = FALSE)
+  if (is.null(x[[what]]))
+    stop("This result of evpi() has no ", what, ": it was made by an older version ",
+         "of voipred; run evpi() again.", call. = FALSE)
+  x[[what]]
 }
 
 p_useful_from_draws <- function(d, res = NULL, call = NULL) {
@@ -328,7 +365,7 @@ p_best_from_draws <- function(d, res = NULL, call = NULL) {
 #'   population; the future sample is \eqn{N} patients drawn from it
 #'   (multinomial counts with probabilities \eqn{W}, a future patient being a
 #'   current patient, with the same follow-up), pooled with the current sample,
-#'   and the net benefit recomputed with the same estimator as [nb()]. With
+#'   and the net benefit recomputed with the same estimator as [nb_val()]. With
 #'   `censoring = "cipcw"` the censoring model is refitted in every draw and
 #'   every pooled sample (see [cipcw_control()]).
 #'
@@ -349,7 +386,7 @@ p_best_from_draws <- function(d, res = NULL, call = NULL) {
 #'   threshold and future sample size), `future_n`, `models`, `outcome`,
 #'   `censoring`, `prior`, `draws`, `n_sim` and `call`. It has `print()`, `summary()`,
 #'   `plot()` and `as.data.frame()` methods; EVSI can also be drawn under the
-#'   decision curve with `plot(<nb result>, evsi = )`.
+#'   decision curve with `plot(<nb_val result>, evsi = )`.
 #' @references Sadatsafavi M, et al. Expected value of sample information
 #'   calculations for risk prediction model validation. Medical Decision
 #'   Making 2025; 45(3): 232-244.
@@ -360,10 +397,10 @@ p_best_from_draws <- function(d, res = NULL, call = NULL) {
 #' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
 #'            family = binomial, data = df_dev_binary)
 #' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
-#' res <- nb(data = df_val_binary,
-#'           predicted_risk = df_val_binary$p,
-#'           outcome = "day30",
-#'           thresholds = c(0.02, 0.05, 0.1))
+#' res <- nb_val(data = df_val_binary,
+#'               predicted_risk = df_val_binary$p,
+#'               outcome = "day30",
+#'               thresholds = c(0.02, 0.05, 0.1))
 #' set.seed(1)
 #' o <- evsi(res, future_n = c(250, 500, 1000, 4000))
 #' o
@@ -380,24 +417,24 @@ evsi <- function(x, ..., future_n, n_sim = 1000, labels = NULL) {
   res <- collect_voi(x, list(...), labels, "evsi()", "`future_n`, `n_sim` and `labels`")
   r <- if (is_conjugate(res)) bayes_evsi(res, future_n, n_sim)
        else evsi_bootstrap(res, future_n, n_sim)
-  z <- voi_info(res[[1]])$thresholds
+  z <- nb_thresholds(res)
   Z <- length(z)
   est <- data.frame(threshold = rep(z, length(future_n)),
                     future_n = rep(future_n, each = Z),
                     EVSI = as.vector(r$EVSI), EVPI = rep(r$EVPI, length(future_n)))
-  d <- list(models = names(res), draws = draws_name(res), n_sim = n_sim)
+  d <- list(models = res$models, draws = draws_name(res), n_sim = n_sim)
   voi_result(est, d, res, call, "voipred_evsi", future_n = future_n)
 }
 
 # EVSI with the bootstrap algorithm of Sadatsafavi et al. (2025), Bayesian
 # bootstrap version: a Z x J matrix of EVSI and the EVPI of the same draws.
 evsi_bootstrap <- function(res, future_n, n_sim) {
-  v <- voi_info(res[[1]])
-  n <- length(v$risk)
+  v <- voi_info(res)
+  n <- nrow(v$risk)
   w0 <- if (is.null(v$weights)) rep(1, n) else v$weights
   Z <- length(v$thresholds)
   J <- length(future_n)
-  S <- length(res) + 2
+  S <- length(res$models) + 2
   true_sum <- matrix(0, Z, S)                 # sum over draws of the true NBs
   perfect_sum <- numeric(Z)
   sample_sum <- matrix(0, Z, J)
@@ -445,7 +482,7 @@ evsi_bootstrap <- function(res, future_n, n_sim) {
 
 # ---- internal ----------------------------------------------------------------
 
-# Results of nb() that can be analysed together, named by their labels.
+# Results of nb_val() that can be analysed together, merged into one.
 collect_voi <- function(x, more, labels, fun, args) {
   collect_nb(x, more, labels, fun = fun, args = args)
 }
@@ -467,35 +504,29 @@ bb_weights <- function(n, w0 = NULL) {
 # Net benefit of every strategy for each column of weights W (n x B):
 # an array draw x threshold x strategy (models, treat all, treat none).
 nb_eval <- function(res, W) {
-  v1 <- voi_info(res[[1]])
-  z <- v1$thresholds
+  v <- voi_info(res)
+  z <- v$thresholds
   B <- ncol(W)
   Z <- length(z)
-  M <- length(res)
+  M <- ncol(v$risk)
   out <- array(NA_real_, c(B, Z, M + 2))
   out[, , M + 2] <- 0
-  if (v1$type == "binary") {
+  if (v$type == "binary") {
     odds <- z / (1 - z)
-    gain <- outer(v1$y, rep(1, Z)) - outer(1 - v1$y, odds)      # Y - (1 - Y) z/(1-z)
-    model_gain <- lapply(res, function(r) {
-      p <- r$risk
-      gain * (outer(p, z, ">=") & p > 0)
-    })
+    gain <- outer(v$y, rep(1, Z)) - outer(1 - v$y, odds)      # Y - (1 - Y) z/(1-z)
     sw <- colSums(W)
     out[, , M + 1] <- crossprod(W, gain) / sw
-    for (m in seq_len(M)) out[, , m] <- crossprod(W, model_gain[[m]]) / sw
+    for (m in seq_len(M)) {
+      p <- v$risk[, m]
+      out[, , m] <- crossprod(W, gain * (outer(p, z, ">=") & p > 0)) / sw
+    }
   } else {
-    refit <- lapply(res, function(r) censoring_refitter(voi_info(r), W))
-    # models validated with the same censoring settings share the refit
-    share <- vapply(seq_len(M), function(m)
-      m > 1 && !is.null(refit[[m]]) && identical(res[[m]]$cipcw$control, v1$cipcw),
-      logical(1))
+    # one censoring model, refitted once per draw, for all the models
+    refit <- censoring_refitter(v, W)
     for (b in seq_len(B)) {
-      cw1 <- NULL
+      cw <- if (is.null(refit)) NULL else refit(W[, b])
       for (m in seq_len(M)) {
-        cw <- if (is.null(refit[[m]])) NULL else if (share[m]) cw1 else refit[[m]](W[, b])
-        if (m == 1) cw1 <- cw
-        r <- nb_one(voi_info(res[[m]]), W[, b], cw)
+        r <- nb_one(v, v$risk[, m], W[, b], cw)
         out[b, , m] <- r$NB_model
         if (m == 1) out[b, , M + 1] <- r$NB_all
       }
@@ -519,11 +550,13 @@ winner_value <- function(pooled, truth) {
   num / den
 }
 
-nb_one <- function(v, w, cw = NULL) {
+# Net benefit of the model with risks p, with patient weights w (and the
+# censoring weights cw of cIPCW).
+nb_one <- function(v, p, w, cw = NULL) {
   if (v$censoring == "km")
-    return(suppressWarnings(nb_core_km(v$time, v$status, v$k, v$risk, v$thresholds,
+    return(suppressWarnings(nb_core_km(v$time, v$status, v$k, p, v$thresholds,
                                        v$horizon, w)))
-  nb_core_cipcw(v$time, v$status, v$k, v$risk, v$thresholds, v$horizon,
+  nb_core_cipcw(v$time, v$status, v$k, p, v$thresholds, v$horizon,
                 cw$weight_event, cw$weight_horizon, w)
 }
 

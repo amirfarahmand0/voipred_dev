@@ -15,15 +15,15 @@
 )
 }
 \arguments{
-\item{x}{A result of \code{\link[=nb]{nb()}}.}
+\item{x}{A result of \code{\link[=nb_val]{nb_val()}}, for one model or several.}
 
-\item{...}{More results of \code{\link[=nb]{nb()}} to draw on the same plot. A result given
-here with a name is labelled with its name.}
+\item{...}{More results of \code{\link[=nb_val]{nb_val()}} to draw on the same plot. A result with
+one model given here with a name is labelled with its name.}
 
 \item{type}{\code{"nb"} (decision curve, default) or \code{"delta"} (\eqn{\Delta NB}).}
 
-\item{labels}{Optional names of the curves, one per result, in order;
-default: the results' labels.}
+\item{labels}{Optional names of the curves, one per model, in order;
+default: the models' labels.}
 
 \item{evpi, evsi}{Optional results of \code{\link[=evpi]{evpi()}} and \code{\link[=evsi]{evsi()}}, drawn in a panel
 below the decision curve: EVPI, and EVSI for each future sample size,
@@ -37,9 +37,11 @@ A ggplot object, a patchwork object (with \code{evpi} or \code{evsi}), or a
 plotly widget (\code{interactive = TRUE}).
 }
 \description{
-The plot of results of \code{\link[=nb]{nb()}}: the decision curve (\code{type = "nb"}), or the
-difference in net benefit between the model and the best default strategy
-(\code{type = "delta"}). Give several results to draw their curves together.
+The plot of results of \code{\link[=nb_val]{nb_val()}}: the decision curve (\code{type = "nb"}), or the
+difference in net benefit between each model and the best default strategy
+(\code{type = "delta"}). A result of \code{\link[=nb_val]{nb_val()}} with several models draws all of
+them; several results are drawn together, combined as by
+\link[=c.voipred_nb]{c()}.
 Optionally, the expected value of perfect and sample information (from
 \code{\link[=evpi]{evpi()}} and \code{\link[=evsi]{evsi()}}) is drawn in a panel below, on the same threshold
 axis.
@@ -60,7 +62,7 @@ strategies.
 Results drawn together must come from the same data, outcome, horizon,
 cause, censoring method, prior and thresholds (voipred checks this).
 Thresholds where the net benefit is \code{NA} are left out. Each curve is named
-by its \code{label} (see \code{\link[=nb]{nb()}}), unless \code{labels} is given; a model has the same
+by its \code{label} (see \code{\link[=nb_val]{nb_val()}}), unless \code{labels} is given; a model has the same
 colour in both types of plot.
 
 The panel below shows EVPI (from \code{evpi}) and EVSI for each future sample
@@ -86,16 +88,16 @@ df_val_binary$p1 <- predict(fit1, newdata = df_val_binary, type = "response")
 fit2 <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
 df_val_binary$p2 <- predict(fit2, newdata = df_val_binary, type = "response")
 z <- seq(0, 0.5, by = 0.01)
-res1 <- nb(data = df_val_binary,
-           predicted_risk = df_val_binary$p1,
-           outcome = "day30",
-           thresholds = z,
-           label = "Full model")
-res2 <- nb(data = df_val_binary,
-           predicted_risk = df_val_binary$p2,
-           outcome = "day30",
-           thresholds = z,
-           label = "Age only")
+res1 <- nb_val(data = df_val_binary,
+               predicted_risk = df_val_binary$p1,
+               outcome = "day30",
+               thresholds = z,
+               label = "Full model")
+res2 <- nb_val(data = df_val_binary,
+               predicted_risk = df_val_binary$p2,
+               outcome = "day30",
+               thresholds = z,
+               label = "Age only")
 plot(res1)
 plot(res1, res2)
 plot(res1, res2, type = "delta")
@@ -107,6 +109,6 @@ if (requireNamespace("plotly", quietly = TRUE)) plot(res1, evpi = e, interactive
 }
 }
 \seealso{
-\code{\link[=nb]{nb()}}, \code{\link[=plot.voipred_evpi]{plot.voipred_evpi()}}, \code{\link[=plot.voipred_evsi]{plot.voipred_evsi()}},
+\code{\link[=nb_val]{nb_val()}}, \code{\link[=plot.voipred_evpi]{plot.voipred_evpi()}}, \code{\link[=plot.voipred_evsi]{plot.voipred_evsi()}},
 \code{\link[=plot.voipred_p_useful]{plot.voipred_p_useful()}}, \code{\link[=plot.voipred_p_best]{plot.voipred_p_best()}}
 }

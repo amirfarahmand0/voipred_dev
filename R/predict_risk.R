@@ -1,11 +1,11 @@
-# Predicted risks from a fitted model (internal: used by nb() when a `model`
+# Predicted risks from a fitted model (internal: used by nb_val() when a `model`
 # is given instead of `predicted_risk`).
 #
 # Turns a fitted model into one predicted risk per row of `newdata`: the
 # probability of the event (binary outcome, horizon = NULL), of the event by
 # `horizon` (survival), or of the event `cause` by `horizon` (competing risks;
 # `cause_index`, its position among the outcome's event levels, is passed in
-# `...`). Risks are obtained in this order (a `predict_function` given to nb()
+# `...`). Risks are obtained in this order (a `predict_function` given to nb_val()
 # takes precedence over both):
 #
 # 1. voipred's own method for the model's class, only for models that the
@@ -20,7 +20,7 @@
 # column taken; or a curve per patient, list(time, surv) or list(time, cif),
 # read at the horizon) and checked: one probability per row, no NA, values in
 # [0, 1], not only 0s and 1s. Missing covariates are named before predicting.
-# The models that work are listed in the documentation of nb() ("Predicting the
+# The models that work are listed in the documentation of nb_val() ("Predicting the
 # risks from a model").
 predict_risk <- function(model, newdata, horizon = NULL, cause = NULL, ...) {
   UseMethod("predict_risk")
@@ -44,7 +44,7 @@ predict_risk.default <- function(model, newdata, horizon = NULL, cause = NULL, .
          if (inherits(out, "error")) paste0(" (", trimws(conditionMessage(out)), ")")
          else if (!is.null(out)) " (it returned only NA; is `horizon` beyond the model's follow-up?)",
          ". If a covariate is missing from the data, add it. Otherwise give ",
-         "`predict_function = function(model, newdata, horizon, cause)` to nb(), ",
+         "`predict_function = function(model, newdata, horizon, cause)` to nb_val(), ",
          "returning the risk of the event", if (!is.null(horizon)) " by the horizon",
          ".",
          call. = FALSE)

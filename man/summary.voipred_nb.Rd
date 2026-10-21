@@ -17,7 +17,7 @@
 
 \item{...}{Not used.}
 
-\item{object, x}{A result of \code{\link[=nb]{nb()}}.}
+\item{object, x}{A result of \code{\link[=nb_val]{nb_val()}}.}
 
 \item{thresholds}{Optional thresholds to show in the table (among those of
 the result); default: all, of which the first 10 are printed.}
@@ -26,8 +26,9 @@ the result); default: all, of which the first 10 are printed.}
 }
 \value{
 \code{summary()}: an object of class \code{summary.voipred_nb}, printed as
-shown. \code{as.data.frame()}: the \code{estimates} data frame (columns \code{threshold},
-\code{NB_model}, \code{NB_all}, \code{NB_none}, \code{delta_NB}).
+shown (with several models, the table has one row per threshold and
+model). \code{as.data.frame()}: the \code{estimates} data frame (columns
+\code{threshold}, \code{model}, \code{NB_model}, \code{NB_all}, \code{NB_none}, \code{delta_NB}).
 }
 \description{
 \code{print()} shows the net benefit at the first thresholds; \code{summary()} adds
@@ -36,9 +37,9 @@ model's sensitivity and specificity;
 \code{as.data.frame()} returns the estimates at every threshold.
 }
 \details{
-The best strategy at a threshold is the model where
-\code{delta_NB > 0}, otherwise treat all if its net benefit is positive,
-otherwise treat none. For a binary outcome, sensitivity and
+The best strategy at a threshold is the model with the largest
+\code{delta_NB} if it is positive, otherwise treat all if its net benefit is
+positive, otherwise treat none. For a binary outcome, sensitivity and
 specificity are posterior means (the observed proportions with the default
 improper prior). For survival and competing-risks outcomes they are those
 of the event by the horizon, from the same estimates as the net benefit:
@@ -54,15 +55,15 @@ df_val_binary <- gusto[5001:5500, ]
 fit <- glm(day30 ~ age + Killip + sysbp + pulse,
            family = binomial, data = df_dev_binary)
 df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
-res <- nb(data = df_val_binary,
-          predicted_risk = df_val_binary$p,
-          outcome = "day30",
-          thresholds = seq(0.01, 0.3, by = 0.01))
+res <- nb_val(data = df_val_binary,
+              predicted_risk = df_val_binary$p,
+              outcome = "day30",
+              thresholds = seq(0.01, 0.3, by = 0.01))
 res
 summary(res)
 summary(res, thresholds = c(0.05, 0.1, 0.2))
 head(as.data.frame(res))
 }
 \seealso{
-\code{\link[=nb]{nb()}}, \code{\link[=plot.voipred_nb]{plot.voipred_nb()}}
+\code{\link[=nb_val]{nb_val()}}, \code{\link[=plot.voipred_nb]{plot.voipred_nb()}}
 }

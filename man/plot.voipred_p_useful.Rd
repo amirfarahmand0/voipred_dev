@@ -10,10 +10,10 @@
 \item{x}{A result of \code{\link[=p_useful]{p_useful()}}.}
 
 \item{...}{More results of \code{\link[=p_useful]{p_useful()}} to draw on the same plot. A result
-given here with a name is labelled with its name.}
+with one model given here with a name is labelled with its name.}
 
-\item{labels}{Optional names of the curves, one per result, in order.
-Default: the model's label of each result (or the argument names).}
+\item{labels}{Optional names of the curves, one per model, in order.
+Default: the models' labels (or the argument names).}
 
 \item{interactive}{\code{TRUE} for an interactive plot (needs the plotly
 package). Default \code{FALSE}.}
@@ -23,9 +23,7 @@ A ggplot object, or a plotly widget with \code{interactive = TRUE}.
 }
 \description{
 The plot of results of \code{\link[=p_useful]{p_useful()}}: P(useful) against the threshold, one
-curve per result, in the colours of \code{\link[=plot.voipred_nb]{plot.voipred_nb()}}. \code{\link[=p_useful]{p_useful()}}
-takes one model; to compare models, give the result of each:
-\code{plot(pu_1, pu_2)}.
+curve per model of each result, in the colours of \code{\link[=plot.voipred_nb]{plot.voipred_nb()}}.
 }
 \examples{
 df_dev_binary <- gusto[1:5000, ]
@@ -33,25 +31,23 @@ df_val_binary <- gusto[5001:5500, ]
 fit <- glm(day30 ~ age + Killip + sysbp + pulse,
            family = binomial, data = df_dev_binary)
 df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
-res <- nb(data = df_val_binary,
-          predicted_risk = df_val_binary$p,
-          outcome = "day30",
-          thresholds = seq(0.01, 0.3, by = 0.01))
+res <- nb_val(data = df_val_binary,
+              predicted_risk = df_val_binary$p,
+              outcome = "day30",
+              thresholds = seq(0.01, 0.3, by = 0.01))
 set.seed(1)
 pu <- p_useful(res, n_sim = 500)
 plot(pu)
 
-# two models: one result each, drawn together
+# two models
 fit_age <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
 df_val_binary$p_age <- predict(fit_age, newdata = df_val_binary, type = "response")
-res_age <- nb(data = df_val_binary,
-              predicted_risk = df_val_binary$p_age,
-              outcome = "day30",
-              thresholds = seq(0.01, 0.3, by = 0.01),
-              label = "Age only")
+both <- nb_val(data = df_val_binary,
+               predicted_risk = list(Full = df_val_binary$p, `Age only` = df_val_binary$p_age),
+               outcome = "day30",
+               thresholds = seq(0.01, 0.3, by = 0.01))
 set.seed(1)
-pu_age <- p_useful(res_age, n_sim = 500)
-plot(pu, pu_age, labels = c("Full", "Age only"))
+plot(p_useful(both, n_sim = 500))
 }
 \seealso{
 \code{\link[=p_useful]{p_useful()}}, \code{\link[=plot.voipred_p_best]{plot.voipred_p_best()}}

@@ -1,5 +1,5 @@
 # The value of information of a binary outcome: draws from the conjugate
-# posterior of nb()'s prior; the point estimates are in test-bayes-nb.R.
+# posterior of nb_val()'s prior; the point estimates are in test-bayes-nb.R.
 # Checked against bayesDCA (giulianonetto/bayesDCA, .dca_binary) and the
 # conjugate EVSI() of Sadatsafavi et al. 2025 (resplab/evsiexval): see
 # fixtures/make_bayes_reference.R.
@@ -13,7 +13,7 @@ bayes_case <- function() {
 test_that("one model: posterior draws equal bayesDCA's", {
   cs <- bayes_case()
   b <- cs$bref
-  r <- nb(cs$val, cs$fit, "day30", thresholds = b$zs, prior = nb_uniform())
+  r <- nb_val(cs$val, cs$fit, "day30", thresholds = b$zs, prior = nb_uniform())
   set.seed(b$seed)
   d <- draws_t(r, n_sim = b$n_draws)
   expect_equal(d$draws, "posterior")
@@ -26,7 +26,7 @@ test_that("one model: posterior draws equal bayesDCA's", {
 test_that("EVSI equals the conjugate algorithm of Sadatsafavi et al. (2025)", {
   cs <- bayes_case()
   for (ref in cs$bref$evsi) {
-    r <- nb(cs$val, cs$fit, "day30", thresholds = ref$z, prior = nb_uniform())
+    r <- nb_val(cs$val, cs$fit, "day30", thresholds = ref$z, prior = nb_uniform())
     set.seed(ref$seed)
     o <- evsi(r, future_n = ref$future_n, n_sim = ref$n_sim)
     expect_equal(o$draws, "posterior")
@@ -47,8 +47,8 @@ test_that("several models are drawn jointly, each keeping its own posterior", {
   cs <- bayes_case()
   z <- c(0.02, 0.05, 0.1, 0.2)
   f2 <- glm(day30 ~ age, family = binomial, data = cs$fit$data)
-  a <- nb(cs$val, cs$fit, "day30", thresholds = z, prior = nb_uniform(), label = "Full")
-  b <- nb(cs$val, f2, "day30", thresholds = z, prior = nb_uniform(), label = "Age")
+  a <- nb_val(cs$val, cs$fit, "day30", thresholds = z, prior = nb_uniform(), label = "Full")
+  b <- nb_val(cs$val, f2, "day30", thresholds = z, prior = nb_uniform(), label = "Age")
   # the Dirichlet prior over the patterns gives each model its Beta prior
   pr <- nb_beta(sensitivity = c(3, 2), specificity = c(1, 4))
   for (pp in list(nb_uniform(), nb_jeffreys(), pr)) {
@@ -96,10 +96,10 @@ test_that("multinomial draws by conditional binomials", {
 test_that("results with different priors are not compared; `method` is gone", {
   cs <- bayes_case()
   z <- c(0.05, 0.1)
-  r <- nb(cs$val, cs$fit, "day30", thresholds = z, prior = nb_uniform())
-  f <- nb(cs$val, cs$fit, "day30", thresholds = z, label = "improper")
+  r <- nb_val(cs$val, cs$fit, "day30", thresholds = z, prior = nb_uniform())
+  f <- nb_val(cs$val, cs$fit, "day30", thresholds = z, label = "improper")
   expect_error(draws_t(r, f), "different prior")
-  r2 <- nb(cs$val, cs$fit, "day30", thresholds = z, label = "other", prior = nb_jeffreys())
+  r2 <- nb_val(cs$val, cs$fit, "day30", thresholds = z, label = "other", prior = nb_jeffreys())
   expect_error(draws_t(r, r2), "different prior")
   expect_error(evpi(r, r2), "different prior")
   expect_error(evpi(r, method = "ordinary"), "Unknown argument `method`")
@@ -111,8 +111,8 @@ test_that("with the improper prior the posterior draws equal the Bayesian bootst
   cs <- bayes_case()
   z <- c(0.017, 0.023, 0.05, 0.1)
   f2 <- glm(day30 ~ age, family = binomial, data = cs$fit$data)
-  a <- nb(cs$val, cs$fit, "day30", thresholds = z, label = "Full")
-  b <- nb(cs$val, f2, "day30", thresholds = z, label = "Age")
+  a <- nb_val(cs$val, cs$fit, "day30", thresholds = z, label = "Full")
+  b <- nb_val(cs$val, f2, "day30", thresholds = z, label = "Age")
   set.seed(11)
   post <- draws_t(a, b, n_sim = 20000)              # conjugate posterior, improper prior
   expect_equal(post$draws, "posterior")

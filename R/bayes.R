@@ -1,4 +1,4 @@
-# nb() works in a Bayesian framework; by default (improper prior) it uses the
+# nb_val() works in a Bayesian framework; by default (improper prior) it uses the
 # data only and gives the usual net benefit. A binary outcome has conjugate
 # Beta (Dirichlet) posteriors for the prevalence and, at each threshold, the
 # sensitivity and specificity of the models (Wynants et al. 2018, Cruz et al. 2024 (bayesDCA),
@@ -11,7 +11,7 @@
 
 #' Priors for the net benefit
 #'
-#' The prior of [nb()]. By default [nb()] uses no prior information
+#' The prior of [nb_val()]. By default [nb_val()] uses no prior information
 #' (`nb_improper()`: the data only, the usual net benefit); for a binary
 #' outcome, prior information can be added with the other priors. The priors
 #' are Beta priors on the prevalence of the outcome and, at every threshold,
@@ -22,9 +22,9 @@
 #' and that of treating all \eqn{\pi - (1 - \pi) z / (1 - z)}. The posteriors
 #' are Beta distributions (conjugate), so their draws are exact (no MCMC).
 #'
-#' * `nb_improper()` (default of [nb()]): no prior information. The improper
+#' * `nb_improper()` (default of [nb_val()]): no prior information. The improper
 #'   (Haldane) prior, Beta(0, 0) for all three: the data only. The net benefit
-#'   of [nb()] is then the usual net benefit, \eqn{TP/n - FP/n \cdot z/(1-z)}.
+#'   of [nb_val()] is then the usual net benefit, \eqn{TP/n - FP/n \cdot z/(1-z)}.
 #'   It is the only prior for survival and competing-risks outcomes, whose net
 #'   benefit is the usual Kaplan-Meier, Aalen-Johansen or cIPCW estimate.
 #' * `nb_uniform()`: Beta(1, 1) for all three, as in bayesDCA (binary outcome).
@@ -46,7 +46,7 @@
 #'   Statistics 1981; 9(1): 130-134. Sadatsafavi M, et al. Expected value of
 #'   sample information calculations for risk prediction model validation.
 #'   Medical Decision Making 2025; 45(3): 232-244.
-#' @seealso [nb()]
+#' @seealso [nb_val()]
 #' @examples
 #' nb_improper()
 #' nb_uniform()
@@ -110,7 +110,7 @@ prior_text <- function(prior, short = TRUE) {
 # Treated: risk > 0 and risk >= z (as in the usual net benefit).
 treated_at <- function(p, z) p > 0 & p >= z
 
-# Posterior mean net benefit of one model (the point estimate of nb()), with
+# Posterior mean net benefit of one model (the point estimate of nb_val()), with
 # the posterior means of the prevalence, sensitivity and specificity. Case
 # weights (improper prior only) weight the counts. With the improper prior a
 # proportion with an empty denominator (e.g. no events) is multiplied by a
@@ -139,14 +139,14 @@ bayes_nb_mean <- function(y, p, thresholds, prior, w = NULL) {
 # alpha0), chosen so that each model's sensitivity and specificity has its
 # Beta prior.
 bayes_setup <- function(res) {
-  v1 <- voi_info(res[[1]])
+  v1 <- voi_info(res)
   prior <- v1$prior
   y <- v1$y
   z <- v1$thresholds
-  M <- length(res)
+  M <- ncol(v1$risk)
   K <- 2^M
   pos <- outer(0:(K - 1), 0:(M - 1), function(cell, m) (cell %/% 2^m) %% 2 == 1)  # K x M
-  risk <- lapply(res, function(r) r$risk)
+  risk <- lapply(seq_len(M), function(m) v1$risk[, m])
   cell <- vapply(z, function(zz) {
     out <- numeric(length(y))
     for (m in seq_len(M)) out <- out + treated_at(risk[[m]], zz) * 2^(m - 1)
@@ -224,6 +224,7 @@ bayes_nb_array <- function(prev, se, sp, odds) {
 # nb_draws() for a binary outcome without case weights: draws from the posterior.
 bayes_draws <- function(res, n_sim) {
   s <- bayes_setup(res)
+  check_joint_size(s, n_sim)
   th <- bayes_params(s, n_sim)
   bayes_nb_array(th$prev, th$se, th$sp, s$odds)
 }
@@ -252,6 +253,7 @@ rmultinom_rows <- function(size, prob) {
 # and record its true net benefit in the draw.
 bayes_evsi <- function(res, future_n, n_sim) {
   s <- bayes_setup(res)
+  check_joint_size(s, n_sim)
   th <- bayes_params(s, n_sim)
   truth <- bayes_nb_array(th$prev, th$se, th$sp, s$odds)
   Z <- length(s$z)
@@ -292,4 +294,20 @@ bayes_evsi <- function(res, future_n, n_sim) {
 finite_or <- function(x, value) {
   x[!is.finite(x)] <- value
   x
+}
+
+# The joint posterior of several models has one probability per pattern of
+# treat / do not treat across the models (2^M) at each threshold and in each
+# draw, for the patients with and without the event: stop before it needs
+# more memory than `limit` bytes.
+check_joint_size <- function(s, n_sim, limit = 2e9) {
+  if (s$M < 2) return(invisible())
+  bytes <- 2 * 8 * n_sim * length(s$z) * s$K
+  if (bytes > limit)
+    stop("The joint posterior of ", s$M, " models needs about ",
+         format(signif(bytes / 1e9, 2)), " GB of memory (2^", s$M, " = ", s$K,
+         " patterns of treatment across the models, for each of ", length(s$z),
+         " thresholds and ", n_sim, " draws). Use fewer models, thresholds or draws.",
+         call. = FALSE)
+  invisible()
 }

@@ -86,16 +86,16 @@ df_val_binary$p1 <- predict(fit1, newdata = df_val_binary, type = "response")
 fit2 <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
 df_val_binary$p2 <- predict(fit2, newdata = df_val_binary, type = "response")
 z <- seq(0.01, 0.3, by = 0.01)
-res1 <- nb(data = df_val_binary,
-           predicted_risk = df_val_binary$p1,
-           outcome = "day30",
-           thresholds = z,
-           label = "Full")
-res2 <- nb(data = df_val_binary,
-           predicted_risk = df_val_binary$p2,
-           outcome = "day30",
-           thresholds = z,
-           label = "Age only")
+res1 <- nb_val(data = df_val_binary,
+               predicted_risk = df_val_binary$p1,
+               outcome = "day30",
+               thresholds = z,
+               label = "Full")
+res2 <- nb_val(data = df_val_binary,
+               predicted_risk = df_val_binary$p2,
+               outcome = "day30",
+               thresholds = z,
+               label = "Age only")
 set.seed(1)
 e <- evpi(res1, res2)
 e

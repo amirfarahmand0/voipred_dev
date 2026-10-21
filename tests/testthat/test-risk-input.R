@@ -7,15 +7,15 @@ test_that("binary: risks given directly give the same results as the model", {
   val <- g$val
   z <- c(0.02, 0.05, 0.1, 0.2)
   p <- unname(predict(f, val, type = "response"))
-  m <- nb(val, f, "day30", thresholds = z)
-  r <- nb(predicted_risk = p, data = val, outcome = "day30", thresholds = z)
+  m <- nb_val(val, f, "day30", thresholds = z)
+  r <- nb_val(predicted_risk = p, data = val, outcome = "day30", thresholds = z)
   expect_equal(as.data.frame(r)[, -1], as.data.frame(m)[, -1])
   expect_equal(r$risk, m$risk)
   expect_equal(r$label, "p")                       # the vector's name
   val$pred <- p
-  expect_equal(nb(predicted_risk = "pred", data = val, outcome = "day30", thresholds = z)$label, "pred")                        # a column of data
-  expect_equal(nb(predicted_risk = val$pred, data = val, outcome = "day30", thresholds = z)$label, "pred")
-  expect_equal(nb(predicted_risk = p, data = val, outcome = "day30", thresholds = z,
+  expect_equal(nb_val(predicted_risk = "pred", data = val, outcome = "day30", thresholds = z)$label, "pred")                        # a column of data
+  expect_equal(nb_val(predicted_risk = val$pred, data = val, outcome = "day30", thresholds = z)$label, "pred")
+  expect_equal(nb_val(predicted_risk = p, data = val, outcome = "day30", thresholds = z,
                        label = "Full")$label, "Full")
   # the same draws, so the same value of information
   set.seed(1); e_m <- evpi(m, n_sim = 200)
@@ -25,12 +25,12 @@ test_that("binary: risks given directly give the same results as the model", {
   set.seed(2); o_r <- evsi(r, future_n = c(200, 2000), n_sim = 50)
   expect_equal(o_r$estimates$EVSI, o_m$estimates$EVSI)
   # another prior, and models mixed with given risks
-  expect_equal(nb(predicted_risk = p, data = val, outcome = "day30", thresholds = z,
-                  prior = nb_uniform())$estimates$NB_model,
-               nb(val, f, "day30", thresholds = z, prior = nb_uniform())$estimates$NB_model)
+  expect_equal(nb_val(predicted_risk = p, data = val, outcome = "day30", thresholds = z,
+                      prior = nb_uniform())$estimates$NB_model,
+               nb_val(val, f, "day30", thresholds = z, prior = nb_uniform())$estimates$NB_model)
   f2 <- glm(day30 ~ age, family = binomial, data = g$dev)
   set.seed(3)
-  expect_equal(nrow(p_best(r, Age = nb(val, f2, "day30", thresholds = z), n_sim = 50)$estimates), 16)
+  expect_equal(nrow(p_best(r, Age = nb_val(val, f2, "day30", thresholds = z), n_sim = 50)$estimates), 16)
   expect_s3_class(plot(r), "ggplot")
 })
 
@@ -44,10 +44,10 @@ test_that("survival and competing risks, with Kaplan-Meier and cIPCW", {
   r <- quiet_nb(predicted_risk = p, data = v, outcome = surv_outcome, horizon = 5, thresholds = z)
   expect_equal(r$estimates$NB_model, m$estimates$NB_model)
   cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes, data = v)
-  mc <- nb(v, cx, surv_outcome, horizon = 5, thresholds = z, censoring = "cipcw",
-           cipcw = cipcw_control(model = cens))
-  rc <- nb(predicted_risk = p, data = v, outcome = surv_outcome, horizon = 5, thresholds = z,
-           censoring = "cipcw", cipcw = cipcw_control(model = cens))
+  mc <- nb_val(v, cx, surv_outcome, horizon = 5, thresholds = z, censoring = "cipcw",
+               cipcw = cipcw_control(model = cens))
+  rc <- nb_val(predicted_risk = p, data = v, outcome = surv_outcome, horizon = 5, thresholds = z,
+               censoring = "cipcw", cipcw = cipcw_control(model = cens))
   expect_equal(rc$estimates$NB_model, mc$estimates$NB_model)
   # the censoring model is still refitted in each draw: same results
   set.seed(4); e_m <- evpi(mc, n_sim = 20)
@@ -70,7 +70,7 @@ test_that("a model's risks are predicted once and reused by every later step", {
     calls <<- calls + 1
     predict(model, newdata, type = "response")
   }
-  r <- nb(g$val, f, "day30", thresholds = c(0.05, 0.1), predict_function = pf)
+  r <- nb_val(g$val, f, "day30", thresholds = c(0.05, 0.1), predict_function = pf)
   expect_equal(calls, 1)
   set.seed(1)
   e <- evpi(r, n_sim = 50)
@@ -79,11 +79,11 @@ test_that("a model's risks are predicted once and reused by every later step", {
   o <- evsi(r, future_n = c(100, 1000), n_sim = 20)
   plot(r)
   plot(e)
-  rb <- nb(g$val, f, "day30", thresholds = c(0.05, 0.1), predict_function = pf,
-           prior = nb_uniform())
+  rb <- nb_val(g$val, f, "day30", thresholds = c(0.05, 0.1), predict_function = pf,
+               prior = nb_uniform())
   evpi(rb, n_sim = 50)
   evsi(rb, future_n = 100, n_sim = 50)
-  expect_equal(calls, 2)                  # once per call of nb(), never again
+  expect_equal(calls, 2)                  # once per call of nb_val(), never again
 })
 
 test_that("`predicted_risk` is checked", {
@@ -91,15 +91,15 @@ test_that("`predicted_risk` is checked", {
   f <- glm(gusto_formula, family = binomial, data = g$dev)
   val <- g$val
   p <- unname(predict(f, val, type = "response"))
-  expect_error(nb(data = val, outcome = "day30"), "Give the predicted risks with `predicted_risk`")
-  expect_error(nb(val, p, "day30", model = f), "either `predicted_risk` or `model`, not both")
-  expect_error(nb(predicted_risk = p, data = val, outcome = "day30",
-                  predict_function = function(...) p), "not used with `predicted_risk`")
-  expect_error(nb(predicted_risk = p[-1], data = val, outcome = "day30"), "values but `data` has")
-  expect_error(nb(predicted_risk = replace(p, 3, NA), data = val, outcome = "day30"), "1 of the risks")
-  expect_error(nb(predicted_risk = qlogis(p), data = val, outcome = "day30"), "outside \\[0, 1\\]")
-  expect_error(nb(predicted_risk = as.numeric(p > 0.1), data = val, outcome = "day30"), "only 0s and 1s")
-  expect_error(nb(predicted_risk = "nope", data = val, outcome = "day30"), "not in `data`")
-  expect_error(nb(predicted_risk = as.character(p), data = val, outcome = "day30"), "must be numeric")
-  expect_error(nb(model = p, data = val, outcome = "day30"), "give them with `predicted_risk =`")
+  expect_error(nb_val(data = val, outcome = "day30"), "Give the predicted risks with `predicted_risk`")
+  expect_error(nb_val(val, p, "day30", model = f), "either `predicted_risk` or `model`, not both")
+  expect_error(nb_val(predicted_risk = p, data = val, outcome = "day30",
+                      predict_function = function(...) p), "not used with `predicted_risk`")
+  expect_error(nb_val(predicted_risk = p[-1], data = val, outcome = "day30"), "values but `data` has")
+  expect_error(nb_val(predicted_risk = replace(p, 3, NA), data = val, outcome = "day30"), "1 of the risks")
+  expect_error(nb_val(predicted_risk = qlogis(p), data = val, outcome = "day30"), "outside \\[0, 1\\]")
+  expect_error(nb_val(predicted_risk = as.numeric(p > 0.1), data = val, outcome = "day30"), "only 0s and 1s")
+  expect_error(nb_val(predicted_risk = "nope", data = val, outcome = "day30"), "not in `data`")
+  expect_error(nb_val(predicted_risk = as.character(p), data = val, outcome = "day30"), "must be numeric")
+  expect_error(nb_val(model = p, data = val, outcome = "day30"), "give them with `predicted_risk =`")
 })

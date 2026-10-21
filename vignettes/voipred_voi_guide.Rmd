@@ -15,7 +15,7 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height
 A validation sample is finite, so the net benefit of a model is uncertain.
 The value-of-information (VoI) functions measure how much that uncertainty
 matters for the decision of which strategy to use. They all take results of
-`nb()` (see the net benefit guide, `voipred_nb_guide.Rmd`):
+`nb_val()` (see the net benefit guide, `voipred_nb_guide.Rmd`):
 
 | Function | What it gives |
 |---|---|
@@ -83,25 +83,25 @@ df_val_binary$p_full <- predict(fit_full, newdata = df_val_binary, type = "respo
 df_val_binary$p_age  <- predict(fit_age, newdata = df_val_binary, type = "response")
 
 z <- seq(0.01, 0.30, by = 0.01)
-res_full <- nb(data = df_val_binary,
-               predicted_risk = df_val_binary$p_full,
-               outcome = "day30",
-               thresholds = z,
-               label = "Full")
-res_age  <- nb(data = df_val_binary,
-               predicted_risk = df_val_binary$p_age,
-               outcome = "day30",
-               thresholds = z,
-               label = "Age only")
+res_full <- nb_val(data = df_val_binary,
+                   predicted_risk = df_val_binary$p_full,
+                   outcome = "day30",
+                   thresholds = z,
+                   label = "Full")
+res_age  <- nb_val(data = df_val_binary,
+                   predicted_risk = df_val_binary$p_age,
+                   outcome = "day30",
+                   thresholds = z,
+                   label = "Age only")
 plot(res_full, res_age)
 ```
 
 **Survival and competing risks.** Rotterdam breast cancer data: death by 5
 years (a Cox and a Weibull model), and recurrence by 5 years with death as a
 competing event (a cause-specific Cox model); fitted on 1500 patients and
-validated on 600. The risks by 5 years are given to `nb()`.
+validated on 600. The risks by 5 years are given to `nb_val()`.
 
-In `nb()`, `predicted_risk =` is a vector or the name of a column of `data`;
+In `nb_val()`, `predicted_risk =` is a vector or the name of a column of `data`;
 `outcome =` is, for a binary outcome, a column name (`"day30"`), a formula
 (`~ day30`) or a vector (0/1, logical or a two-level factor), and for a
 survival or competing-risks outcome a formula (`~ Surv(years, death)`), a
@@ -134,54 +134,54 @@ df_val_survival$p_csc <- as.vector(riskRegression::predictRisk(
   fit_csc, newdata = df_val_survival, times = 5, cause = 1))
 
 zs <- seq(0.05, 0.60, by = 0.01)
-res_cox <- nb(data = df_val_survival,
-              predicted_risk = df_val_survival$p_cox,
-              outcome = ~ Surv(years, death),
-              horizon = 5,
-              thresholds = zs,
-              label = "Cox")
-res_aft <- nb(data = df_val_survival,
-              predicted_risk = df_val_survival$p_aft,
-              outcome = ~ Surv(years, death),
-              horizon = 5,
-              thresholds = zs,
-              label = "Weibull")
-res_csc <- nb(data = df_val_survival,
-              predicted_risk = df_val_survival$p_csc,
-              outcome = ~ Surv(cr_time, cr_status),
-              horizon = 5,
-              cause = "recurrence",
-              thresholds = zs,
-              label = "Cause-specific Cox")
+res_cox <- nb_val(data = df_val_survival,
+                  predicted_risk = df_val_survival$p_cox,
+                  outcome = ~ Surv(years, death),
+                  horizon = 5,
+                  thresholds = zs,
+                  label = "Cox")
+res_aft <- nb_val(data = df_val_survival,
+                  predicted_risk = df_val_survival$p_aft,
+                  outcome = ~ Surv(years, death),
+                  horizon = 5,
+                  thresholds = zs,
+                  label = "Weibull")
+res_csc <- nb_val(data = df_val_survival,
+                  predicted_risk = df_val_survival$p_csc,
+                  outcome = ~ Surv(cr_time, cr_status),
+                  horizon = 5,
+                  cause = "recurrence",
+                  thresholds = zs,
+                  label = "Cause-specific Cox")
 
 # with conditional IPCW: censoring modelled on the validation data
 cens <- coxph(Surv(years, death == 0) ~ age + nodes + grade, data = df_val_survival)
-res_ci <- nb(data = df_val_survival,
-             predicted_risk = df_val_survival$p_cox,
-             outcome = ~ Surv(years, death),
-             horizon = 5,
-             thresholds = zs,
-             censoring = "cipcw",
-             cipcw = cipcw_control(model = cens),
-             label = "Cox")
+res_ci <- nb_val(data = df_val_survival,
+                 predicted_risk = df_val_survival$p_cox,
+                 outcome = ~ Surv(years, death),
+                 horizon = 5,
+                 thresholds = zs,
+                 censoring = "cipcw",
+                 cipcw = cipcw_control(model = cens),
+                 label = "Cox")
 ```
 
 # How the uncertainty is represented
 
-`nb()` works in a Bayesian framework, and each function draws `n_sim` times
+`nb_val()` works in a Bayesian framework, and each function draws `n_sim` times
 (default 1000) from the posterior of the net benefit of every strategy. With
 the default prior, `nb_improper()`, there is no prior information: the
 posterior reflects the data only, and the net benefit equals the usual
 (frequentist) net benefit. The predicted risks stay fixed; only the
-validation sample is uncertain. The draws follow from the `nb()` results:
+validation sample is uncertain. The draws follow from the `nb_val()` results:
 
-| Results of `nb()` | Draws |
+| Results of `nb_val()` | Draws |
 |---|---|
 | binary, without case weights | the conjugate Beta posterior of the prevalence, sensitivity and specificity, with the results' prior |
-| survival, competing risks, binary with case weights | the Bayesian bootstrap: Dirichlet(1, ..., 1) weights on the patients, the net benefit recomputed with the same estimator as `nb()` |
+| survival, competing risks, binary with case weights | the Bayesian bootstrap: Dirichlet(1, ..., 1) weights on the patients, the net benefit recomputed with the same estimator as `nb_val()` |
 
 For a survival or competing-risks outcome there is no conjugate (generic)
-Bayesian model for the net benefit with censored data, so `nb()` uses only
+Bayesian model for the net benefit with censored data, so `nb_val()` uses only
 the improper prior there, and the draws are the Bayesian bootstrap: the
 posterior under the improper prior (the data only). For a binary outcome
 with the improper prior, the conjugate posterior and the Bayesian bootstrap
@@ -196,7 +196,7 @@ The arguments the four functions share:
 
 | Argument | What it does |
 |---|---|
-| `x`, `...` | Results of `nb()`: one for `p_useful()`; one or more for `p_best()`, `evpi()` and `evsi()`, for models evaluated on the same data, outcome, thresholds, censoring method and prior. A result given in `...` with a name is labelled with it. |
+| `x`, `...` | Results of `nb_val()`: one for `p_useful()`; one or more for `p_best()`, `evpi()` and `evsi()`, for models evaluated on the same data, outcome, thresholds, censoring method and prior. A result given in `...` with a name is labelled with it. |
 | `n_sim` | Number of draws. Default 1000. |
 | `labels` | `p_best()`, `evpi()`, `evsi()`: names of the models, one per result, in order. Default: their `label`. |
 
@@ -347,11 +347,11 @@ plot(e, type = "relative")
 df_val_binary_2000 <- gusto[i[5001:7000], ]
 df_val_binary_2000$p_full <- predict(fit_full, newdata = df_val_binary_2000,
                                      type = "response")
-res_full_2000 <- nb(data = df_val_binary_2000,
-                    predicted_risk = df_val_binary_2000$p_full,
-                    outcome = "day30",
-                    thresholds = z,
-                    label = "Full")
+res_full_2000 <- nb_val(data = df_val_binary_2000,
+                        predicted_risk = df_val_binary_2000$p_full,
+                        outcome = "day30",
+                        thresholds = z,
+                        label = "Full")
 set.seed(10)
 e_500  <- evpi(res_full, n_sim = 5000)
 e_2000 <- evpi(res_full_2000, n_sim = 5000)
@@ -382,36 +382,36 @@ ctrl <- cipcw_control(
   refit_function = function(data, weights)
     partykit::ctree(Surv(years, death == 0) ~ age + nodes + grade, data = data,
                     weights = weights))
-res_tree <- nb(data = df_val_survival,
-               predicted_risk = df_val_survival$p_cox,
-               outcome = ~ Surv(years, death),
-               horizon = 5,
-               thresholds = zs,
-               censoring = "cipcw",
-               cipcw = ctrl,
-               label = "Cox")
+res_tree <- nb_val(data = df_val_survival,
+                   predicted_risk = df_val_survival$p_cox,
+                   outcome = ~ Surv(years, death),
+                   horizon = 5,
+                   thresholds = zs,
+                   censoring = "cipcw",
+                   cipcw = ctrl,
+                   label = "Cox")
 set.seed(43)
 summary(evpi(res_tree, n_sim = 1000), thresholds = c(0.1, 0.2, 0.3, 0.4))
 ```
 
 **Prior information.** All the results above use the default prior, the
-data only. For a binary outcome, prior information can be added in `nb()`
+data only. For a binary outcome, prior information can be added in `nb_val()`
 (e.g. `prior = nb_uniform()`, see the net benefit guide); the draws then come
 from that posterior. Results with different priors are not compared:
 
 ```{r evpi-prior}
-u_full <- nb(data = df_val_binary,
-             predicted_risk = df_val_binary$p_full,
-             outcome = "day30",
-             thresholds = z,
-             prior = nb_uniform(),
-             label = "Full")
-u_age  <- nb(data = df_val_binary,
-             predicted_risk = df_val_binary$p_age,
-             outcome = "day30",
-             thresholds = z,
-             prior = nb_uniform(),
-             label = "Age only")
+u_full <- nb_val(data = df_val_binary,
+                 predicted_risk = df_val_binary$p_full,
+                 outcome = "day30",
+                 thresholds = z,
+                 prior = nb_uniform(),
+                 label = "Full")
+u_age  <- nb_val(data = df_val_binary,
+                 predicted_risk = df_val_binary$p_age,
+                 outcome = "day30",
+                 thresholds = z,
+                 prior = nb_uniform(),
+                 label = "Age only")
 set.seed(30)
 summary(evpi(u_full, u_age, n_sim = 5000), thresholds = c(0.02, 0.05, 0.1, 0.2))
 ```
@@ -492,7 +492,7 @@ d_o[round(d_o$threshold, 2) == 0.1 & d_o$future_n == 2000, ]  # EVSI at 0.1, N =
 
 # EVPI and EVSI below the decision curve
 
-`plot()` of `nb()` results draws EVPI and EVSI in a panel below the decision
+`plot()` of `nb_val()` results draws EVPI and EVSI in a panel below the decision
 curve, on the same threshold axis (without `evpi`, the panel takes the EVPI
 of the `evsi()` result):
 
@@ -519,7 +519,7 @@ plot(res_full, res_age, evpi = e, evsi = o, interactive = TRUE)
 evpi(res_full, n_sim = 1)                     # at least 2 draws
 evpi(res_full, res_cox)                       # results that cannot be compared
 evpi(res_full, u_age)                         # different priors
-evpi(as.data.frame(res_full))                 # not a result of nb()
+evpi(as.data.frame(res_full))                 # not a result of nb_val()
 evsi(res_full)                                # future_n is required
 plot(o, thresholds = 0.055)                   # not a threshold of the result
 p_useful(res_full, res_age)                   # p_useful() takes one model

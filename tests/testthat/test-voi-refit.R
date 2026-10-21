@@ -13,8 +13,8 @@ refit_setup <- function() {
 }
 
 cipcw_nb <- function(r, data, cens, ...)
-  suppressWarnings(nb(data, r$cx, surv_outcome, horizon = 5, thresholds = r$z,
-                      censoring = "cipcw", cipcw = cipcw_control(model = cens, ...)))
+  suppressWarnings(nb_val(data, r$cx, surv_outcome, horizon = 5, thresholds = r$z,
+                          censoring = "cipcw", cipcw = cipcw_control(model = cens, ...)))
 
 test_that("every known censoring model is refitted with the draw's weights", {
   r <- refit_setup()
@@ -29,11 +29,11 @@ test_that("every known censoring model is refitted with the draw's weights", {
     prodlim = function(d) prodlim::prodlim(prodlim::Hist(dtimey, death == 0) ~ 1, data = d))
   for (nm in names(fits)) {
     res <- cipcw_nb(r, r$v, fits[[nm]](r$v))
-    # weights of 1: the refit is the model itself, so the draw is nb()
+    # weights of 1: the refit is the model itself, so the draw is nb_val()
     one <- fixed_draws(res, W = matrix(1, nrow(r$v), 2))
     expect_equal(one$nb[1, , 1], res$estimates$NB_model, tolerance = 1e-12, label = nm)
     expect_equal(one$nb[1, , 2], res$estimates$NB_all, tolerance = 1e-12, label = nm)
-    # whole-number weights: the same as nb() on the duplicated patients, with the
+    # whole-number weights: the same as nb_val() on the duplicated patients, with the
     # censoring model fitted to them; this fails if the weights were ignored
     ref <- cipcw_nb(r, r$dup, fits[[nm]](r$dup))
     got <- fixed_draws(res, W = cbind(r$w, r$w))
@@ -78,7 +78,7 @@ test_that("refit_function replaces the automatic refit", {
   W[sample(length(W), 2000)] <- 0      # zero weights: left out of the refit
   expect_equal(fixed_draws(a, W = W)$nb, fixed_draws(b, W = W)$nb,
                tolerance = 1e-10)
-  # the refit really changes the censoring weights: not the same as nb()'s weights
+  # the refit really changes the censoring weights: not the same as nb_val()'s weights
   v <- voi_info(a)
   fixed <- nb_core_cipcw(v$time, v$status, v$k, v$risk, v$thresholds, v$horizon,
                          v$weight_event, v$weight_horizon, W[, 1])
@@ -98,8 +98,8 @@ test_that("models validated with the same censoring settings share one refit per
                                             grade, data = data, weights = weights)
                         })
   f2 <- survival::coxph(survival::Surv(dtimey, death) ~ age + nodes, data = r$s$dev)
-  a <- nb(r$v, r$cx, surv_outcome, horizon = 5, thresholds = r$z, censoring = "cipcw", cipcw = ctrl)
-  b <- nb(r$v, f2, surv_outcome, horizon = 5, thresholds = r$z, censoring = "cipcw", cipcw = ctrl)
+  a <- nb_val(r$v, r$cx, surv_outcome, horizon = 5, thresholds = r$z, censoring = "cipcw", cipcw = ctrl)
+  b <- nb_val(r$v, f2, surv_outcome, horizon = 5, thresholds = r$z, censoring = "cipcw", cipcw = ctrl)
   set.seed(1)
   draws_t(a, b, n_sim = 4)
   expect_equal(calls, 4)
@@ -121,22 +121,22 @@ test_that("EVPI, P(useful) and EVSI with the refit, also for competing risks", {
   # competing risks: only true censoring is the event of the censoring model
   csc <- riskRegression::CSC(prodlim::Hist(cr_time, cr_code) ~ age + nodes, data = r$s$dev)
   cens_cr <- survival::coxph(survival::Surv(cr_time, cr_code == 0) ~ age + nodes, data = r$v)
-  rc <- nb(r$v, csc, cr_outcome, horizon = 5, thresholds = r$z, cause = "death",
-           censoring = "cipcw", cipcw = cipcw_control(model = cens_cr))
+  rc <- nb_val(r$v, csc, cr_outcome, horizon = 5, thresholds = r$z, cause = "death",
+               censoring = "cipcw", cipcw = cipcw_control(model = cens_cr))
   dc <- fixed_draws(rc, W = matrix(1, nrow(r$v), 2))
   expect_equal(dc$nb[1, , 1], rc$estimates$NB_model, tolerance = 1e-10)
   set.seed(4)
   expect_true(all(evpi(rc, n_sim = 20)$estimates$EVPI >= 0))
 })
 
-test_that("given censoring weights work in nb() but not in the value of information", {
+test_that("given censoring weights work in nb_val() but not in the value of information", {
   r <- refit_setup()
   cens <- survival::coxph(r$cf, data = r$v)
   m <- cipcw_nb(r, r$v, cens)
   v <- voi_info(m)
-  g <- suppressWarnings(nb(r$v, r$cx, surv_outcome, horizon = 5, thresholds = r$z,
-                           censoring = "cipcw",
-                           cipcw = cipcw_control(weight_event = v$weight_event,
+  g <- suppressWarnings(nb_val(r$v, r$cx, surv_outcome, horizon = 5, thresholds = r$z,
+                               censoring = "cipcw",
+                               cipcw = cipcw_control(weight_event = v$weight_event,
                                                  weight_horizon = v$weight_horizon)))
   expect_equal(g$estimates$NB_model, m$estimates$NB_model)
   set.seed(1)
@@ -144,7 +144,7 @@ test_that("given censoring weights work in nb() but not in the value of informat
   expect_error(evpi(g, n_sim = 2), "give the censoring model instead")
   expect_error(evsi(g, future_n = 10, n_sim = 2), "cannot be re-estimated")
   # Kaplan-Meier needs no censoring model
-  km <- suppressWarnings(nb(r$v, r$cx, surv_outcome, horizon = 5, thresholds = r$z))
+  km <- suppressWarnings(nb_val(r$v, r$cx, surv_outcome, horizon = 5, thresholds = r$z))
   set.seed(1)
   expect_no_error(draws_t(km, n_sim = 2))
 })
@@ -157,8 +157,8 @@ test_that("refit settings are checked", {
                              refit_function = function(data, weights) NULL),
                "needs the censoring `model`")
   expect_error(cipcw_control(model = cens, refit_function = "coxph"), "must be a function")
-  expect_error(nb(r$v, r$cx, surv_outcome, horizon = 5,
-                  cipcw = cipcw_control(refit_function = function(data, weights) NULL)),
+  expect_error(nb_val(r$v, r$cx, surv_outcome, horizon = 5,
+                      cipcw = cipcw_control(refit_function = function(data, weights) NULL)),
                "needs the censoring `model`")
   bad <- cipcw_nb(r, r$v, cens, refit_function = function(data, weights) stop("no fit"))
   expect_error(draws_t(bad, n_sim = 2), "Could not refit the censoring model.*no fit")

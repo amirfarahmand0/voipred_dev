@@ -2,15 +2,20 @@
 #'
 #' The plot of results of [evpi()]: EVPI (or relative EVPI) against the
 #' threshold, for one or more results, e.g. for different validation samples
-#' or sets of models. To draw EVPI under the decision curve, use
-#' `plot(<nb result>, evpi = )` ([plot.voipred_nb()]).
+#' or sets of models; or, for one result, P(useful) or P(best) from the same
+#' draws (as [plot.voipred_p_useful()] and [plot.voipred_p_best()] draw
+#' them). To draw EVPI under the decision curve, use
+#' `plot(<nb_val result>, evpi = )` ([plot.voipred_nb()]).
 #'
 #' @param x A result of [evpi()].
 #' @param ... More results of [evpi()] to draw on the same plot. A result given
 #'   here with a name is labelled with its name.
-#' @param type `"evpi"` (default) or `"relative"` (relative EVPI, with a dashed
-#'   line at 1; infinite values are left out).
-#' @param labels Optional names of the curves, one per result, in order.
+#' @param type `"evpi"` (default), `"relative"` (relative EVPI, with a dashed
+#'   line at 1; infinite values are left out), `"p_useful"` (P(useful) of each
+#'   model) or `"p_best"` (P(best) of each strategy); the last two for one
+#'   result.
+#' @param labels Optional names of the curves, one per result, in order
+#'   (`type = "p_useful"`: one per model).
 #'   Default: `"EVPI"` for one result, the argument names (or `"EVPI 1"`,
 #'   `"EVPI 2"`, ...) for several.
 #' @param interactive `TRUE` for an interactive plot (needs the plotly
@@ -23,19 +28,31 @@
 #' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
 #'            family = binomial, data = df_dev_binary)
 #' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
-#' res <- nb(data = df_val_binary,
-#'           predicted_risk = df_val_binary$p,
-#'           outcome = "day30",
-#'           thresholds = seq(0.01, 0.3, by = 0.01))
+#' res <- nb_val(data = df_val_binary,
+#'               predicted_risk = df_val_binary$p,
+#'               outcome = "day30",
+#'               thresholds = seq(0.01, 0.3, by = 0.01))
 #' set.seed(1)
 #' e <- evpi(res, n_sim = 500)
 #' plot(e)
 #' plot(e, type = "relative")
+#' plot(e, type = "p_useful")
+#' plot(e, type = "p_best")
 #' @export
-plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative"), labels = NULL,
-                              interactive = FALSE) {
+plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "p_best"),
+                              labels = NULL, interactive = FALSE) {
   type <- match.arg(type)
   check_interactive(interactive)
+  if (type %in% c("p_useful", "p_best")) {
+    # P(useful) or P(best) from the draws of evpi()
+    if (length(list(...)))
+      stop("plot(type = \"", type, "\") draws one result of evpi().", call. = FALSE)
+    if (type == "p_best" && !is.null(labels))
+      stop("`labels` is not used with type = \"p_best\".", call. = FALSE)
+    obj <- from_evpi(x, type, list(), TRUE)
+    return(if (type == "p_useful") plot(obj, labels = labels, interactive = interactive)
+           else plot(obj, interactive = interactive))
+  }
   res <- collect_results(x, list(...), labels, "voipred_evpi", "evpi()", "plot()",
                          "`type`, `labels` and `interactive`", "EVPI")
   col <- if (type == "evpi") "EVPI" else "rEVPI"
@@ -56,7 +73,7 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative"), labels = NUL
 #' curve per threshold, starting at 0 for no new data, with that threshold's
 #' EVPI as a dashed line (the limit as the future sample grows), as in
 #' Sadatsafavi et al. (2025). To draw EVSI under the decision curve, use
-#' `plot(<nb result>, evsi = )` ([plot.voipred_nb()]).
+#' `plot(<nb_val result>, evsi = )` ([plot.voipred_nb()]).
 #'
 #' @param x A result of [evsi()].
 #' @param ... Not used.
@@ -72,10 +89,10 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative"), labels = NUL
 #' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
 #'            family = binomial, data = df_dev_binary)
 #' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
-#' res <- nb(data = df_val_binary,
-#'           predicted_risk = df_val_binary$p,
-#'           outcome = "day30",
-#'           thresholds = c(0.02, 0.05, 0.1))
+#' res <- nb_val(data = df_val_binary,
+#'               predicted_risk = df_val_binary$p,
+#'               outcome = "day30",
+#'               thresholds = c(0.02, 0.05, 0.1))
 #' set.seed(1)
 #' o <- evsi(res, future_n = c(250, 500, 1000, 2000), n_sim = 500)
 #' plot(o)
@@ -107,15 +124,13 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, interactive = FALSE) {
 #' Plot the probability that a model is useful
 #'
 #' The plot of results of [p_useful()]: P(useful) against the threshold, one
-#' curve per result, in the colours of [plot.voipred_nb()]. [p_useful()]
-#' takes one model; to compare models, give the result of each:
-#' `plot(pu_1, pu_2)`.
+#' curve per model of each result, in the colours of [plot.voipred_nb()].
 #'
 #' @param x A result of [p_useful()].
 #' @param ... More results of [p_useful()] to draw on the same plot. A result
-#'   given here with a name is labelled with its name.
-#' @param labels Optional names of the curves, one per result, in order.
-#'   Default: the model's label of each result (or the argument names).
+#'   with one model given here with a name is labelled with its name.
+#' @param labels Optional names of the curves, one per model, in order.
+#'   Default: the models' labels (or the argument names).
 #' @param interactive `TRUE` for an interactive plot (needs the plotly
 #'   package). Default `FALSE`.
 #' @return A ggplot object, or a plotly widget with `interactive = TRUE`.
@@ -126,45 +141,55 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, interactive = FALSE) {
 #' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
 #'            family = binomial, data = df_dev_binary)
 #' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
-#' res <- nb(data = df_val_binary,
-#'           predicted_risk = df_val_binary$p,
-#'           outcome = "day30",
-#'           thresholds = seq(0.01, 0.3, by = 0.01))
+#' res <- nb_val(data = df_val_binary,
+#'               predicted_risk = df_val_binary$p,
+#'               outcome = "day30",
+#'               thresholds = seq(0.01, 0.3, by = 0.01))
 #' set.seed(1)
 #' pu <- p_useful(res, n_sim = 500)
 #' plot(pu)
 #'
-#' # two models: one result each, drawn together
+#' # two models
 #' fit_age <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
 #' df_val_binary$p_age <- predict(fit_age, newdata = df_val_binary, type = "response")
-#' res_age <- nb(data = df_val_binary,
-#'               predicted_risk = df_val_binary$p_age,
-#'               outcome = "day30",
-#'               thresholds = seq(0.01, 0.3, by = 0.01),
-#'               label = "Age only")
+#' both <- nb_val(data = df_val_binary,
+#'                predicted_risk = list(Full = df_val_binary$p, `Age only` = df_val_binary$p_age),
+#'                outcome = "day30",
+#'                thresholds = seq(0.01, 0.3, by = 0.01))
 #' set.seed(1)
-#' pu_age <- p_useful(res_age, n_sim = 500)
-#' plot(pu, pu_age, labels = c("Full", "Age only"))
+#' plot(p_useful(both, n_sim = 500))
 #' @export
 plot.voipred_p_useful <- function(x, ..., labels = NULL, interactive = FALSE) {
   check_interactive(interactive)
   dots <- list(...)
-  res <- collect_results(x, dots, labels, "voipred_p_useful", "p_useful()", "plot()",
-                         "`labels` and `interactive`", "P(useful)")
-  if (is.null(labels)) {
-    # default: each result's model label, or the argument name
-    lab <- vapply(c(list(x), dots), function(r) r$models[1], character(1))
-    nms <- names(dots)
-    if (!is.null(nms)) lab[-1][nzchar(nms)] <- nms[nzchar(nms)]
-    if (anyDuplicated(lab))
-      stop("Two results have the same label (\"", lab[anyDuplicated(lab)], "\"); give ",
-           "each a different one with `labels`.", call. = FALSE)
-    names(res) <- lab
+  collect_results(x, dots, NULL, "voipred_p_useful", "p_useful()", "plot()",
+                  "`labels` and `interactive`", "P(useful)")
+  items <- c(list(x), dots)
+  nms <- c("", if (is.null(names(dots))) rep("", length(dots)) else names(dots))
+  # one curve per model of each result, labelled by the model, or by the
+  # argument name for a result with one model
+  curves <- list()
+  lev <- character()
+  for (i in seq_along(items)) {
+    r <- items[[i]]
+    if (nzchar(nms[i]) && length(r$models) > 1)
+      stop("A name relabels a result with one model, but the result named \"", nms[i],
+           "\" has ", length(r$models), "; use `labels`.", call. = FALSE)
+    for (m in r$models) {
+      curves[[length(curves) + 1]] <- r$estimates[r$estimates$model == m, ]
+      lev <- c(lev, if (nzchar(nms[i])) nms[i] else m)
+    }
   }
-  lev <- names(res)
-  d <- do.call(rbind, Map(function(r, l) curve_data(r$estimates$threshold, l,
-                                                     r$estimates$p_useful),
-                          res, lev))
+  if (!is.null(labels)) {
+    if (!is.character(labels) || length(labels) != length(lev) || anyNA(labels))
+      labels_error(length(lev), "curve")
+    lev <- labels
+  }
+  if (anyDuplicated(lev))
+    stop("Two curves have the same label (\"", lev[anyDuplicated(lev)], "\"); give ",
+         "each a different one with `labels`.", call. = FALSE)
+  d <- do.call(rbind, Map(function(e, l) curve_data(e$threshold, l, e$p_useful),
+                          curves, lev))
   d$label <- factor(d$label, levels = lev)
   # the models keep the colours they have in the decision curve
   cols <- default_hues(length(lev) + 2)[-(1:2)]
@@ -191,10 +216,10 @@ plot.voipred_p_useful <- function(x, ..., labels = NULL, interactive = FALSE) {
 #' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
 #'            family = binomial, data = df_dev_binary)
 #' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
-#' res <- nb(data = df_val_binary,
-#'           predicted_risk = df_val_binary$p,
-#'           outcome = "day30",
-#'           thresholds = seq(0.01, 0.3, by = 0.01))
+#' res <- nb_val(data = df_val_binary,
+#'               predicted_risk = df_val_binary$p,
+#'               outcome = "day30",
+#'               thresholds = seq(0.01, 0.3, by = 0.01))
 #' set.seed(1)
 #' plot(p_best(res, n_sim = 500))
 #' @export
@@ -221,9 +246,9 @@ check_no_dots <- function(dots, fun, args) {
     stop("Unknown argument to ", fun, ". Its arguments are ", args, ".", call. = FALSE)
 }
 
-labels_error <- function(n)
+labels_error <- function(n, what = "result")
   stop("`labels` must be ", if (n == 1) "one string" else paste(n, "strings"),
-       ", one per result.", call. = FALSE)
+       ", one per ", what, ".", call. = FALSE)
 
 # The thresholds of an evsi() result to show: the ones asked for, or by default
 # all (at most `max_all`) or the `n_default` with the largest EVPI.

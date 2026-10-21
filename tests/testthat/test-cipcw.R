@@ -5,8 +5,8 @@ local_base_formula()
 fork <- readRDS(test_path("fixtures", "cipcw_fork.rds"))
 
 cipcw_nb <- function(model, data, outcome, ctrl, horizon = 5, thresholds = surv_z, ...)
-  nb(data, model, outcome, horizon = horizon, thresholds = thresholds,
-     censoring = "cipcw", cipcw = ctrl, ...)
+  nb_val(data, model, outcome, horizon = horizon, thresholds = thresholds,
+         censoring = "cipcw", cipcw = ctrl, ...)
 
 # Muffle the expected "not a survival model" warning of fixed_model().
 no_fixed_warning <- function(expr) withCallingHandlers(expr, warning = function(w)

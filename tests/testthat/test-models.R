@@ -1,10 +1,10 @@
-# Many model families on GUSTO-I. For each: nb() must give the same net
+# Many model families on GUSTO-I. For each: nb_val() must give the same net
 # benefit as dcurves::dca() at every threshold. Models that do not return
 # probabilities by default have their own predict_risk() method; their raw,
 # unconverted output (scores, classes) must be rejected.
 
 check_model <- function(fit, val) {
-  expect_same_as_dcurves(nb(val, fit, "day30", all_z), val)
+  expect_same_as_dcurves(nb_val(val, fit, "day30", all_z), val)
 }
 
 # ---- 1. predict() already returns probabilities (default method) ----------
@@ -58,7 +58,7 @@ test_that("gradient boosting (gbm) agrees with dcurves", {
   set.seed(1)
   fit <- gbm::gbm(gusto_formula, data = s$dev, distribution = "bernoulli",
                   n.trees = 200, interaction.depth = 2)
-  expect_same_as_dcurves(suppressMessages(nb(s$val, fit, "day30", all_z)), s$val)
+  expect_same_as_dcurves(suppressMessages(nb_val(s$val, fit, "day30", all_z)), s$val)
 })
 
 test_that("k-nearest neighbours (kknn) agrees with dcurves", {
@@ -195,22 +195,22 @@ test_that("svm without probability = TRUE, or its decision values, are rejected"
   s <- gusto_split()
   ff <- factor(day30) ~ age + Killip + sysbp + pulse
   fit <- e1071::svm(ff, data = s$dev[1:2000, ])
-  expect_error(nb(s$val, fit, "day30"), "probability = TRUE")
+  expect_error(nb_val(s$val, fit, "day30"), "probability = TRUE")
   vars <- c("age", "Killip", "sysbp", "pulse")
   dv <- attr(predict(fit, s$val[, vars], decision.values = TRUE), "decision.values")[, 1]
-  expect_error(nb(s$val, fixed_model(dv), "day30"), "not probabilities")
+  expect_error(nb_val(s$val, fixed_model(dv), "day30"), "not probabilities")
 })
 
 test_that("log-odds from glmnet, gbm and probit glm are rejected as scores", {
   m <- gusto_matrix_split()
   fit_net <- glmnet::glmnet(m$x, m$y, family = "binomial", lambda = 0.02)
   link <- predict(fit_net, newx = as.matrix(m$val[, colnames(m$x)]))   # default: link
-  expect_error(nb(m$val, fixed_model(as.vector(link)), "day30"), "not probabilities")
+  expect_error(nb_val(m$val, fixed_model(as.vector(link)), "day30"), "not probabilities")
   skip_if_not_installed("gbm")
   s <- gusto_split()
   fit_gbm <- gbm::gbm(gusto_formula, data = s$dev, distribution = "bernoulli", n.trees = 100)
   link_gbm <- suppressMessages(predict(fit_gbm, s$val))                # default: link
-  expect_error(nb(s$val, fixed_model(link_gbm), "day30"), "not probabilities")
+  expect_error(nb_val(s$val, fixed_model(link_gbm), "day30"), "not probabilities")
 })
 
 test_that("XGBoost raw log-odds (binary:logitraw) are rejected", {
@@ -219,13 +219,13 @@ test_that("XGBoost raw log-odds (binary:logitraw) are rejected", {
   fit <- xgboost::xgb.train(params = list(objective = "binary:logitraw", nthread = 1),
                             data = xgboost::xgb.DMatrix(m$x, label = m$y),
                             nrounds = 30, verbose = 0)
-  expect_error(nb(m$val, fit, "day30"), "not probabilities")
+  expect_error(nb_val(m$val, fit, "day30"), "not probabilities")
 })
 
 test_that("glmnet with a whole lambda path is rejected", {
   m <- gusto_matrix_split()
   fit <- glmnet::glmnet(m$x, m$y, family = "binomial")
-  expect_error(nb(m$val, fit, "day30"), "single lambda")
+  expect_error(nb_val(m$val, fit, "day30"), "single lambda")
 })
 
 test_that("LightGBM raw scores and CatBoost raw values and classes are rejected", {
@@ -235,7 +235,7 @@ test_that("LightGBM raw scores and CatBoost raw values and classes are rejected"
     fit <- lightgbm::lightgbm(data = m$x, label = m$y, nrounds = 50,
                               params = list(objective = "binary", num_threads = 1, verbose = -1))
     raw <- predict(fit, xv, type = "raw")
-    expect_error(nb(m$val, fixed_model(as.vector(raw)), "day30"), "not probabilities")
+    expect_error(nb_val(m$val, fixed_model(as.vector(raw)), "day30"), "not probabilities")
   }
   skip_if_not_installed("catboost")
   fit_cb <- catboost::catboost.train(catboost::catboost.load_pool(m$dev[, colnames(m$x)], label = m$y),
@@ -244,9 +244,9 @@ test_that("LightGBM raw scores and CatBoost raw values and classes are rejected"
                                                    allow_writing_files = FALSE))
   pool <- catboost::catboost.load_pool(m$val[, colnames(m$x)])
   raw_cb <- catboost::catboost.predict(fit_cb, pool, prediction_type = "RawFormulaVal")
-  expect_error(nb(m$val, fixed_model(raw_cb), "day30"), "not probabilities")
+  expect_error(nb_val(m$val, fixed_model(raw_cb), "day30"), "not probabilities")
   cls_cb <- catboost::catboost.predict(fit_cb, pool, prediction_type = "Class")
-  expect_error(nb(m$val, fixed_model(cls_cb), "day30"), "look like predicted classes")
+  expect_error(nb_val(m$val, fixed_model(cls_cb), "day30"), "look like predicted classes")
 })
 
 test_that("LDA discriminant scores are rejected", {
@@ -254,7 +254,7 @@ test_that("LDA discriminant scores are rejected", {
   s <- gusto_split()
   fit <- MASS::lda(factor(day30) ~ age + sysbp + pulse + Killip, data = s$dev)
   ld <- predict(fit, s$val)$x[, 1]
-  expect_error(nb(s$val, fixed_model(ld), "day30"), "not probabilities")
+  expect_error(nb_val(s$val, fixed_model(ld), "day30"), "not probabilities")
 })
 
 test_that("predicted classes from rpart and naiveBayes are rejected", {
@@ -264,10 +264,10 @@ test_that("predicted classes from rpart and naiveBayes are rejected", {
   ff <- factor(day30) ~ age + Killip + sysbp + pulse + pmi + miloc + sex
   tree <- rpart::rpart(ff, data = s$dev, method = "class", cp = 0.002)
   cls <- as.numeric(as.character(predict(tree, s$val, type = "class")))
-  expect_error(nb(s$val, fixed_model(cls), "day30"), "look like predicted classes")
+  expect_error(nb_val(s$val, fixed_model(cls), "day30"), "look like predicted classes")
   bayes <- e1071::naiveBayes(ff, data = s$dev)
   cls2 <- as.numeric(as.character(predict(bayes, s$val, type = "class")))
-  expect_error(nb(s$val, fixed_model(cls2), "day30"), "look like predicted classes")
+  expect_error(nb_val(s$val, fixed_model(cls2), "day30"), "look like predicted classes")
 })
 
 # ---- 5. matrix models need the same columns in the validation data -------
@@ -276,8 +276,8 @@ test_that("matrix models: missing or non-numeric feature columns give clear erro
   m <- gusto_matrix_split()
   fit <- glmnet::glmnet(m$x, m$y, family = "binomial", lambda = 0.02)
   v <- m$val[, setdiff(names(m$val), c("KillipII", "sexfemale"))]
-  expect_error(nb(v, fit, "day30"), "missing 2 covariates.*KillipII, sexfemale")
+  expect_error(nb_val(v, fit, "day30"), "missing 2 covariates.*KillipII, sexfemale")
   v2 <- m$val
   v2$age <- as.character(v2$age)
-  expect_error(nb(v2, fit, "day30"), "not numeric: age")
+  expect_error(nb_val(v2, fit, "day30"), "not numeric: age")
 })

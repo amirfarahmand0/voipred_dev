@@ -1,8 +1,8 @@
-# print(), summary() and as.data.frame() methods of the results of nb(),
+# print(), summary() and as.data.frame() methods of the results of nb_val(),
 # p_useful(), p_best(), evpi() and evsi(). (The plot() methods are in plot.R
 # and plot_voi.R.)
 
-# ---- nb() --------------------------------------------------------------------
+# ---- nb_val() --------------------------------------------------------------------
 
 #' Summarise the net benefit of a model
 #'
@@ -11,18 +11,19 @@
 #' model's sensitivity and specificity;
 #' `as.data.frame()` returns the estimates at every threshold.
 #'
-#' @param object,x A result of [nb()].
+#' @param object,x A result of [nb_val()].
 #' @param thresholds Optional thresholds to show in the table (among those of
 #'   the result); default: all, of which the first 10 are printed.
 #' @param n Number of thresholds printed. Default 10.
 #' @param row.names,optional Not used (as in [as.data.frame()]).
 #' @param ... Not used.
 #' @return `summary()`: an object of class `summary.voipred_nb`, printed as
-#'   shown. `as.data.frame()`: the `estimates` data frame (columns `threshold`,
-#'   `NB_model`, `NB_all`, `NB_none`, `delta_NB`).
-#' @details The best strategy at a threshold is the model where
-#'   `delta_NB > 0`, otherwise treat all if its net benefit is positive,
-#'   otherwise treat none. For a binary outcome, sensitivity and
+#'   shown (with several models, the table has one row per threshold and
+#'   model). `as.data.frame()`: the `estimates` data frame (columns
+#'   `threshold`, `model`, `NB_model`, `NB_all`, `NB_none`, `delta_NB`).
+#' @details The best strategy at a threshold is the model with the largest
+#'   `delta_NB` if it is positive, otherwise treat all if its net benefit is
+#'   positive, otherwise treat none. For a binary outcome, sensitivity and
 #'   specificity are posterior means (the observed proportions with the default
 #'   improper prior). For survival and competing-risks outcomes they are those
 #'   of the event by the horizon, from the same estimates as the net benefit:
@@ -31,17 +32,17 @@
 #'   treated \eqn{F_+}, \eqn{Se = q F_+ / F} and
 #'   \eqn{Sp = 1 - q (1 - F_+) / (1 - F)}; with `censoring = "cipcw"`, the
 #'   IPCW-weighted proportions of the cIPCW estimator.
-#' @seealso [nb()], [plot.voipred_nb()]
+#' @seealso [nb_val()], [plot.voipred_nb()]
 #' @examples
 #' df_dev_binary <- gusto[1:5000, ]
 #' df_val_binary <- gusto[5001:5500, ]
 #' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
 #'            family = binomial, data = df_dev_binary)
 #' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
-#' res <- nb(data = df_val_binary,
-#'           predicted_risk = df_val_binary$p,
-#'           outcome = "day30",
-#'           thresholds = seq(0.01, 0.3, by = 0.01))
+#' res <- nb_val(data = df_val_binary,
+#'               predicted_risk = df_val_binary$p,
+#'               outcome = "day30",
+#'               thresholds = seq(0.01, 0.3, by = 0.01))
 #' res
 #' summary(res)
 #' summary(res, thresholds = c(0.05, 0.1, 0.2))
@@ -53,7 +54,14 @@ NULL
 #' @export
 print.voipred_nb <- function(x, n = 10, ...) {
   cat(nb_header(x), "\n\n", sep = "")
-  print_rows(x$estimates, n, "use summary() or as.data.frame()", digits = 4)
+  e <- x$estimates
+  tab <- if (length(x$models) == 1) e[names(e) != "model"] else {
+    # one row per threshold: the net benefit of each model and of treating all
+    w <- wide(e, "model", "NB_model", x$models)
+    w[["Treat All"]] <- nb_all(x)
+    w
+  }
+  print_rows(tab, n, "use summary() or as.data.frame()", digits = 4)
   invisible(x)
 }
 
@@ -61,26 +69,40 @@ print.voipred_nb <- function(x, n = 10, ...) {
 #' @export
 summary.voipred_nb <- function(object, thresholds = NULL, ...) {
   e <- object$estimates
-  best <- best_strategy(e)
-  o <- order(e$threshold)
-  tab <- data.frame(threshold = e$threshold)
+  M <- length(object$models)
+  z <- nb_thresholds(object)
+  Z <- length(z)
   ss <- if (object$outcome$type == "binary") sens_spec(object)
         else if (object$outcome$censoring == "cipcw") sens_spec_cipcw(object)
         else sens_spec_km(object)
-  tab$Se <- ss$Se
-  tab$Sp <- ss$Sp
-  tab$NB_model <- e$NB_model
-  tab$NB_all <- e$NB_all
-  tab$delta_NB <- e$delta_NB
-  tab$best <- best
-  rows <- select_rows(e$threshold, thresholds)
-  ok <- is.finite(e$delta_NB)
-  largest <- if (any(ok & e$delta_NB > 1e-12)) {
-    j <- which(ok)[which.max(e$delta_NB[ok])]
-    sprintf("Largest delta_NB: %s at %s", fmt_num(e$delta_NB[j]), fmt_zs(e$threshold)[j])
-  } else "The model is not better than both default strategies at any threshold"
+  tab <- data.frame(threshold = e$threshold, model = e$model, Se = ss$Se, Sp = ss$Sp,
+                    NB_model = e$NB_model, NB_all = e$NB_all, delta_NB = e$delta_NB)
+  best <- best_strategy(object)
+  o <- order(z)
+  largest <- vapply(object$models, function(m) {
+    d <- e$delta_NB[e$model == m]
+    ok <- is.finite(d) & d > 1e-12
+    if (!any(ok)) return(NA_character_)
+    j <- which(ok)[which.max(d[ok])]
+    sprintf("%s at %s", fmt_num(d[j]), fmt_zs(z)[j])
+  }, character(1))
+  largest <- if (M == 1) {
+    if (is.na(largest)) "The model is not better than both default strategies at any threshold"
+    else paste("Largest delta_NB:", largest)
+  } else paste0("Largest delta_NB: ", paste0(object$models, " ",
+                ifelse(is.na(largest), "none (never better than both default strategies)",
+                       largest), collapse = "; "))
+  zrows <- select_rows(z, thresholds)
+  if (M == 1) {
+    tab$model <- NULL
+    tab$best <- best
+    rows <- zrows
+  } else {
+    # by threshold, then model (the estimates are by model, then threshold)
+    rows <- as.vector(t(outer(zrows, (seq_len(M) - 1) * Z, `+`)))
+  }
   structure(list(header = nb_header(object),
-                 best = paste("Best strategy:", segments_text(e$threshold[o], best[o])),
+                 best = paste("Best strategy:", segments_text(z[o], best[o])),
                  largest = largest, table = tab[rows, , drop = FALSE],
                  all_rows = is.null(thresholds)),
             class = "summary.voipred_nb")
@@ -138,16 +160,16 @@ as.data.frame.voipred_nb <- function(x, row.names = NULL, optional = FALSE, ...)
 #' fit2 <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
 #' df_val_binary$p2 <- predict(fit2, newdata = df_val_binary, type = "response")
 #' z <- seq(0.01, 0.3, by = 0.01)
-#' res1 <- nb(data = df_val_binary,
-#'            predicted_risk = df_val_binary$p1,
-#'            outcome = "day30",
-#'            thresholds = z,
-#'            label = "Full")
-#' res2 <- nb(data = df_val_binary,
-#'            predicted_risk = df_val_binary$p2,
-#'            outcome = "day30",
-#'            thresholds = z,
-#'            label = "Age only")
+#' res1 <- nb_val(data = df_val_binary,
+#'                predicted_risk = df_val_binary$p1,
+#'                outcome = "day30",
+#'                thresholds = z,
+#'                label = "Full")
+#' res2 <- nb_val(data = df_val_binary,
+#'                predicted_risk = df_val_binary$p2,
+#'                outcome = "day30",
+#'                thresholds = z,
+#'                label = "Age only")
 #' set.seed(1)
 #' e <- evpi(res1, res2)
 #' e
@@ -165,6 +187,8 @@ print.voipred_evpi <- function(x, n = 10, ...) {
   cat(voi_header("EVPI", x), "\n\n", sep = "")
   print_rows(x$estimates[, c("threshold", "EVPI", "rEVPI")], n,
              "use summary() or as.data.frame()", digits = 4)
+  if (!is.null(x$p_best))
+    cat("# From the same draws: p_useful(x) and p_best(x)\n")
   invisible(x)
 }
 
@@ -186,6 +210,12 @@ summary.voipred_evpi <- function(object, thresholds = NULL, ...) {
                     best_now = best_now, ENB_best_now = apply(enb, 1, max),
                     check.names = FALSE)
   names(tab)[4:5] <- c("best now", "ENB best now")
+  if (!is.null(object$p_best)) {
+    # the probability that the strategy that is best now is the best
+    pb <- wide(object$p_best$estimates, "strategy", "p_best", object$p_best$strategies)
+    pm <- as.matrix(pb[match(e$threshold, pb$threshold), -1, drop = FALSE])
+    tab[["P(best)"]] <- pm[cbind(seq_len(nrow(pm)), match(best_now, colnames(pm)))]
+  }
   rows <- select_rows(e$threshold, thresholds)
   structure(list(header = voi_header("EVPI", object), lines = line,
                  table = tab[rows, , drop = FALSE], all_rows = is.null(thresholds)),
@@ -243,10 +273,9 @@ summary.voipred_p_useful <- function(object, thresholds = NULL, ...) {
   names(tab) <- c("model", "P > 0.95", "0.5 to 0.95", "P < 0.5")
   at <- NULL
   if (!is.null(thresholds)) {
-    rows <- select_rows(e$threshold, thresholds)
-    at <- data.frame(threshold = e$threshold[rows], p = e$p_useful[rows],
-                     check.names = FALSE)
-    names(at)[2] <- "P(useful)"
+    w <- wide(e, "model", "p_useful", object$models)
+    at <- w[select_rows(w$threshold, thresholds), , drop = FALSE]
+    if (length(object$models) == 1) names(at)[2] <- "P(useful)"
   }
   structure(list(header = voi_header("P(useful)", object),
                  lines = "Thresholds where the probability that the model is useful is:",
@@ -320,10 +349,11 @@ as.data.frame.voipred_p_best <- function(x, row.names = NULL, optional = FALSE, 
 
 # ---- internal ----------------------------------------------------------------
 
-# The first line of print() and summary() of nb().
+# The first line of print() and summary() of nb_val().
 nb_header <- function(x) {
   o <- x$outcome
-  paste0("Net benefit of ", x$label, ": ", outcome_text(o, x$weights),
+  paste0("Net benefit of ", paste(x$models, collapse = ", "), ": ",
+         outcome_text(o, x$weights),
          if (o$type == "binary") {
            if (is.null(x$weights))
              sprintf(", %s events (%s)", fmt_count(o$events), fmt_pct(o$prevalence))
@@ -422,11 +452,19 @@ select_rows <- function(z, thresholds) {
   rows
 }
 
-# Best strategy at each threshold of the estimates of nb().
-best_strategy <- function(e) {
-  ifelse(is.na(e$delta_NB), NA_character_,
-         ifelse(e$delta_NB > 1e-12, "model",
-                ifelse(e$NB_all > 1e-12, "treat all", "treat none")))
+# Best strategy at each threshold of a result of nb_val(): the model with the
+# largest delta_NB if it is positive, otherwise treat all if its net benefit is
+# positive, otherwise treat none (NA where a net benefit is NA).
+best_strategy <- function(x) {
+  z <- nb_thresholds(x)
+  d <- matrix(x$estimates$delta_NB, nrow = length(z))     # threshold x model
+  all <- nb_all(x)
+  vapply(seq_along(z), function(j) {
+    dj <- d[j, ]
+    if (anyNA(dj)) return(NA_character_)
+    if (max(dj) > 1e-12) x$models[which.max(dj)]
+    else if (all[j] > 1e-12) "treat all" else "treat none"
+  }, character(1))
 }
 
 # Posterior mean sensitivity and specificity at each threshold (binary).
@@ -438,9 +476,11 @@ best_strategy <- function(e) {
 sens_spec_km <- function(x) {
   e <- x$estimates
   F <- x$outcome$prevalence
-  w <- if (is.null(x$weights)) rep(1, length(x$risk)) else x$weights
-  q <- vapply(e$threshold, function(z) sum(w * treated_at(x$risk, z)) / sum(w),
-              numeric(1))                                  # share treated
+  w <- if (is.null(x$weights)) rep(1, nrow(x$risk)) else x$weights
+  m <- match(e$model, x$models)
+  q <- vapply(seq_len(nrow(e)), function(i)
+    sum(w * treated_at(x$risk[, m[i]], e$threshold[i])) / sum(w),
+    numeric(1))                                            # share treated
   odds <- e$threshold / (1 - e$threshold)
   qf <- (e$NB_model + q * odds) / (1 + odds)              # q F+
   se <- if (F > 0) qf / F else rep(NA_real_, length(q))
@@ -453,9 +493,10 @@ sens_spec_km <- function(x) {
 # benefit is prevalence * Se - (1 - prevalence) * (1 - Sp) * z/(1-z)).
 sens_spec_cipcw <- function(x) {
   v <- voi_info(x)
-  r <- nb_core_cipcw(v$time, v$status, v$k, v$risk, v$thresholds, v$horizon,
-                     v$weight_event, v$weight_horizon, v$weights)
-  list(Se = r$Se, Sp = r$Sp)
+  r <- lapply(seq_along(x$models), function(m)
+    nb_core_cipcw(v$time, v$status, v$k, v$risk[, m], v$thresholds, v$horizon,
+                  v$weight_event, v$weight_horizon, v$weights))
+  list(Se = unlist(lapply(r, function(a) a$Se)), Sp = unlist(lapply(r, function(a) a$Sp)))
 }
 
 sens_spec <- function(x) {

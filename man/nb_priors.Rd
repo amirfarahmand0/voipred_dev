@@ -25,7 +25,7 @@ nb_jeffreys()
 A prior, an object of class \code{nb_prior}.
 }
 \description{
-The prior of \code{\link[=nb]{nb()}}. By default \code{\link[=nb]{nb()}} uses no prior information
+The prior of \code{\link[=nb_val]{nb_val()}}. By default \code{\link[=nb_val]{nb_val()}} uses no prior information
 (\code{nb_improper()}: the data only, the usual net benefit); for a binary
 outcome, prior information can be added with the other priors. The priors
 are Beta priors on the prevalence of the outcome and, at every threshold,
@@ -38,9 +38,9 @@ are Beta distributions (conjugate), so their draws are exact (no MCMC).
 }
 \details{
 \itemize{
-\item \code{nb_improper()} (default of \code{\link[=nb]{nb()}}): no prior information. The improper
+\item \code{nb_improper()} (default of \code{\link[=nb_val]{nb_val()}}): no prior information. The improper
 (Haldane) prior, Beta(0, 0) for all three: the data only. The net benefit
-of \code{\link[=nb]{nb()}} is then the usual net benefit, \eqn{TP/n - FP/n \cdot z/(1-z)}.
+of \code{\link[=nb_val]{nb_val()}} is then the usual net benefit, \eqn{TP/n - FP/n \cdot z/(1-z)}.
 It is the only prior for survival and competing-risks outcomes, whose net
 benefit is the usual Kaplan-Meier, Aalen-Johansen or cIPCW estimate.
 \item \code{nb_uniform()}: Beta(1, 1) for all three, as in bayesDCA (binary outcome).
@@ -69,5 +69,5 @@ sample information calculations for risk prediction model validation.
 Medical Decision Making 2025; 45(3): 232-244.
 }
 \seealso{
-\code{\link[=nb]{nb()}}
+\code{\link[=nb_val]{nb_val()}}
 }

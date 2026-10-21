@@ -26,7 +26,7 @@ surv_outcome <- ~ survival::Surv(dtimey, death)
 cr_outcome <- ~ survival::Surv(cr_time, cr_status)
 surv_z <- seq(0, 0.99, by = 0.01)
 
-# nb() for a survival outcome vs dcurves::dca() (KM / Aalen-Johansen) on the
+# nb_val() for a survival outcome vs dcurves::dca() (KM / Aalen-Johansen) on the
 # same predicted risks. `levels` reorders a competing-risks status so that the
 # cause of interest comes first, as dcurves always uses the first event level.
 expect_same_as_dcurves_surv <- function(res, data, time, status, horizon,
@@ -39,7 +39,7 @@ expect_same_as_dcurves_surv <- function(res, data, time, status, horizon,
   m <- ref$net_benefit[ref$variable == "risk"]
   a <- ref$net_benefit[ref$variable == "all"]
   # dcurves quirk: NA when no treated patient has an event of interest by the
-  # horizon (the risk among the treated is 0). nb() then gives -q z / (1 - z).
+  # horizon (the risk among the treated is 0). nb_val() then gives -q z / (1 - z).
   ev <- as.integer(d$ss) == if (is.factor(d$ss)) 2L else 1L
   quirk <- is.na(m) & !is.na(res$estimates$NB_model)
   for (j in which(quirk)) {
@@ -52,7 +52,7 @@ expect_same_as_dcurves_surv <- function(res, data, time, status, horizon,
   expect_equal(res$estimates$NB_all, a, tolerance = 1e-10)
 }
 
-quiet_nb <- function(...) suppressWarnings(nb(...))
+quiet_nb <- function(...) suppressWarnings(nb_val(...))
 
 # Simulated survival data with known truth. Event times are Weibull with a
 # hazard depending on x1 and x2; censoring is exponential, either independent
