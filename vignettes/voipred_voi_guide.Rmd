@@ -534,7 +534,7 @@ Every plot takes `interactive = TRUE` for a plotly version: hovering shows
 the values of all the curves, and clicking a legend entry hides a curve.
 
 ```{r interactive, fig.height = 6.5}
-plot(pu_full, pu_age, interactive = TRUE)
+plot(pu_both, interactive = TRUE)
 plot(o, thresholds = c(0.02, 0.05, 0.1, 0.2), interactive = TRUE)
 plot(res_full, res_age, evpi = e, evsi = o, interactive = TRUE)
 ```
@@ -548,7 +548,7 @@ evpi(res_full, u_age)                         # different priors
 evpi(as.data.frame(res_full))                 # not a result of nb_val()
 evsi(res_full)                                # future_n is required
 plot(o, thresholds = 0.055)                   # not a threshold of the result
-p_useful(res_full, res_age)                   # p_useful() takes one model
+p_useful(res_both, labels = "a")              # one label per model
 plot(res_full, evpi = pu_full)                # evpi = must be a result of evpi()
 ```
 
