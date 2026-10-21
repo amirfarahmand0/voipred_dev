@@ -308,8 +308,8 @@ fit_censoring_cox <- function(formula, data, info, w = NULL) {
   env <- new.env(parent = if (is.environment(environment(formula))) environment(formula)
                           else globalenv())
   env$.voipred_data <- d
-  cl <- as.call(c(list(quote(survival::coxph), formula = f, data = quote(.voipred_data),
-                       x = TRUE),
+  # without x = TRUE: voipred's own prediction from coxph, faster in the refits
+  cl <- as.call(c(list(quote(survival::coxph), formula = f, data = quote(.voipred_data)),
                   if (!is.null(w)) list(weights = w)))
   m <- tryCatch(eval(cl, env), error = function(e)
     stop("Could not fit the Cox censoring model ", paste(deparse(formula), collapse = " "),

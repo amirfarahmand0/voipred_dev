@@ -8,7 +8,7 @@ fit_cox <- function(s) survival::coxph(surv_formula, data = s$dev)
 
 # Cox censoring model fitted by hand, as voipred fits it
 hand_cox <- function(f, data, weights = NULL)
-  do.call(survival::coxph, c(list(formula = f, data = data, x = TRUE),
+  do.call(survival::coxph, c(list(formula = f, data = data),
                              if (!is.null(weights)) list(weights = weights)))
 
 test_that("cipcw = ~ covariates is a Cox censoring model truncated at 0.02", {
