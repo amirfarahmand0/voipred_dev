@@ -529,9 +529,9 @@ print(res_cox)
 along the thresholds and the largest gain of the model, and, at each
 threshold, the sensitivity (`Se`) and specificity (`Sp`) for the event by the
 horizon and the best strategy; `thresholds` picks some. Se and Sp come from
-the same estimates as the net benefit: with `censoring = "km"` (the dcurves
-estimator), from the Kaplan-Meier risk by the horizon overall and among the
-treated; with `censoring = "cipcw"`, the IPCW-weighted proportions of the
+the same estimates as the net benefit: with Kaplan-Meier (the default, the
+dcurves estimator), from the Kaplan-Meier risk by the horizon overall and
+among the treated; with cIPCW (`cipcw`), the IPCW-weighted proportions of the
 cIPCW estimator:
 
 ```{r summary-cox}
@@ -619,8 +619,7 @@ All the options of part 1 apply, except `prior` (below). In addition:
 | `predicted_risk` | The risk of the event by `horizon` (for competing risks, of `cause` by `horizon`). |
 | `outcome` | `~ Surv(time, status)`, with status 1 = event and 0 = censored, a `Surv` object, or the name of a `Surv` column. For competing risks, status is a factor whose first level is censoring (see below). |
 | `horizon` | The time by which the risk is predicted and the event counted (required), in the units of the survival times. |
-| `censoring` | How censoring is handled: `"km"` (default) or `"cipcw"` (see below). |
-| `cipcw` | With `censoring = "cipcw"`: the censoring model or weights, made with `cipcw_control()`. |
+| `cipcw` | How censoring is handled. Not given (default): Kaplan-Meier. The covariates of the censoring, e.g. `cipcw = ~ age + nodes`: cIPCW with a Cox censoring model fitted by voipred (see below). |
 | `cause` | Competing risks only: the event type of interest (default: the first event level). |
 | `prior` | Only the default, `nb_improper()`: the net benefit is calculated from the data only, with no prior information, which gives the usual Kaplan-Meier, Aalen-Johansen or cIPCW net benefit. Other priors are for binary outcomes. It can be left out. |
 
@@ -642,31 +641,27 @@ nb_val(data = df_val_survival,
        prior = nb_uniform())
 ```
 
-**Censoring: `"km"`.** The risk among the treated patients is a
+**Censoring: Kaplan-Meier (default).** The risk among the treated patients is a
 Kaplan-Meier estimate (Aalen-Johansen for competing risks), as in dcurves.
 It assumes that censoring is independent of the outcome. At a threshold where
 none of the treated patients is followed up to the horizon, the net benefit
 cannot be estimated: it is `NA`, with a warning.
 
-**Censoring: `"cipcw"`.** Conditional inverse probability of censoring
-weighting allows censoring to depend on covariates. Fit a model to the
-censoring times of the validation data, with censoring as the event
-(`Surv(time, status == 0)`), and give it with `cipcw_control()`. The
-censoring model can be any of the survival models voipred can predict from
-(listed below), e.g. a Cox model, a parametric model or a random survival
-forest; for any other model, give its `predict_function` in
-`cipcw_control()`, or give the weights directly.
+**Censoring: cIPCW (`cipcw`).** Conditional inverse probability of censoring
+weighting allows censoring to depend on covariates. Give the covariates that
+censoring may depend on, as a formula: voipred fits a Cox model of the
+censoring times of the validation data on them (censoring as the event),
+computes the censoring weights from it, truncating the probabilities of
+remaining uncensored at 0.02 (weights at most 50), and refits it in every
+draw of the value-of-information functions:
 
 ```{r cipcw}
-cens <- coxph(Surv(years, death == 0) ~ age + nodes + grade, data = df_val_survival)
-
 res_cipcw <- nb_val(data = df_val_survival,
                     predicted_risk = df_val_survival$p_cox,
                     outcome = ~ Surv(years, death),
                     horizon = 5,
                     thresholds = seq(0, 0.6, by = 0.01),
-                    censoring = "cipcw",
-                    cipcw = cipcw_control(model = cens),
+                    cipcw = ~ age + nodes + grade,
                     label = "Cox")
 plot(res_cipcw)
 plot(res_cipcw, type = "delta")
@@ -675,14 +670,36 @@ plot(res_cipcw, type = "delta")
 Results with different censoring methods are different estimates, so
 `plot()` does not draw them together.
 
-The options of `cipcw_control()`:
+**Your own censoring model (optional).** Instead of the covariates, `cipcw`
+can be a censoring model you fitted yourself to the censoring times of the
+validation data, with censoring as the event (`Surv(time, status == 0)`):
+any of the survival models voipred can predict from (listed below), e.g. a
+parametric model or a random survival forest. This gives the same result as
+the formula above:
+
+```{r cipcw-model}
+cens <- coxph(Surv(years, death == 0) ~ age + nodes + grade, data = df_val_survival)
+res_cipcw_own <- nb_val(data = df_val_survival,
+                        predicted_risk = df_val_survival$p_cox,
+                        outcome = ~ Surv(years, death),
+                        horizon = 5,
+                        thresholds = seq(0, 0.6, by = 0.01),
+                        cipcw = cens,
+                        label = "Cox")
+all.equal(res_cipcw_own$estimates, res_cipcw$estimates)
+```
+
+**More options (optional): `cipcw_control()`.** Only needed to change the
+defaults, e.g. another truncation, `cipcw = cipcw_control(~ age + nodes + grade,
+min_prob = 0.05)`, or none, `min_prob = NULL`:
 
 | Argument | What it does |
 |---|---|
-| `model` | A survival model fitted to the censoring times of the validation data. |
-| `predict_function` | Optional: your own function giving the probability of remaining uncensored, for a censoring model voipred cannot predict from. |
-| `weight_event`, `weight_horizon` | Instead of a model: the censoring weights themselves, e.g. from a cross-fitted flexible model. |
-| `min_prob` | Optional truncation of small censoring probabilities (large weights). Off by default. |
+| `formula` | The covariates of the censoring, for the Cox model fitted by voipred (as `cipcw = ~ ...`). |
+| `model` | Instead: a survival model fitted to the censoring times of the validation data. |
+| `predict_function` | Optional, with `model`: your own function giving the probability of remaining uncensored, for a censoring model voipred cannot predict from. |
+| `weight_event`, `weight_horizon` | Instead of a formula or a model: the censoring weights themselves, e.g. from a cross-fitted flexible model. |
+| `min_prob` | Truncation of small censoring probabilities (large weights): 0.02 by default; `NULL` for none. |
 | `ties` | `"left"` (default) or `"right"`: whether a censoring at exactly a patient's own time counts. |
 
 See `?cipcw_control` for the details.
@@ -737,23 +754,19 @@ The net benefit is for "recurrence by 5 years": a patient who died first
 counts as not having the event.
 
 cIPCW works with competing risks in the same way. Only true censoring is
-censoring: the censoring model is fitted with the censored patients as the
-events (`cr_status == "censored"`), and patients with a competing event are
-not censored. voipred stops if the censoring model was fitted to one of the
-causes instead.
+censoring: the Cox censoring model is fitted with the censored patients as
+the events (`cr_status == "censored"`), and patients with a competing event
+are not censored. (For your own censoring model, fit it in the same way;
+voipred stops if it was fitted to one of the causes instead.)
 
 ```{r competing-cipcw}
-cens_cr <- coxph(Surv(cr_time, cr_status == "censored") ~ age + nodes + grade,
-                 data = df_val_survival)
-
 res_csc_cipcw <- nb_val(data = df_val_survival,
                         predicted_risk = df_val_survival$p_csc,
                         outcome = ~ Surv(cr_time, cr_status),
                         horizon = 5,
                         cause = "recurrence",
                         thresholds = seq(0, 0.6, by = 0.01),
-                        censoring = "cipcw",
-                        cipcw = cipcw_control(model = cens_cr),
+                        cipcw = ~ age + nodes + grade,
                         label = "Cause-specific Cox")
 plot(res_csc_cipcw)
 plot(res_csc_cipcw, type = "delta")

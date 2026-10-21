@@ -1,4 +1,4 @@
-# Conditional IPCW net benefit (censoring = "cipcw").
+# Conditional IPCW net benefit (`cipcw` given).
 
 local_base_formula()
 
@@ -6,7 +6,7 @@ fork <- readRDS(test_path("fixtures", "cipcw_fork.rds"))
 
 cipcw_nb <- function(model, data, outcome, ctrl, horizon = 5, thresholds = surv_z, ...)
   nb_val(data, model, outcome, horizon = horizon, thresholds = thresholds,
-         censoring = "cipcw", cipcw = ctrl, ...)
+         cipcw = ctrl, ...)
 
 # Muffle the expected "not a survival model" warning of fixed_model().
 no_fixed_warning <- function(expr) withCallingHandlers(expr, warning = function(w)
@@ -183,8 +183,12 @@ test_that("small censoring probabilities: warning, optional truncation, error at
   run <- function(ctrl) suppress_matching(
     cipcw_nb(m, d, ~ survival::Surv(time, status), ctrl, thresholds = c(0.1, 0.3)),
     "not a survival model|Could not verify")
-  expect_warning(run(cipcw_control(model = steep)),
+  # no truncation (min_prob = NULL): a warning below 0.01
+  expect_warning(run(cipcw_control(model = steep, min_prob = NULL)),
                  "censoring probabilities are below 0.01")
+  # the default truncation at 0.02
+  expect_warning(run(cipcw_control(model = steep)),
+                 "censoring probabilities were truncated at min_prob = 0.02")
   expect_warning(r_tr <- run(cipcw_control(model = steep, min_prob = 0.05)),
                  "censoring probabilities were truncated at min_prob = 0.05")
   # truncated model weights = the same weights truncated by hand
@@ -200,7 +204,9 @@ test_that("small censoring probabilities: warning, optional truncation, error at
                  paste0("^", sum(used < 0.05), " censoring probabilities"))
   # a censoring probability of exactly 0
   zero <- fixed_censoring(function(x, t) ifelse(x > 2, 0, exp(-0.1 * t)), vars = "x2")
-  expect_error(run(cipcw_control(model = zero)), "exactly 0, which gives an infinite weight")
+  expect_error(run(cipcw_control(model = zero, min_prob = NULL)),
+               "exactly 0, which gives an infinite weight")
+  expect_no_error(suppressWarnings(run(cipcw_control(model = zero))))   # truncated
   expect_no_error(suppressWarnings(run(cipcw_control(model = zero, min_prob = 0.01))))
   # invalid probabilities from a model
   bad <- fixed_censoring(function(x, t) rep(NA_real_, length(x)), vars = "x2")
@@ -208,13 +214,13 @@ test_that("small censoring probabilities: warning, optional truncation, error at
   # given weights: warning above 100, truncation at 1 / min_prob
   we <- rep(2, nrow(d)); wh <- rep(2, nrow(d))
   we[d$status != 0 & d$time <= 5][1:3] <- 500
-  expect_warning(run(cipcw_control(weight_event = we, weight_horizon = wh)),
+  expect_warning(run(cipcw_control(weight_event = we, weight_horizon = wh, min_prob = NULL)),
                  "3 cIPCW weights are above 100")
-  expect_warning(run(cipcw_control(weight_event = we, weight_horizon = wh, min_prob = 0.02)),
+  expect_warning(run(cipcw_control(weight_event = we, weight_horizon = wh)),
                  "3 cIPCW weights were truncated at 1 / min_prob = 50")
   wu <- we; wu[d$time > 5 & d$status == 0][1] <- 1e4      # unused weights are ignored
   wu[d$time <= 5 & d$status == 0][1] <- 1e4
-  expect_warning(run(cipcw_control(weight_event = wu, weight_horizon = wh)),
+  expect_warning(run(cipcw_control(weight_event = wu, weight_horizon = wh, min_prob = NULL)),
                  "3 cIPCW weights are above 100")
 })
 
@@ -442,7 +448,8 @@ test_that("censoring predict_function: input and output checks", {
   cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes, data = v)
   expect_error(cipcw_control(model = cens, predict_function = "f"), "must be a function")
   expect_error(cipcw_control(predict_function = function(...) 1), "needs the censoring `model`")
-  run <- function(f) cipcw_nb(cx, v, surv_outcome, cipcw_control(model = cens, predict_function = f))
+  run <- function(f) cipcw_nb(cx, v, surv_outcome,
+                              cipcw_control(model = cens, predict_function = f, min_prob = NULL))
   expect_error(run(function(model, newdata, times) rep(0.9, 3)), "returned 3 values for")
   expect_error(run(function(model, newdata, times) rep(NA_real_, nrow(newdata))),
                "invalid censoring probabilities")

@@ -11,8 +11,7 @@ nb_val(
   thresholds = seq(0, 0.99, by = 0.01),
   horizon = NULL,
   cause = NULL,
-  censoring = c("km", "cipcw"),
-  cipcw = cipcw_control(),
+  cipcw = NULL,
   weights = NULL,
   prior = nb_improper(),
   model = NULL,
@@ -23,8 +22,7 @@ nb_val(
 \arguments{
 \item{data}{A data frame: the validation sample, one row per patient, with
 the outcome columns when \code{outcome} names them (and, with a \code{model}, every
-covariate it uses; with \code{censoring = "cipcw"}, every covariate of the
-censoring model).}
+covariate it uses; with cIPCW, every covariate of the censoring model).}
 
 \item{predicted_risk}{The predicted risks of the patients in \code{data}: a
 numeric vector, one probability per row of \code{data} (in its row order),
@@ -71,22 +69,34 @@ to the model by its label, or by its position among the event levels if
 the model numbers its causes; so a model that numbers its causes must
 number them in the order of the outcome's event levels.}
 
-\item{censoring}{Survival and competing-risks outcomes only: how censoring
-is handled. \code{"km"} (default): Kaplan-Meier / Aalen-Johansen, which
-assumes censoring is independent of the outcome. \code{"cipcw"}: conditional
-inverse probability of censoring weights, which allows censoring to
-depend on covariates; it needs \code{cipcw}.}
-
-\item{cipcw}{With \code{censoring = "cipcw"} only: a censoring model (with,
-optionally, your own \code{predict_function} for it) or the censoring
-weights, and optional truncation, made with \code{\link[=cipcw_control]{cipcw_control()}}. Giving settings with \code{censoring = "km"} is an error.}
+\item{cipcw}{Survival and competing-risks outcomes only: how censoring is
+handled. \code{NULL} (default): Kaplan-Meier / Aalen-Johansen, which assumes
+censoring is independent of the outcome. To let censoring depend on
+covariates (conditional IPCW), give:
+\itemize{
+\item the covariates of the censoring, as a one-sided formula, e.g.
+\code{cipcw = ~ age + nodes + grade}: voipred fits
+\code{coxph(Surv(time, censored) ~ age + nodes + grade)} to the patients of
+\code{data} (with competing risks, only true censoring is censoring; with
+\code{weights}, weighted by them), predicts from it the probabilities of
+remaining uncensored, truncated at 0.02, and refits it in every draw of
+the value-of-information functions;
+\item or your own censoring model fitted to the censoring times of \code{data},
+e.g. \code{cipcw = coxph(Surv(time, status == 0) ~ age, data = val)};
+\item or \code{\link[=cipcw_control]{cipcw_control()}}, for more options: another truncation
+(\code{cipcw_control(~ age + nodes, min_prob = 0.05)}, or \code{min_prob = NULL}
+for none), given weights, \code{ties}, or your own predict and refit
+functions for your censoring model.
+}}
 
 \item{weights}{Optional case weights, one non-negative number per row of
 \code{data} (with a positive sum), e.g. sampling weights. They weight each
 patient in the net benefit (an integer weight is the same as repeating the
 row; 0 drops the patient), and the value-of-information functions then
-use the Bayesian bootstrap of the weighted sample. They are not passed to
-the prediction model or the censoring model. Only with the improper prior.}
+use the Bayesian bootstrap of the weighted sample. The Cox censoring
+model of \code{cipcw = ~ covariates} is fitted with them; they are not passed
+to the prediction model, nor to a censoring model you fitted yourself.
+Only with the improper prior.}
 
 \item{prior}{The prior (see "Prior" and \link{nb_priors}). Default
 \code{\link[=nb_improper]{nb_improper()}}: no prior information, the data only, which gives the
@@ -141,7 +151,8 @@ is useful;
 \code{"competing"}), the number of patients \code{n}, the \code{prevalence} (binary:
 the posterior mean event rate; survival: the estimated risk of the
 event, or of \code{cause}, by the horizon), \code{events} (binary), and for
-survival outcomes \code{horizon}, \code{cause} and \code{censoring};
+survival outcomes \code{horizon}, \code{cause} and \code{censoring} (\code{"km"} or
+\code{"cipcw"});
 \item \code{risk}: the predicted risks, a matrix with one row per row of \code{data}
 and one column per model (named by its label);
 \item \code{counts} (binary): the numbers of true and false positives and
@@ -178,18 +189,22 @@ threshold \eqn{z},
 \eqn{z} and \eqn{F_+} the risk of the event by the horizon among them,
 \eqn{NB_{model} = q F_+ - q (1 - F_+) z/(1-z)}. Two estimators:
 \itemize{
-\item \code{censoring = "km"} (default): \eqn{F_+} and the overall risk are
+\item Kaplan-Meier (default, \code{cipcw} not given): \eqn{F_+} and the overall risk are
 Kaplan-Meier estimates (Aalen-Johansen for competing risks), as in
 dcurves. If none of the treated patients is followed up to the horizon,
 the net benefit at that threshold is \code{NA}, with a warning.
-\item \code{censoring = "cipcw"}: conditional inverse probability of censoring
+\item cIPCW, when \code{cipcw} is given: conditional inverse probability of censoring
 weighting, which allows censoring to depend on covariates. Patients with
 the event by the horizon are weighted by \eqn{1/\hat G(T_i- \mid X_i)},
 patients event-free at the horizon by \eqn{1/\hat G(\tau \mid X_i)}, and
 patients censored before the horizon get no weight. The risk by the
 horizon is \eqn{\sum_{events} w_i / n}; sensitivity and specificity are
-weighted proportions, and \eqn{NB = \pi Se - (1-\pi)(1-Sp) z/(1-z)}. See
-\code{\link[=cipcw_control]{cipcw_control()}}.
+weighted proportions, and \eqn{NB = \pi Se - (1-\pi)(1-Sp) z/(1-z)}.
+Usually \code{cipcw} is just the covariates of the censoring, e.g.
+\code{cipcw = ~ age + nodes}: voipred fits a Cox model of the censoring times
+of \code{data} on them and truncates the probabilities of remaining uncensored
+at 0.02 (weights at 50). See \code{\link[=cipcw_control]{cipcw_control()}} for your own censoring
+model, given weights, or other truncation.
 }
 
 \strong{Competing risks} (\code{Surv(time, status)} with a factor status whose first
@@ -228,7 +243,7 @@ of analysis (binary, survival or competing risks).
 
 \strong{Several models.} To compare models, give the risks of each, all
 predicted for the same patients (the rows of \code{data}), in one call; every
-other argument (outcome, thresholds, horizon, cause, censoring, prior,
+other argument (outcome, thresholds, horizon, cause, \code{cipcw}, prior,
 weights) applies to all of them:
 \itemize{
 \item a named list, \code{predicted_risk = list(Full = val$p1, Age = val$p2)};
@@ -246,8 +261,8 @@ or \code{"Model 1"}, \code{"Model 2"}, ...; \code{label} relabels them. The resu
 same as computing each model separately and combining the results with
 \link[=c.voipred_nb]{c()}, and the value-of-information functions draw the
 models jointly, so their correlation on the same patients is kept. With
-\code{censoring = "cipcw"}, one censoring model (and one set of censoring
-weights) is used for all the models.
+cIPCW, one censoring model (and one set of censoring weights) is used for
+all the models.
 
 \strong{Predicting the risks from a model (optional).} Instead of the risks,
 the fitted model can be given, as \code{model} (or in place of \code{predicted_risk},
@@ -403,7 +418,16 @@ nb_val(data = df_val_survival,
        predict_function = function(model, newdata, horizon, ...)
      1 - summary(survfit(model, newdata = newdata), times = horizon)$surv[1, ])
 
-# The same with conditional IPCW: censoring modelled on the validation data
+# The same with conditional IPCW: censoring depends on age, nodes and grade
+# (a Cox model of the censoring times, fitted by voipred)
+nb_val(data = df_val_survival,
+       predicted_risk = df_val_survival$p5,
+       outcome = ~ Surv(years, death),
+       horizon = 5,
+       thresholds = c(0.1, 0.2, 0.3),
+       cipcw = ~ age + nodes + grade)
+
+# or your own censoring model, fitted to the validation data
 cens <- coxph(Surv(years, death == 0) ~ age + nodes + grade,
               data = df_val_survival)
 nb_val(data = df_val_survival,
@@ -411,8 +435,7 @@ nb_val(data = df_val_survival,
        outcome = ~ Surv(years, death),
        horizon = 5,
        thresholds = c(0.1, 0.2, 0.3),
-       censoring = "cipcw",
-       cipcw = cipcw_control(model = cens))
+       cipcw = cens)
 }
 \seealso{
 \code{\link[=summary.voipred_nb]{summary.voipred_nb()}}, \code{\link[=plot.voipred_nb]{plot.voipred_nb()}}, \code{\link[=c.voipred_nb]{c.voipred_nb()}}, \link{nb_priors},

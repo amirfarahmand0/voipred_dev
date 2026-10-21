@@ -166,15 +166,14 @@ res_csc <- nb_val(data = df_val_survival,
                   thresholds = zs,
                   label = "Cause-specific Cox")
 
-# with conditional IPCW: censoring modelled on the validation data
-cens <- coxph(Surv(years, death == 0) ~ age + nodes + grade, data = df_val_survival)
+# with conditional IPCW: censoring depends on age, nodes and grade (a Cox
+# censoring model, fitted by voipred)
 res_ci <- nb_val(data = df_val_survival,
                  predicted_risk = df_val_survival$p_cox,
                  outcome = ~ Surv(years, death),
                  horizon = 5,
                  thresholds = zs,
-                 censoring = "cipcw",
-                 cipcw = cipcw_control(model = cens),
+                 cipcw = ~ age + nodes + grade,
                  label = "Cox")
 ```
 
@@ -385,8 +384,9 @@ plot(e_500, e_2000, labels = c("n = 500", "n = 2000"))
 ```
 
 **Survival with cIPCW.** The censoring model is refitted in every draw:
-automatically for `coxph`, `survreg`, `rms::cph`, `rms::psm`, `flexsurvreg`
-and `prodlim`. In a draw where a few patients carry most of the weight,
+automatically for the Cox model of `cipcw = ~ covariates`, and for your own
+censoring model if it is a `coxph`, `survreg`, `rms::cph`, `rms::psm`,
+`flexsurvreg` or `prodlim` fit. In a draw where a few patients carry most of the weight,
 `coxph()` may warn that a coefficient of the censoring model may be infinite;
 one draw out of 5000 has a negligible effect.
 
@@ -397,8 +397,9 @@ print(e_ci)
 summary(e_ci, thresholds = c(0.1, 0.2, 0.3, 0.4))
 ```
 
-For any other censoring model, give `refit_function` in `cipcw_control()`: a
-`function(data, weights)` that refits it with case weights. A survival tree:
+For any other censoring model of your own, give `refit_function` in
+`cipcw_control()` (optional, for this case only): a `function(data, weights)`
+that refits it with case weights. A survival tree:
 
 ```{r evpi-refit}
 tree <- partykit::ctree(Surv(years, death == 0) ~ age + nodes + grade,
@@ -413,7 +414,6 @@ res_tree <- nb_val(data = df_val_survival,
                    outcome = ~ Surv(years, death),
                    horizon = 5,
                    thresholds = zs,
-                   censoring = "cipcw",
                    cipcw = ctrl,
                    label = "Cox")
 set.seed(43)

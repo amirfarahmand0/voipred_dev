@@ -1,4 +1,4 @@
-# Kaplan-Meier / Aalen-Johansen net benefit (censoring = "km").
+# Kaplan-Meier / Aalen-Johansen net benefit (the default: `cipcw` not given).
 
 test_that("KM net benefit equals dcurves at every threshold, including NA thresholds", {
   s <- rott_split()

@@ -39,8 +39,8 @@ test_that("survival-only arguments are rejected for a binary outcome", {
   m <- fixed_model(toy$p)
   expect_error(nb_val(toy, m, "y", horizon = 5), "only used with a survival outcome")
   expect_error(nb_val(toy, m, "y", cause = "x"), "only used with a competing-risks")
-  expect_error(nb_val(toy, m, "y", censoring = "cipcw"), "only used with a survival outcome")
-  expect_error(nb_val(toy, m, "y", cipcw = cipcw_control(min_prob = 0.05)),
+  expect_error(nb_val(toy, m, "y", cipcw = ~ p), "only used with a survival outcome")
+  expect_error(nb_val(toy, m, "y", cipcw = cipcw_control(~ p, min_prob = 0.05)),
                "only used with a survival outcome")
 })
 
@@ -76,17 +76,21 @@ test_that("missing or negative times and missing statuses are rejected", {
                "must be one-sided")
 })
 
-test_that("censoring settings must be consistent", {
+test_that("`cipcw` decides the censoring method, and is checked", {
   s <- rott_split(); cx <- fit_cox(s)
   cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age, data = s$val)
-  expect_error(nb_val(s$val, cx, surv_outcome, horizon = 5,
-                      cipcw = cipcw_control(model = cens)), "but `censoring = \"km\"`")
+  km <- nb_val(s$val, cx, surv_outcome, horizon = 5, thresholds = 0.2)
+  expect_equal(km$outcome$censoring, "km")
+  expect_null(km$cipcw)
+  ci <- nb_val(s$val, cx, surv_outcome, horizon = 5, thresholds = 0.2, cipcw = ~ age)
+  expect_equal(ci$outcome$censoring, "cipcw")
+  # there is no `censoring` argument any more
   expect_error(nb_val(s$val, cx, surv_outcome, horizon = 5, censoring = "cipcw"),
-               "needs a censoring model or weights")
-  expect_error(nb_val(s$val, cx, surv_outcome, horizon = 5, censoring = "ipcw"),
-               "should be one of")
-  expect_error(nb_val(s$val, cx, surv_outcome, horizon = 5, censoring = "cipcw",
-                      cipcw = list(model = cens)), "made with cipcw_control")
+               "unused argument")
+  expect_error(nb_val(s$val, cx, surv_outcome, horizon = 5, cipcw = list(model = cens)),
+               "must be a formula of the covariates of the censoring model")
+  expect_error(nb_val(s$val, cx, surv_outcome, horizon = 5, cipcw = "age"),
+               "must be a formula")
 })
 
 test_that("cipcw_control() checks its inputs", {
@@ -94,6 +98,17 @@ test_that("cipcw_control() checks its inputs", {
     time = 1:10, status = rep(0:1, 5), x = rnorm(10)))
   expect_error(cipcw_control(model = cens, weight_event = 1, weight_horizon = 1),
                "not both")
+  expect_error(cipcw_control(), "needs the covariates of the censoring model")
+  expect_error(cipcw_control(min_prob = 0.05), "needs the covariates")
+  expect_error(cipcw_control(~ x, model = cens), "not several")
+  expect_error(cipcw_control(~ x, weight_event = 1, weight_horizon = 1), "not several")
+  expect_error(cipcw_control(~ x, refit_function = function(data, weights) cens),
+               "are for your own censoring `model`")
+  expect_error(cipcw_control(formula = "x"), "must be a formula of the covariates")
+  # a model given first is the model
+  expect_identical(cipcw_control(cens)$model, cens)
+  expect_null(cipcw_control(~ x, min_prob = NULL)$min_prob)
+  expect_equal(cipcw_control(~ x)$min_prob, 0.02)
   expect_error(cipcw_control(weight_event = 1:3), "must be given together")
   expect_error(cipcw_control(weight_event = c(1, -1), weight_horizon = c(1, 1)),
                "positive, finite")
@@ -102,18 +117,20 @@ test_that("cipcw_control() checks its inputs", {
   expect_error(cipcw_control(weight_event = c(1, Inf), weight_horizon = c(1, 1)),
                "positive, finite")
   expect_error(cipcw_control(weight_event = 1:3, weight_horizon = 1:2), "same length")
-  expect_error(cipcw_control(min_prob = 0), "strictly between 0 and 1")
-  expect_error(cipcw_control(min_prob = 1.2), "strictly between 0 and 1")
+  expect_error(cipcw_control(~ x, min_prob = 0), "strictly between 0 and 1")
+  expect_error(cipcw_control(~ x, min_prob = 1.2), "strictly between 0 and 1")
   expect_error(cipcw_control(model = c(0.2, 0.3)), "must be a fitted censoring model")
   expect_error(cipcw_control(ties = "middle"), "should be one of")
   expect_output(print(cipcw_control(model = cens, min_prob = 0.02)),
                 "censoring model \\(coxph\\), truncation: min_prob = 0.02")
+  expect_output(print(cipcw_control(~ x + z)),
+                "Cox censoring model ~x \\+ z, fitted by voipred, truncation: min_prob = 0.02")
+  expect_output(print(cipcw_control(model = cens, min_prob = NULL)), "truncation: off")
 })
 
 test_that("cIPCW weights must have one value per row", {
   s <- rott_split(); cx <- fit_cox(s)
-  expect_error(nb_val(s$val, cx, surv_outcome, horizon = 5, censoring = "cipcw",
-                      cipcw = cipcw_control(weight_event = rep(1, 10), weight_horizon = rep(1, 10))),
+  expect_error(nb_val(s$val, cx, surv_outcome, horizon = 5, cipcw = cipcw_control(weight_event = rep(1, 10), weight_horizon = rep(1, 10))),
                "length 10 but `data` has 1482 rows")
 })
 

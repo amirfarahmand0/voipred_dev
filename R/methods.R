@@ -27,10 +27,10 @@
 #'   specificity are posterior means (the observed proportions with the default
 #'   improper prior). For survival and competing-risks outcomes they are those
 #'   of the event by the horizon, from the same estimates as the net benefit:
-#'   with `censoring = "km"`, from the Kaplan-Meier (Aalen-Johansen) risk by
+#'   with Kaplan-Meier, from the Kaplan-Meier (Aalen-Johansen) risk by
 #'   the horizon \eqn{F}, the share treated \eqn{q} and the risk among the
 #'   treated \eqn{F_+}, \eqn{Se = q F_+ / F} and
-#'   \eqn{Sp = 1 - q (1 - F_+) / (1 - F)}; with `censoring = "cipcw"`, the
+#'   \eqn{Sp = 1 - q (1 - F_+) / (1 - F)}; with cIPCW (`cipcw`), the
 #'   IPCW-weighted proportions of the cIPCW estimator.
 #' @seealso [nb_val()], [plot.voipred_nb()]
 #' @examples

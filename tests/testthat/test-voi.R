@@ -28,8 +28,7 @@ test_that("draws with all weights 1 reproduce nb_val() for every outcome and est
   expect_equal(dk$nb[1, , 1], km$estimates$NB_model, tolerance = 1e-12)
   expect_equal(dk$nb[1, , 2], km$estimates$NB_all, tolerance = 1e-12)
   cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes + grade, data = v)
-  ci <- nb_val(v, cx, surv_outcome, horizon = 5, thresholds = zs, censoring = "cipcw",
-               cipcw = cipcw_control(model = cens))
+  ci <- nb_val(v, cx, surv_outcome, horizon = 5, thresholds = zs, cipcw = cipcw_control(model = cens))
   dc <- fixed_draws(ci, W = ones)
   expect_equal(dc$nb[2, , 1], ci$estimates$NB_model, tolerance = 1e-12)
   expect_equal(dc$nb[2, , 2], ci$estimates$NB_all, tolerance = 1e-12)
@@ -221,8 +220,7 @@ test_that("survival, competing risks and cIPCW: EVPI, EVSI, P(useful), P(best) r
   expect_true(all(o$estimates$EVSI <= o$estimates$EVPI + 1e-15))
   # cIPCW (censoring weights fixed) and competing risks
   cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes + grade, data = v)
-  ci <- nb_val(v, cx, surv_outcome, horizon = 5, thresholds = zs, censoring = "cipcw",
-               cipcw = cipcw_control(model = cens))
+  ci <- nb_val(v, cx, surv_outcome, horizon = 5, thresholds = zs, cipcw = cipcw_control(model = cens))
   set.seed(4)
   expect_true(all(evpi(ci, n_sim = 100)$estimates$EVPI >= 0))
   csc <- riskRegression::CSC(prodlim::Hist(cr_time, cr_code) ~ age + nodes, data = s$dev)

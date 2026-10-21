@@ -14,7 +14,7 @@ refit_setup <- function() {
 
 cipcw_nb <- function(r, data, cens, ...)
   suppressWarnings(nb_val(data, r$cx, surv_outcome, horizon = 5, thresholds = r$z,
-                          censoring = "cipcw", cipcw = cipcw_control(model = cens, ...)))
+                          cipcw = cipcw_control(model = cens, ...)))
 
 test_that("every known censoring model is refitted with the draw's weights", {
   r <- refit_setup()
@@ -98,8 +98,8 @@ test_that("models validated with the same censoring settings share one refit per
                                             grade, data = data, weights = weights)
                         })
   f2 <- survival::coxph(survival::Surv(dtimey, death) ~ age + nodes, data = r$s$dev)
-  a <- nb_val(r$v, r$cx, surv_outcome, horizon = 5, thresholds = r$z, censoring = "cipcw", cipcw = ctrl)
-  b <- nb_val(r$v, f2, surv_outcome, horizon = 5, thresholds = r$z, censoring = "cipcw", cipcw = ctrl)
+  a <- nb_val(r$v, r$cx, surv_outcome, horizon = 5, thresholds = r$z, cipcw = ctrl)
+  b <- nb_val(r$v, f2, surv_outcome, horizon = 5, thresholds = r$z, cipcw = ctrl)
   set.seed(1)
   draws_t(a, b, n_sim = 4)
   expect_equal(calls, 4)
@@ -122,7 +122,7 @@ test_that("EVPI, P(useful) and EVSI with the refit, also for competing risks", {
   csc <- riskRegression::CSC(prodlim::Hist(cr_time, cr_code) ~ age + nodes, data = r$s$dev)
   cens_cr <- survival::coxph(survival::Surv(cr_time, cr_code == 0) ~ age + nodes, data = r$v)
   rc <- nb_val(r$v, csc, cr_outcome, horizon = 5, thresholds = r$z, cause = "death",
-               censoring = "cipcw", cipcw = cipcw_control(model = cens_cr))
+               cipcw = cipcw_control(model = cens_cr))
   dc <- fixed_draws(rc, W = matrix(1, nrow(r$v), 2))
   expect_equal(dc$nb[1, , 1], rc$estimates$NB_model, tolerance = 1e-10)
   set.seed(4)
@@ -135,7 +135,6 @@ test_that("given censoring weights work in nb_val() but not in the value of info
   m <- cipcw_nb(r, r$v, cens)
   v <- voi_info(m)
   g <- suppressWarnings(nb_val(r$v, r$cx, surv_outcome, horizon = 5, thresholds = r$z,
-                               censoring = "cipcw",
                                cipcw = cipcw_control(weight_event = v$weight_event,
                                                  weight_horizon = v$weight_horizon)))
   expect_equal(g$estimates$NB_model, m$estimates$NB_model)

@@ -55,7 +55,7 @@ population; the future sample is \eqn{N} patients drawn from it
 (multinomial counts with probabilities \eqn{W}, a future patient being a
 current patient, with the same follow-up), pooled with the current sample,
 and the net benefit recomputed with the same estimator as \code{\link[=nb_val]{nb_val()}}. With
-\code{censoring = "cipcw"} the censoring model is refitted in every draw and
+cIPCW (\code{cipcw}) the censoring model is refitted in every draw and
 every pooled sample (see \code{\link[=cipcw_control]{cipcw_control()}}).
 }
 
@@ -83,7 +83,7 @@ keeps its own posterior;
 weights (improper prior): the Bayesian bootstrap. Each
 draw gives the patients Dirichlet(1, ..., 1) weights (times the case
 weights) and recomputes the net benefit with the same estimator as
-\code{\link[=nb_val]{nb_val()}}. With \code{censoring = "cipcw"}, the censoring model is refitted in
+\code{\link[=nb_val]{nb_val()}}. With cIPCW (\code{cipcw}), the censoring model is refitted in
 every draw and the censoring weights recomputed from it (see
 \code{\link[=cipcw_control]{cipcw_control()}}).
 }

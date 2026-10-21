@@ -2,24 +2,29 @@
 % Please edit documentation in R/cipcw.R
 \name{cipcw_control}
 \alias{cipcw_control}
-\title{Settings for conditional IPCW net benefit}
+\title{Settings for conditional IPCW net benefit (optional)}
 \usage{
 cipcw_control(
+  formula = NULL,
   model = NULL,
   weight_event = NULL,
   weight_horizon = NULL,
-  min_prob = NULL,
+  min_prob = 0.02,
   ties = c("left", "right"),
   predict_function = NULL,
   refit_function = NULL
 )
 }
 \arguments{
-\item{model}{Option 1: a survival model fitted to the censoring times of
-the validation data \code{data} passed to \code{\link[=nb_val]{nb_val()}} (same patients), with
-censoring as the event, e.g. \code{coxph(Surv(time, status == 0) ~ x, data = val)}. Give either \code{model} or the two weights, not both.}
+\item{formula}{Option 1: the covariates of the censoring, a one-sided
+formula such as \code{~ age + nodes} (variables of \code{data}), for a Cox model
+fitted by voipred. Give one of \code{formula}, \code{model} or the two weights.}
 
-\item{weight_event, weight_horizon}{Option 2: two numeric vectors, one
+\item{model}{Option 2: a survival model fitted to the censoring times of
+the validation data \code{data} passed to \code{\link[=nb_val]{nb_val()}} (same patients), with
+censoring as the event, e.g. \code{coxph(Surv(time, status == 0) ~ x, data = val)}.}
+
+\item{weight_event, weight_horizon}{Option 3: two numeric vectors, one
 positive finite value per row of \code{data} (in its row order), given
 together: \code{weight_event} is the inverse probability of remaining
 uncensored just before each patient's own time, \eqn{1/\hat G(T_i- \mid
@@ -29,12 +34,12 @@ the horizon, \eqn{1/\hat G(\tau \mid X_i)}, used for patients event-free
 at the horizon. Values for the other patients are ignored (any positive
 number will do). Unstabilized weights only.}
 
-\item{min_prob}{Optional truncation, for both options: censoring
-probabilities below \code{min_prob} (option 1), or weights above
-\code{1 / min_prob} (option 2), are set to that limit. A single number
-strictly between 0 and 1. Default \code{NULL}: no truncation.}
+\item{min_prob}{Truncation, for every option: censoring probabilities
+below \code{min_prob} (options 1 and 2), or weights above \code{1 / min_prob}
+(option 3), are set to that limit. A single number strictly between 0
+and 1; default 0.02 (weights at most 50). \code{NULL}: no truncation.}
 
-\item{ties}{Option 1 only, and only matters for a censoring model whose
+\item{ties}{Options 1 and 2, and only matters for a censoring model whose
 survival curve has steps (e.g. Cox, Kaplan-Meier, forests, trees):
 \code{"left"} (default) uses the probability of remaining uncensored just
 before each patient's own time, so a censoring step at exactly that time
@@ -42,7 +47,7 @@ is not included (the usual convention, as for Kaplan-Meier: an event
 tied with a censoring comes first); \code{"right"} includes it. For smooth
 (parametric) censoring models both give practically the same result.}
 
-\item{predict_function}{Option 1, optional: a \verb{function(model, newdata, times)} returning, for each row of \code{newdata}, the probability of
+\item{predict_function}{Option 2, optional: a \verb{function(model, newdata, times)} returning, for each row of \code{newdata}, the probability of
 \strong{remaining uncensored} at that row's time in \code{times} (the censoring
 survival \eqn{G(t \mid X)}, not a risk). It may instead return a curve
 per row, \verb{list(time = <grid>, surv = <n x grid matrix>)}, which voipred
@@ -50,7 +55,7 @@ reads at each row's own time. Use it for a censoring model voipred cannot
 predict from by itself, or to predict in your own way; it then replaces
 voipred's own prediction. Requires \code{model}.}
 
-\item{refit_function}{Option 1, optional: a \verb{function(data, weights)}
+\item{refit_function}{Option 2, optional: a \verb{function(data, weights)}
 returning the censoring model fitted to \code{data} (the validation data given
 to \code{\link[=nb_val]{nb_val()}}, restricted to the patients with a positive weight in a draw)
 with case weights \code{weights} (the Bayesian-bootstrap weights of the draw,
@@ -65,16 +70,29 @@ cannot refit with case weights by itself.}
 An object of class \code{cipcw_control}.
 }
 \description{
-\code{cipcw_control()} says how the censoring weights are obtained when
-\code{\link[=nb_val]{nb_val()}} is called with \code{censoring = "cipcw"}. Conditional inverse
-probability of censoring weighting (cIPCW) allows censoring to depend on
-covariates: it assumes censoring is independent of the event time \emph{given}
-the covariates of the censoring model.
+Conditional inverse probability of censoring weighting (cIPCW) allows
+censoring to depend on covariates: it assumes censoring is independent of
+the event time \emph{given} the covariates of the censoring model. It is used
+when \code{\link[=nb_val]{nb_val()}} is given \code{cipcw}, and most analyses need nothing more than
+the covariates, \code{cipcw = ~ age + nodes} (option 1 below, with the default
+truncation). \code{cipcw_control()} is only needed for the other options: your
+own censoring model, given weights, another truncation, \code{ties}, or your own
+predict and refit functions.
 }
 \details{
-There are two ways to give the censoring information:
+There are three ways to give the censoring information:
 
-\strong{1. A fitted censoring model} (\verb{model =}). Fit any survival model to the
+\strong{1. The covariates of the censoring} (\verb{formula =}, or simply
+\code{cipcw = ~ age + nodes} in \code{\link[=nb_val]{nb_val()}}). voipred fits a Cox model of the
+censoring times of the validation data on them,
+\code{coxph(Surv(time, censored) ~ age + nodes)}, with only true censoring as
+the event (with competing risks, patients with a competing event are not
+censored), weighted by the case weights of \code{\link[=nb_val]{nb_val()}} if any, and refits it
+in every draw of the value-of-information functions. A two-sided formula
+(e.g. \code{Surv(time, status == 0) ~ age + nodes}) is fitted as it is.
+
+\strong{2. A fitted censoring model} (\verb{model =}, or \verb{cipcw = <model>} in
+\code{\link[=nb_val]{nb_val()}}). Fit any survival model to the
 \emph{censoring} times in the validation data, i.e. with the censored patients
 as the "events": \code{Surv(time, status == 0)}. With competing risks, only true
 censoring is censoring: patients with a competing event are not censored
@@ -86,7 +104,7 @@ risks from a model in \code{\link[=nb_val]{nb_val()}}: through \code{riskRegress
 \code{randomForestSRC}, a Kaplan-Meier \code{prodlim} fit), or voipred's own code for
 models riskRegression cannot handle (\code{coxph} without \code{x = TRUE}, \code{aorsf},
 \code{partykit} survival trees, \code{rstpm2::stpm2}, \code{mgcv::gam} with \code{cox.ph()}).
-For any other model, give \code{predict_function} (or the weights, option 2).
+For any other model, give \code{predict_function} (or the weights, option 3).
 Where the model's
 outcome can be read from its formula, voipred checks it against \code{data}: it
 stops if the model was fitted to the event (for competing risks: to the
@@ -94,7 +112,7 @@ cause of interest, to another cause or to all events together), and warns
 if the check is not possible or if the model was fitted to a different
 number of patients than \code{data} has.
 
-\strong{2. Weights} (\verb{weight_event =}, \verb{weight_horizon =}): one value per row of
+\strong{3. Weights} (\verb{weight_event =}, \verb{weight_horizon =}): one value per row of
 \code{data}, the inverse probabilities of remaining uncensored just before each
 patient's own time and at the horizon, i.e. \eqn{1/\hat G(T_i- \mid X_i)}
 and \eqn{1/\hat G(\tau \mid X_i)}. Only the weights of patients with an
@@ -106,15 +124,15 @@ patients event-free at the horizon (\code{weight_horizon}) are used. They must b
 evaluated on the same patients overfits their censoring times, and its
 weights are biased. Use cross-fitting: split \code{data} into folds, fit the
 censoring model on all folds but one, predict the censoring probabilities
-for the held-out fold, and give the resulting weights through option 2 (in
+for the held-out fold, and give the resulting weights through option 3 (in
 \code{\link[=nb_val]{nb_val()}} only: see "Uncertainty").
 
-\strong{Truncation} is off by default. With \code{min_prob}, censoring probabilities
-below it (option 1) or weights above \code{1 / min_prob} (option 2) are
-truncated, with a warning saying how many of the used ones were. Without
-it, voipred warns when some used probabilities are below 0.01 (weights
-above 100), a sign of near-violations of positivity, and stops if a
-probability is exactly 0.
+\strong{Truncation.} By default, censoring probabilities below \code{min_prob = 0.02}
+(options 1 and 2), or weights above \code{1 / min_prob = 50} (option 3), are
+truncated, with a warning saying how many of the used ones were. With
+\code{min_prob = NULL} there is no truncation: voipred then warns when some used
+probabilities are below 0.01 (weights above 100), a sign of near-violations
+of positivity, and stops if a probability is exactly 0.
 
 \strong{Uncertainty (value of information).} The censoring model is estimated
 from the validation data, so its uncertainty is part of the uncertainty
@@ -124,6 +142,7 @@ model in every draw of the Bayesian bootstrap, with that draw's weights as
 case weights, and recompute the censoring weights from it. The refit is
 done:
 \itemize{
+\item for option 1, automatically (voipred's own Cox model);
 \item with \code{refit_function}, if given;
 \item otherwise automatically for the censoring models whose case weights
 voipred knows: \code{survival::coxph}, \code{survival::survreg}, \code{rms::cph},
@@ -136,7 +155,7 @@ weights under other names or with another meaning (e.g. \code{ranger}'s
 }
 
 Patients with a weight of 0 in a draw are left out of the refit. Given
-weights (option 2) cannot be refitted, so they can be used in \code{\link[=nb_val]{nb_val()}} but not
+weights (option 3) cannot be refitted, so they can be used in \code{\link[=nb_val]{nb_val()}} but not
 in the value-of-information functions. \code{nb_val()} itself always uses the model
 as given.
 }
@@ -152,7 +171,24 @@ cox <- coxph(Surv(years, death) ~ age + size + nodes + grade,
 sf <- survfit(cox, newdata = df_val_survival)
 df_val_survival$p5 <- 1 - summary(sf, times = 5)$surv[1, ]
 
-# the censoring model: fitted on the validation data, censoring as the event
+# usually only the covariates of the censoring are needed (no cipcw_control())
+nb_val(data = df_val_survival,
+       predicted_risk = df_val_survival$p5,
+       outcome = ~ Surv(years, death),
+       horizon = 5,
+       thresholds = c(0.1, 0.2, 0.3),
+       cipcw = ~ age + nodes + grade)
+
+# the same covariates, truncated at 0.05 instead of 0.02
+nb_val(data = df_val_survival,
+       predicted_risk = df_val_survival$p5,
+       outcome = ~ Surv(years, death),
+       horizon = 5,
+       thresholds = c(0.1, 0.2, 0.3),
+       cipcw = cipcw_control(~ age + nodes + grade, min_prob = 0.05))
+
+# your own censoring model: fitted on the validation data, censoring as the
+# event, here without truncation
 cens_fit <- coxph(Surv(years, death == 0) ~ age + nodes + grade,
                   data = df_val_survival)
 nb_val(data = df_val_survival,
@@ -160,15 +196,5 @@ nb_val(data = df_val_survival,
        outcome = ~ Surv(years, death),
        horizon = 5,
        thresholds = c(0.1, 0.2, 0.3),
-       censoring = "cipcw",
-       cipcw = cipcw_control(model = cens_fit))
-
-# truncating small probabilities of remaining uncensored
-nb_val(data = df_val_survival,
-       predicted_risk = df_val_survival$p5,
-       outcome = ~ Surv(years, death),
-       horizon = 5,
-       thresholds = c(0.1, 0.2, 0.3),
-       censoring = "cipcw",
-       cipcw = cipcw_control(model = cens_fit, min_prob = 0.05))
+       cipcw = cipcw_control(model = cens_fit, min_prob = NULL))
 }

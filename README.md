@@ -39,7 +39,9 @@ several together.
 - Survival and competing-risks outcomes are evaluated at a time horizon, with
   Kaplan-Meier / Aalen-Johansen estimates or with conditional inverse
   probability of censoring weights (cIPCW), which allow censoring to depend on
-  covariates.
+  covariates: give them as a formula, `cipcw = ~ age + nodes`, and voipred
+  fits a Cox model of the censoring times (with weights truncated at 50);
+  `cipcw_control()` is only for other options.
 - Only the predicted risks are needed (`predicted_risk`, a vector such as
   `val$p`, or the name of a column of the data such as `"p"`), from any model
   or software. Optionally, the fitted model can be given instead, and
@@ -73,9 +75,9 @@ the same `nb_val()` results, for every outcome type and any number of models:
   survival and competing risks, and for case weights, with the Bayesian
   bootstrap;
 - with cIPCW, the censoring model is refitted in every draw, so its
-  uncertainty is included: automatically for `coxph`, `survreg`, `cph`,
-  `psm`, `flexsurvreg` and `prodlim`, with `refit_function` in
-  `cipcw_control()` for other models.
+  uncertainty is included: automatically for `cipcw = ~ covariates` and for
+  your own `coxph`, `survreg`, `cph`, `psm`, `flexsurvreg` and `prodlim`
+  censoring models, with `refit_function` in `cipcw_control()` for others.
 
 **Results**: every result (`nb_val()`, `evpi()`, `evsi()`, `p_useful()`,
 `p_best()`) has `print()` (a short table), `summary()` (the main findings),

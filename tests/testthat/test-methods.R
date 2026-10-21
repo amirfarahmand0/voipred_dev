@@ -73,7 +73,7 @@ test_that("print() and summary() of nb_val() are short and say what the result i
   cx <- survival::coxph(surv_formula, data = sv$dev)
   cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes, data = sv$val)
   k <- nb_val(sv$val, cx, surv_outcome, horizon = 5, thresholds = c(0.1, 0.3),
-              censoring = "cipcw", cipcw = cipcw_control(model = cens), label = "Cox")
+              cipcw = cipcw_control(model = cens), label = "Cox")
   expect_match(capture.output(print(k))[1],
                "^Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon [0-9.]+%, censoring cIPCW \\(coxph\\), prior improper")
   st <- summary(k)$table
@@ -169,7 +169,7 @@ test_that("the value-of-information results are lists with print(), summary() an
   # the same parts as the header of nb_val(): the censoring method and the prior
   cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes, data = sv$val)
   kc <- quiet_nb(sv$val, cx, surv_outcome, horizon = 5, thresholds = c(0.2, 0.3), label = "Cox",
-                 censoring = "cipcw", cipcw = cipcw_control(model = cens))
+                 cipcw = cipcw_control(model = cens))
   set.seed(1)
   for (x in list(evpi(kc, n_sim = 5), p_useful(kc, n_sim = 5), p_best(kc, n_sim = 5),
                  evsi(kc, future_n = 100, n_sim = 5)))

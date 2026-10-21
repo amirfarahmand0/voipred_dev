@@ -16,18 +16,22 @@
 #' "the event by the horizon". With \eqn{q} the share treated at threshold
 #' \eqn{z} and \eqn{F_+} the risk of the event by the horizon among them,
 #' \eqn{NB_{model} = q F_+ - q (1 - F_+) z/(1-z)}. Two estimators:
-#' * `censoring = "km"` (default): \eqn{F_+} and the overall risk are
+#' * Kaplan-Meier (default, `cipcw` not given): \eqn{F_+} and the overall risk are
 #'   Kaplan-Meier estimates (Aalen-Johansen for competing risks), as in
 #'   dcurves. If none of the treated patients is followed up to the horizon,
 #'   the net benefit at that threshold is `NA`, with a warning.
-#' * `censoring = "cipcw"`: conditional inverse probability of censoring
+#' * cIPCW, when `cipcw` is given: conditional inverse probability of censoring
 #'   weighting, which allows censoring to depend on covariates. Patients with
 #'   the event by the horizon are weighted by \eqn{1/\hat G(T_i- \mid X_i)},
 #'   patients event-free at the horizon by \eqn{1/\hat G(\tau \mid X_i)}, and
 #'   patients censored before the horizon get no weight. The risk by the
 #'   horizon is \eqn{\sum_{events} w_i / n}; sensitivity and specificity are
-#'   weighted proportions, and \eqn{NB = \pi Se - (1-\pi)(1-Sp) z/(1-z)}. See
-#'   [cipcw_control()].
+#'   weighted proportions, and \eqn{NB = \pi Se - (1-\pi)(1-Sp) z/(1-z)}.
+#'   Usually `cipcw` is just the covariates of the censoring, e.g.
+#'   `cipcw = ~ age + nodes`: voipred fits a Cox model of the censoring times
+#'   of `data` on them and truncates the probabilities of remaining uncensored
+#'   at 0.02 (weights at 50). See [cipcw_control()] for your own censoring
+#'   model, given weights, or other truncation.
 #'
 #' **Competing risks** (`Surv(time, status)` with a factor status whose first
 #' level is censoring). The event is `cause` (default: the first event level)
@@ -65,7 +69,7 @@
 #'
 #' **Several models.** To compare models, give the risks of each, all
 #' predicted for the same patients (the rows of `data`), in one call; every
-#' other argument (outcome, thresholds, horizon, cause, censoring, prior,
+#' other argument (outcome, thresholds, horizon, cause, `cipcw`, prior,
 #' weights) applies to all of them:
 #' * a named list, `predicted_risk = list(Full = val$p1, Age = val$p2)`;
 #' * the names of columns of `data`, `predicted_risk = c("p1", "p2")`, named to
@@ -81,8 +85,8 @@
 #' same as computing each model separately and combining the results with
 #' [c()][c.voipred_nb], and the value-of-information functions draw the
 #' models jointly, so their correlation on the same patients is kept. With
-#' `censoring = "cipcw"`, one censoring model (and one set of censoring
-#' weights) is used for all the models.
+#' cIPCW, one censoring model (and one set of censoring weights) is used for
+#' all the models.
 #'
 #' **Predicting the risks from a model (optional).** Instead of the risks,
 #' the fitted model can be given, as `model` (or in place of `predicted_risk`,
@@ -137,8 +141,7 @@
 #'
 #' @param data A data frame: the validation sample, one row per patient, with
 #'   the outcome columns when `outcome` names them (and, with a `model`, every
-#'   covariate it uses; with `censoring = "cipcw"`, every covariate of the
-#'   censoring model).
+#'   covariate it uses; with cIPCW, every covariate of the censoring model).
 #' @param predicted_risk The predicted risks of the patients in `data`: a
 #'   numeric vector, one probability per row of `data` (in its row order),
 #'   e.g. `val$p`. Alternatively, the name of the column of `data` that holds
@@ -177,20 +180,31 @@
 #'   to the model by its label, or by its position among the event levels if
 #'   the model numbers its causes; so a model that numbers its causes must
 #'   number them in the order of the outcome's event levels.
-#' @param censoring Survival and competing-risks outcomes only: how censoring
-#'   is handled. `"km"` (default): Kaplan-Meier / Aalen-Johansen, which
-#'   assumes censoring is independent of the outcome. `"cipcw"`: conditional
-#'   inverse probability of censoring weights, which allows censoring to
-#'   depend on covariates; it needs `cipcw`.
-#' @param cipcw With `censoring = "cipcw"` only: a censoring model (with,
-#'   optionally, your own `predict_function` for it) or the censoring
-#'   weights, and optional truncation, made with [cipcw_control()]. Giving settings with `censoring = "km"` is an error.
+#' @param cipcw Survival and competing-risks outcomes only: how censoring is
+#'   handled. `NULL` (default): Kaplan-Meier / Aalen-Johansen, which assumes
+#'   censoring is independent of the outcome. To let censoring depend on
+#'   covariates (conditional IPCW), give:
+#'   * the covariates of the censoring, as a one-sided formula, e.g.
+#'     `cipcw = ~ age + nodes + grade`: voipred fits
+#'     `coxph(Surv(time, censored) ~ age + nodes + grade)` to the patients of
+#'     `data` (with competing risks, only true censoring is censoring; with
+#'     `weights`, weighted by them), predicts from it the probabilities of
+#'     remaining uncensored, truncated at 0.02, and refits it in every draw of
+#'     the value-of-information functions;
+#'   * or your own censoring model fitted to the censoring times of `data`,
+#'     e.g. `cipcw = coxph(Surv(time, status == 0) ~ age, data = val)`;
+#'   * or [cipcw_control()], for more options: another truncation
+#'     (`cipcw_control(~ age + nodes, min_prob = 0.05)`, or `min_prob = NULL`
+#'     for none), given weights, `ties`, or your own predict and refit
+#'     functions for your censoring model.
 #' @param weights Optional case weights, one non-negative number per row of
 #'   `data` (with a positive sum), e.g. sampling weights. They weight each
 #'   patient in the net benefit (an integer weight is the same as repeating the
 #'   row; 0 drops the patient), and the value-of-information functions then
-#'   use the Bayesian bootstrap of the weighted sample. They are not passed to
-#'   the prediction model or the censoring model. Only with the improper prior.
+#'   use the Bayesian bootstrap of the weighted sample. The Cox censoring
+#'   model of `cipcw = ~ covariates` is fitted with them; they are not passed
+#'   to the prediction model, nor to a censoring model you fitted yourself.
+#'   Only with the improper prior.
 #' @param prior The prior (see "Prior" and [nb_priors]). Default
 #'   [nb_improper()]: no prior information, the data only, which gives the
 #'   usual net benefit. For a binary outcome, prior information can be added
@@ -239,7 +253,8 @@
 #'     `"competing"`), the number of patients `n`, the `prevalence` (binary:
 #'     the posterior mean event rate; survival: the estimated risk of the
 #'     event, or of `cause`, by the horizon), `events` (binary), and for
-#'     survival outcomes `horizon`, `cause` and `censoring`;
+#'     survival outcomes `horizon`, `cause` and `censoring` (`"km"` or
+#'     `"cipcw"`);
 #'   * `risk`: the predicted risks, a matrix with one row per row of `data`
 #'     and one column per model (named by its label);
 #'   * `counts` (binary): the numbers of true and false positives and
@@ -357,7 +372,16 @@
 #'        predict_function = function(model, newdata, horizon, ...)
 #'      1 - summary(survfit(model, newdata = newdata), times = horizon)$surv[1, ])
 #'
-#' # The same with conditional IPCW: censoring modelled on the validation data
+#' # The same with conditional IPCW: censoring depends on age, nodes and grade
+#' # (a Cox model of the censoring times, fitted by voipred)
+#' nb_val(data = df_val_survival,
+#'        predicted_risk = df_val_survival$p5,
+#'        outcome = ~ Surv(years, death),
+#'        horizon = 5,
+#'        thresholds = c(0.1, 0.2, 0.3),
+#'        cipcw = ~ age + nodes + grade)
+#'
+#' # or your own censoring model, fitted to the validation data
 #' cens <- coxph(Surv(years, death == 0) ~ age + nodes + grade,
 #'               data = df_val_survival)
 #' nb_val(data = df_val_survival,
@@ -365,12 +389,11 @@
 #'        outcome = ~ Surv(years, death),
 #'        horizon = 5,
 #'        thresholds = c(0.1, 0.2, 0.3),
-#'        censoring = "cipcw",
-#'        cipcw = cipcw_control(model = cens))
+#'        cipcw = cens)
 #' @export
 nb_val <- function(data, predicted_risk = NULL, outcome,
                    thresholds = seq(0, 0.99, by = 0.01), horizon = NULL, cause = NULL,
-                   censoring = c("km", "cipcw"), cipcw = cipcw_control(), weights = NULL,
+                   cipcw = NULL, weights = NULL,
                    prior = nb_improper(), model = NULL, predict_function = NULL,
                    label = NULL) {
   call <- match.call()
@@ -385,11 +408,11 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
                          substitute(model), data)
   labels <- model_labels(inputs, label)
   M <- length(inputs)
-  censoring <- match.arg(censoring)
-  if (!inherits(cipcw, "cipcw_control"))
-    stop("`cipcw` must be made with cipcw_control().", call. = FALSE)
+  # censoring: Kaplan-Meier, or cIPCW when `cipcw` is given
+  cipcw <- as_cipcw(cipcw)
+  censoring <- if (is.null(cipcw)) "km" else "cipcw"
   info <- parse_outcome(outcome, data)
-  k <- check_survival_args(info, horizon, cause, censoring, cipcw)
+  k <- check_survival_args(info, horizon, cause, cipcw)
   info$k <- k
   thresholds <- check_thresholds(thresholds)
   n <- nrow(data)
@@ -431,8 +454,15 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
         nb_model[[m]] <- res$NB_model
       }
     } else {
-      # one censoring model, and one set of censoring weights, for every model
-      cws <- cipcw_weights(cipcw, data, info, horizon, k)
+      # one censoring model, and one set of censoring weights, for every model;
+      # with a formula, a Cox model fitted here to the censoring times of `data`
+      cdata <- data
+      if (!is.null(cipcw$formula)) {
+        fc <- fit_censoring_cox(cipcw$formula, data, info, w)
+        cipcw$model <- fc$model
+        cdata <- fc$data
+      }
+      cws <- cipcw_weights(cipcw, cdata, info, horizon, k)
       for (m in seq_len(M)) {
         res <- nb_core_cipcw(info$time, info$status, k, P[, m], thresholds, horizon,
                              cws$weight_event, cws$weight_horizon, w)
@@ -441,7 +471,7 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
       # what refitting the censoring model in each draw of the value of
       # information needs
       cw <- list(control = cipcw, weight_event = cws$weight_event,
-                 weight_horizon = cws$weight_horizon, data = data, info = info)
+                 weight_horizon = cws$weight_horizon, data = cdata, info = info)
     }
   }
   outcome_info$prevalence <- res$prevalence
@@ -637,16 +667,15 @@ parse_surv <- function(y, n) {
 
 # Check horizon / cause / censoring arguments against the outcome type and
 # return the index of the cause of interest (1 for a standard survival outcome).
-check_survival_args <- function(info, horizon, cause, censoring, cipcw) {
+check_survival_args <- function(info, horizon, cause, cipcw) {
   if (info$type == "binary") {
     if (!is.null(horizon))
       stop("`horizon` is only used with a survival outcome made with Surv().",
            call. = FALSE)
     if (!is.null(cause))
       stop("`cause` is only used with a competing-risks outcome.", call. = FALSE)
-    if (censoring != "km" || !is_default_cipcw(cipcw))
-      stop("`censoring` and `cipcw` are only used with a survival outcome.",
-           call. = FALSE)
+    if (!is.null(cipcw))
+      stop("`cipcw` is only used with a survival outcome.", call. = FALSE)
     return(invisible(NULL))
   }
   if (is.null(horizon))
@@ -674,14 +703,6 @@ check_survival_args <- function(info, horizon, cause, censoring, cipcw) {
       k <- match(as.character(cause), info$states)
     }
   }
-  if (censoring == "km" && !is_default_cipcw(cipcw))
-    stop("`cipcw` settings were given but `censoring = \"km\"`. Use ",
-         "`censoring = \"cipcw\"` to apply them, or remove `cipcw`.",
-         call. = FALSE)
-  if (censoring == "cipcw" && is.null(cipcw$model) && is.null(cipcw$weight_event))
-    stop("`censoring = \"cipcw\"` needs a censoring model or weights: ",
-         "cipcw = cipcw_control(model = ...) or ",
-         "cipcw_control(weight_event = ..., weight_horizon = ...).", call. = FALSE)
   k
 }
 

@@ -185,11 +185,11 @@ test_that("several models with survival outcomes, Kaplan-Meier and cIPCW", {
   expect_equal(km$estimates$NB_model, c(a$estimates$NB_model, b$estimates$NB_model))
   cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes, data = v)
   ci <- nb_val(v, c(Full = "p1", Age = "p2"), surv_outcome, horizon = 5, thresholds = z,
-               censoring = "cipcw", cipcw = cipcw_control(model = cens))
+               cipcw = cipcw_control(model = cens))
   ca <- nb_val(v, "p1", surv_outcome, horizon = 5, thresholds = z,
-               censoring = "cipcw", cipcw = cipcw_control(model = cens), label = "Full")
+               cipcw = cipcw_control(model = cens), label = "Full")
   cb <- nb_val(v, "p2", surv_outcome, horizon = 5, thresholds = z,
-               censoring = "cipcw", cipcw = cipcw_control(model = cens), label = "Age")
+               cipcw = cipcw_control(model = cens), label = "Age")
   expect_equal(ci$estimates, c(ca, cb)$estimates)
   # the summary has the sensitivity and specificity of each model
   sm <- summary(ci)
@@ -205,7 +205,7 @@ test_that("several models with survival outcomes, Kaplan-Meier and cIPCW", {
   # results with different censoring models cannot be combined
   cens2 <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age, data = v)
   cc <- nb_val(v, "p2", surv_outcome, horizon = 5, thresholds = z,
-               censoring = "cipcw", cipcw = cipcw_control(model = cens2), label = "Age")
+               cipcw = cipcw_control(model = cens2), label = "Age")
   expect_error(c(ca, cc), "cannot be used together")
 })
 

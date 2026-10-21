@@ -46,7 +46,7 @@
 #'   weights (improper prior): the Bayesian bootstrap. Each
 #'   draw gives the patients Dirichlet(1, ..., 1) weights (times the case
 #'   weights) and recomputes the net benefit with the same estimator as
-#'   [nb_val()]. With `censoring = "cipcw"`, the censoring model is refitted in
+#'   [nb_val()]. With cIPCW (`cipcw`), the censoring model is refitted in
 #'   every draw and the censoring weights recomputed from it (see
 #'   [cipcw_control()]).
 #'
@@ -366,7 +366,7 @@ p_best_from_draws <- function(d, res = NULL, call = NULL) {
 #'   (multinomial counts with probabilities \eqn{W}, a future patient being a
 #'   current patient, with the same follow-up), pooled with the current sample,
 #'   and the net benefit recomputed with the same estimator as [nb_val()]. With
-#'   `censoring = "cipcw"` the censoring model is refitted in every draw and
+#'   cIPCW (`cipcw`) the censoring model is refitted in every draw and
 #'   every pooled sample (see [cipcw_control()]).
 #'
 #' If strategies tie exactly in the combined data, the mean of their true net

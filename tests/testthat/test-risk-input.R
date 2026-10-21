@@ -45,10 +45,9 @@ test_that("survival and competing risks, with Kaplan-Meier and cIPCW", {
   r <- quiet_nb(predicted_risk = p, data = v, outcome = surv_outcome, horizon = 5, thresholds = z)
   expect_equal(r$estimates$NB_model, m$estimates$NB_model)
   cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes, data = v)
-  mc <- nb_val(v, cx, surv_outcome, horizon = 5, thresholds = z, censoring = "cipcw",
-               cipcw = cipcw_control(model = cens))
+  mc <- nb_val(v, cx, surv_outcome, horizon = 5, thresholds = z, cipcw = cipcw_control(model = cens))
   rc <- nb_val(predicted_risk = p, data = v, outcome = surv_outcome, horizon = 5, thresholds = z,
-               censoring = "cipcw", cipcw = cipcw_control(model = cens))
+               cipcw = cipcw_control(model = cens))
   expect_equal(rc$estimates$NB_model, mc$estimates$NB_model)
   # the censoring model is still refitted in each draw: same results
   set.seed(4); e_m <- evpi(mc, n_sim = 20)
