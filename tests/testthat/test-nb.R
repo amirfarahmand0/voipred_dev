@@ -15,7 +15,8 @@ test_that("nb_val() returns one row per threshold with the expected columns", {
   res <- nb_val(toy, fixed_model(toy$p), "y", thresholds = z)
   expect_s3_class(res, "voipred_nb")
   expect_s3_class(res$estimates, "data.frame")
-  expect_named(res$estimates, c("threshold", "NB_model", "NB_all", "NB_none", "delta_NB"))
+  expect_named(res$estimates, c("threshold", "model", "NB_model", "NB_all", "NB_none",
+                                "delta_NB"))
   expect_identical(as.data.frame(res), res$estimates)
   expect_equal(res$estimates$threshold, z)
   expect_true(all(res$estimates$NB_none == 0))
@@ -113,9 +114,9 @@ test_that("print shows a header and the table", {
 })
 
 test_that("the first argument is data; the old order gives a clear error", {
-  expect_error(nb_val(fixed_model(toy$p), toy, "y"), "The first argument of nb\\(\\) is `data`")
-  expect_error(nb_val(toy$p, toy, "y"), "The first argument of nb\\(\\) is `data`")
+  expect_error(nb_val(fixed_model(toy$p), toy, "y"), "The first argument of nb_val\\(\\) is `data`")
+  expect_error(nb_val(toy$p, toy, "y"), "The first argument of nb_val\\(\\) is `data`")
   res <- nb_val(toy, toy$p, "y", thresholds = 0.3)
-  expect_equal(res$call[[1]], as.name("nb"))
-  expect_equal(res$label, "p")
+  expect_equal(res$call[[1]], as.name("nb_val"))
+  expect_equal(res$models, "p")
 })

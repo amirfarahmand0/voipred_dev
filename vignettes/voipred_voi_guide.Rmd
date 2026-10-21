@@ -96,6 +96,18 @@ res_age  <- nb_val(data = df_val_binary,
 plot(res_full, res_age)
 ```
 
+The two models can also be validated in one call, which gives the same
+result as the two calls (`c(res_full, res_age)`); the value-of-information
+functions take either:
+
+```{r data-binary-both}
+res_both <- nb_val(data = df_val_binary,
+                   predicted_risk = c(Full = "p_full", `Age only` = "p_age"),
+                   outcome = "day30",
+                   thresholds = z)
+all.equal(res_both$estimates, c(res_full, res_age)$estimates)
+```
+
 **Survival and competing risks.** Rotterdam breast cancer data: death by 5
 years (a Cox and a Weibull model), and recurrence by 5 years with death as a
 competing event (a cause-specific Cox model); fitted on 1500 patients and
@@ -189,25 +201,26 @@ are the same distribution (with another prior, such as the uniform, they
 differ a little: the prior adds information). Several models
 are drawn together, with the same draws, so their correlation on the same
 patients is kept. With cIPCW the censoring model is refitted in every draw.
-With the same seed, results and `n_sim`, the four functions use the same
-draws. This guide uses `n_sim = 5000`.
+`evpi()` computes P(useful) and P(best) from its own draws (see "EVPI");
+with the same seed, models and `n_sim`, `p_useful()`, `p_best()`, `evpi()`
+and `evsi()` also use the same draws. This guide uses `n_sim = 5000`.
 
 The arguments the four functions share:
 
 | Argument | What it does |
 |---|---|
-| `x`, `...` | Results of `nb_val()`: one for `p_useful()`; one or more for `p_best()`, `evpi()` and `evsi()`, for models evaluated on the same data, outcome, thresholds, censoring method and prior. A result given in `...` with a name is labelled with it. |
+| `x`, `...` | Results of `nb_val()`, each with one model or several, for models evaluated on the same data, outcome, thresholds, censoring method and prior. A result with one model given in `...` with a name is labelled with it. For `p_useful()` and `p_best()`, `x` can instead be a result of `evpi()`. |
 | `n_sim` | Number of draws. Default 1000. |
-| `labels` | `p_best()`, `evpi()`, `evsi()`: names of the models, one per result, in order. Default: their `label`. |
+| `labels` | Names of the models, one per model, in order. Default: their labels. |
 
 # P(useful)
 
 The probability that a model is better than both default strategies,
 $P\{NB_{model} > \max(NB_{all}, 0)\}$: the share of draws in which its net
-benefit is strictly higher. It compares the model only with treat all and
-treat none, so it does not depend on other models: `p_useful()` takes one
-model. To compare models, compute it for each and draw them together with
-`plot()`; to compare the models with each other, use `p_best()` (below).
+benefit is strictly higher. It compares each model only with treat all and
+treat none, so a model's P(useful) does not depend on the other models; to
+compare the models with each other, use `p_best()` (below). Given several
+models, `p_useful()` gives P(useful) of each.
 
 ```{r pu}
 set.seed(10)
@@ -231,15 +244,14 @@ summary(pu_full)
 summary(pu_full, thresholds = c(0.05, 0.1, 0.2))
 ```
 
-**`plot()`** draws P(useful) against the threshold, one curve per result,
-named by the model's label, in the colours of the decision curve. For two
-models, compute each and give both:
+**`plot()`** draws P(useful) against the threshold, one curve per model,
+named by its label, in the colours of the decision curve. For two models:
 
 ```{r pu-plot}
 set.seed(10)
-pu_age <- p_useful(res_age, n_sim = 5000)
-plot(pu_full, pu_age)
-plot(pu_full, pu_age, labels = c("Model A", "Model B"))   # other names
+pu_both <- p_useful(res_both, n_sim = 5000)
+plot(pu_both)
+plot(pu_both, labels = c("Model A", "Model B"))   # other names
 ```
 
 **Survival** works the same way:
@@ -338,6 +350,20 @@ $ENB_{perfect}$, and `e$ENB` the expected net benefit of each strategy.
 ```{r evpi-plot}
 plot(e)
 plot(e, type = "relative")
+```
+
+**P(useful) and P(best) from the same draws.** `evpi()` also computes
+P(useful) and P(best) from its draws, so the three measures agree with each
+other exactly; `p_useful(e)` and `p_best(e)` return them (with no new draws),
+with their usual `print()`, `summary()` and `plot()`, and `plot(e, type = )`
+draws them. `summary(e)` above has, in the column `P(best)`, the probability
+that the strategy that is best now is the best.
+
+```{r evpi-pu-pb}
+p_useful(e)
+summary(p_best(e), thresholds = c(0.02, 0.05, 0.1, 0.2))
+plot(e, type = "p_useful")
+plot(e, type = "p_best")
 ```
 
 **Several results on one plot**, e.g. the full model validated on 500 and on

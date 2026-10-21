@@ -20,14 +20,14 @@ test_that("nb_val() returns a list with its parts, not attributes", {
   r <- s$r1
   expect_s3_class(r, "voipred_nb")
   expect_type(r, "list")
-  expect_named(r, c("call", "label", "estimates", "prior", "outcome", "risk", "observed",
+  expect_named(r, c("call", "models", "estimates", "prior", "outcome", "risk", "observed",
                     "weights", "counts", "cipcw"))
   expect_null(attributes(r$estimates)$voi)
   expect_equal(r$outcome$type, "binary")
   expect_equal(r$outcome$n, 500)
   expect_equal(r$outcome$events, sum(s$val$day30))
   expect_equal(r$outcome$prevalence, mean(s$val$day30))
-  expect_length(r$risk, 500)
+  expect_length(r$risk[, 1], 500)
   expect_equal(r$counts$threshold, s$z)
   expect_equal(as.data.frame(r), r$estimates)
   # survival: horizon, cause and censoring; no counts
@@ -55,13 +55,13 @@ test_that("print() and summary() of nb_val() are short and say what the result i
   expect_named(sm$table, c("threshold", "Se", "Sp", "NB_model", "NB_all", "delta_NB", "best"))
   # sensitivity and specificity are the observed proportions with the improper prior
   y <- s$val$day30
-  tr <- s$r1$risk >= 0.1 & s$r1$risk > 0
+  tr <- s$r1$risk[, 1] >= 0.1 & s$r1$risk[, 1] > 0
   i <- which(abs(s$z - 0.1) < 1e-9)
   expect_equal(sm$table$Se[i], sum(tr & y == 1) / sum(y == 1))
   expect_equal(sm$table$Sp[i], sum(!tr & y == 0) / sum(y == 0))
   # the best strategy follows delta_NB and NB_all
   e <- s$r1$estimates
-  expect_equal(sm$table$best, ifelse(e$delta_NB > 1e-12, "model",
+  expect_equal(sm$table$best, ifelse(e$delta_NB > 1e-12, s$r1$models,
                                      ifelse(e$NB_all > 1e-12, "treat all", "treat none")))
   # chosen thresholds: all of them shown
   ch <- capture.output(summary(s$r1, thresholds = c(0.05, 0.2)))
@@ -86,7 +86,7 @@ test_that("print() and summary() of nb_val() are short and say what the result i
   v <- voi_info(k)
   we <- ifelse(v$status == 1 & v$time <= 5, v$weight_event, 0)
   wh <- ifelse(v$time > 5, v$weight_horizon, 0)
-  tr <- outer(k$risk, c(0.1, 0.3), ">=")
+  tr <- outer(k$risk[, 1], c(0.1, 0.3), ">=")
   expect_equal(st$Se, unname(colSums(tr * we) / sum(we)), tolerance = 1e-12)
   expect_equal(st$Sp, unname(1 - colSums(tr * wh) / sum(wh)), tolerance = 1e-12)
   csc <- riskRegression::CSC(prodlim::Hist(cr_time, cr_code) ~ age + nodes, data = sv$dev)

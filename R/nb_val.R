@@ -832,9 +832,10 @@ column_inputs <- function(x) {
 # Names of columns of `data` that hold the risks, one model each, labelled by
 # the names of the vector if it has them, otherwise by the column names.
 name_inputs <- function(x, data) {
-  miss <- setdiff(x, names(data))
+  found <- x %in% names(data)
+  miss <- unique(x[!found])
   if (length(miss)) {
-    if (length(x) > 1 && length(miss) == length(x))
+    if (length(x) > 1 && !any(found))
       stop("`predicted_risk` must be numeric: one predicted probability per row of ",
            "`data`, or the names of the columns of `data` that hold them.", call. = FALSE)
     if (length(miss) == 1)
@@ -851,7 +852,7 @@ name_inputs <- function(x, data) {
 
 # A list of models (risks, column names or fitted models), labelled by its
 # names, or else by the expressions in the call (list(val$p1, fit2) gives
-# "p1" and "fit2").
+# "p1" and "fit2", list(m$fit) gives "fit").
 list_inputs <- function(x, expr, arg) {
   if (!length(x)) stop("`", arg, "` is an empty list.", call. = FALSE)
   nms <- names(x)
@@ -868,7 +869,7 @@ list_inputs <- function(x, expr, arg) {
     is_model <- arg == "model" || !is_risk_input(v)
     lab <- if (nzchar(nms[i])) nms[i]
            else if (!is.null(args)) {
-             if (is_model) expr_name(args[[i]]) else risk_label(args[[i]], v)
+             risk_label(args[[i]], if (is_model) NULL else v)
            } else if (is.character(v) && length(v) == 1) v
     model_input(v, is_model, lab)
   })

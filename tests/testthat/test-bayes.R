@@ -52,10 +52,12 @@ test_that("several models are drawn jointly, each keeping its own posterior", {
   # the Dirichlet prior over the patterns gives each model its Beta prior
   pr <- nb_beta(sensitivity = c(3, 2), specificity = c(1, 4))
   for (pp in list(nb_uniform(), nb_jeffreys(), pr)) {
-    s2 <- bayes_setup(lapply(list(a, b, a), function(r) {
+    rs <- lapply(list(a, b, a), function(r) {
       r$prior <- pp
       r
-    }))
+    })
+    names(rs) <- c("", "", "Full again")
+    s2 <- bayes_setup(do.call(c, rs))
     for (m in 1:3) {
       expect_equal(sum(s2$alpha1[s2$pos[, m]]), pp$sensitivity[1])
       expect_equal(sum(s2$alpha1[!s2$pos[, m]]), pp$sensitivity[2])

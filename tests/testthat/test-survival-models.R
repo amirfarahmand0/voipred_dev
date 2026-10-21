@@ -12,7 +12,7 @@ check_model <- function(model, s, own_risk, horizon = 5, outcome = surv_outcome,
   expect_no_warning(res <- suppress_matching(
     nb_val(s$val, model, outcome, horizon = horizon, thresholds = surv_z, ...),
     "^No patient treated"))
-  r <- res$risk
+  r <- res$risk[, 1]
   expect_true(all(r >= 0 & r <= 1))
   expect_equal(r, as.vector(own_risk), tolerance = 1e-6)
   expect_same_as_dcurves_surv(res, s$val, time, status, horizon)
@@ -236,7 +236,7 @@ test_that("a binary model with a survival outcome works, with a warning", {
   expect_warning(res <- suppress_matching(
     nb_val(s$val, lg, surv_outcome, horizon = 5, thresholds = surv_z), "^No patient treated"),
     "fitted to a binary outcome, not a survival outcome")
-  expect_equal(res$risk, unname(predict(lg, s$val, type = "response")))
+  expect_equal(res$risk[, 1], unname(predict(lg, s$val, type = "response")))
   expect_same_as_dcurves_surv(res, s$val, "dtimey", "death", 5)
 })
 
@@ -311,8 +311,8 @@ test_that("missing covariates are reported for survival models", {
 test_that("each model's risk grows with the horizon", {
   s <- rott_split()
   cx <- survival::coxph(surv_formula, data = s$dev)
-  r2 <- nb_val(s$val, cx, surv_outcome, horizon = 2, thresholds = 0.1)$risk
-  r5 <- nb_val(s$val, cx, surv_outcome, horizon = 5, thresholds = 0.1)$risk
+  r2 <- nb_val(s$val, cx, surv_outcome, horizon = 2, thresholds = 0.1)$risk[, 1]
+  r5 <- nb_val(s$val, cx, surv_outcome, horizon = 5, thresholds = 0.1)$risk[, 1]
   expect_true(all(r5 >= r2))
   expect_gt(mean(r5 - r2), 0.05)
 })

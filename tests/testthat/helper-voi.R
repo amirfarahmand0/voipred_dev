@@ -78,7 +78,7 @@ draws_t <- function(..., n_sim = 1000) {
 bb_draws_t <- function(..., n_sim = 1000) {
   a <- list(...)
   res <- collect_voi(a[[1]], a[-1], NULL, "bb_draws_t()", "`n_sim`")
-  n <- length(res[[1]]$risk)
+  n <- nrow(res$risk)
   W <- vapply(seq_len(n_sim), function(i) bb_weights(n), numeric(n))
   draws_from(res, W, "Bayesian bootstrap")
 }

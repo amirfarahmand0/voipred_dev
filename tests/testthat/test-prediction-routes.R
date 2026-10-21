@@ -15,11 +15,11 @@ p0 <- c(0.8, 0.2, 0.6, 0.3, 0.1, 0.7)
 test_that("predict_function takes precedence over voipred's own method and the standard route", {
   reg_predict("toyA", function(object, newdata, type = "response", ...) rep(0.2, nrow(newdata)))
   m <- toy("toyA")
-  expect_equal(nb_val(d, m, "y", thresholds = 0.1)$risk, rep(0.2, 6))      # standard
+  expect_equal(nb_val(d, m, "y", thresholds = 0.1)$risk[, 1], rep(0.2, 6))      # standard
   reg_method("toyA", function(model, newdata, ...) rep(0.3, nrow(newdata)))
-  expect_equal(nb_val(d, m, "y", thresholds = 0.1)$risk, rep(0.3, 6))      # method
+  expect_equal(nb_val(d, m, "y", thresholds = 0.1)$risk[, 1], rep(0.3, 6))      # method
   expect_equal(nb_val(d, m, "y", thresholds = 0.1,
-                       predict_function = function(model, newdata, ...) p0)$risk, p0)
+                       predict_function = function(model, newdata, ...) p0)$risk[, 1], p0)
 })
 
 test_that("predict_function gets horizon and cause; it is checked like any model", {
@@ -53,7 +53,7 @@ test_that("predict_function gets horizon and cause; it is checked like any model
 test_that("output shapes are read generically", {
   m <- toy("toyC")
   r <- function(out, ...) nb_val(d, m, "y", thresholds = 0.1,
-                                  predict_function = function(...) out, ...)$risk
+                                  predict_function = function(...) out, ...)$risk[, 1]
   two <- cbind(`0` = 1 - p0, `1` = p0)
   expect_equal(r(two), p0)                                     # column "1"
   expect_equal(r(two[, 2:1]), p0)                              # wherever it is
@@ -69,14 +69,14 @@ test_that("output shapes are read generically", {
   surv <- outer(1 - p0, c(1, 3, 6), function(a, tt) a^(tt / 3))
   res <- nb_val(ds, m, ~ survival::Surv(t, st), horizon = 5, thresholds = 0.1,
                 predict_function = function(...) list(time = c(1, 3, 6), surv = surv))
-  expect_equal(res$risk, 1 - surv[, 2])
+  expect_equal(res$risk[, 1], 1 - surv[, 2])
   # cumulative incidence curve (competing risks)
   dc <- data.frame(t = c(1, 2, 6, 7, 8, 9),
                    st = factor(c(1, 2, 0, 1, 0, 2), 0:2, c("cens", "a", "b")))
   cif <- outer(p0, c(1, 3, 6), function(a, tt) a * tt / 6)
   res <- nb_val(dc, m, ~ survival::Surv(t, st), horizon = 5, thresholds = 0.1,
                 predict_function = function(...) list(time = c(1, 3, 6), cif = cif))
-  expect_equal(res$risk, cif[, 2])
+  expect_equal(res$risk[, 1], cif[, 2])
 })
 
 test_that("standard binary route: type = 'response', then 'prob', then riskRegression", {
@@ -100,14 +100,14 @@ test_that("standard survival route: riskRegression::predictRisk, cause by label 
     rep(c(0.2, 0.6)[cause], nrow(newdata)) + seq(0, 0.05, length.out = nrow(newdata))
   })
   r_b <- nb_val(ds, toy("toyF"), ~ survival::Surv(t, st), horizon = 5, cause = "b",
-                 thresholds = 0.1)$risk
+                 thresholds = 0.1)$risk[, 1]
   expect_equal(r_b, 0.6 + seq(0, 0.05, length.out = 6))
   # a model whose predictRisk() knows the labels (like CSC fitted on a factor)
   reg_predictrisk("toyG", function(object, newdata, times, cause, ...) {
     rep(c(a = 0.3, b = 0.5)[[cause]], nrow(newdata)) + seq(0, 0.05, length.out = nrow(newdata))
   })
   r_a <- nb_val(ds, toy("toyG"), ~ survival::Surv(t, st), horizon = 5, cause = "a",
-                 thresholds = 0.1)$risk
+                 thresholds = 0.1)$risk[, 1]
   expect_equal(r_a, 0.3 + seq(0, 0.05, length.out = 6))
 })
 
@@ -136,10 +136,10 @@ test_that("a new survival model works with predict_function", {
   res <- nb_val(s$val, m, surv_outcome, horizon = 5, thresholds = c(0.1, 0.3),
                 predict_function = function(model, newdata, ...) {
               pr <- predict(model, newdata); list(time = pr$times, surv = pr$survival) })
-  expect_equal(res$risk, ref, tolerance = 1e-12)
+  expect_equal(res$risk[, 1], ref, tolerance = 1e-12)
   # the same as giving the risks
-  expect_equal(nb_val(s$val, ref, surv_outcome, horizon = 5, thresholds = c(0.1, 0.3))$estimates,
-               res$estimates)
+  expect_equal(nb_val(s$val, ref, surv_outcome, horizon = 5, thresholds = c(0.1, 0.3),
+                      label = "m")$estimates, res$estimates)
 })
 
 test_that("predict_risk() is internal", {

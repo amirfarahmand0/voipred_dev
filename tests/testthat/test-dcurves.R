@@ -28,7 +28,7 @@ test_that("random forest (randomForest) agrees with dcurves", {
   res <- nb_val(s$val, rf, "day30", all_z)
   # randomForest votes are multiples of 1/200, so many risks sit exactly on a
   # threshold: this checks the tie rule against dcurves.
-  expect_true(any(res$risk %in% all_z))
+  expect_true(any(res$risk[, 1] %in% all_z))
   expect_same_as_dcurves(res, s$val)
 })
 

@@ -9,14 +9,15 @@ test_that("binary: risks given directly give the same results as the model", {
   p <- unname(predict(f, val, type = "response"))
   m <- nb_val(val, f, "day30", thresholds = z)
   r <- nb_val(predicted_risk = p, data = val, outcome = "day30", thresholds = z)
-  expect_equal(as.data.frame(r)[, -1], as.data.frame(m)[, -1])
-  expect_equal(r$risk, m$risk)
-  expect_equal(r$label, "p")                       # the vector's name
+  # the same estimates; only the labels (column `model`) differ
+  expect_equal(as.data.frame(r)[, -(1:2)], as.data.frame(m)[, -(1:2)])
+  expect_equal(r$risk[, 1], m$risk[, 1])
+  expect_equal(r$models, "p")                       # the vector's name
   val$pred <- p
-  expect_equal(nb_val(predicted_risk = "pred", data = val, outcome = "day30", thresholds = z)$label, "pred")                        # a column of data
-  expect_equal(nb_val(predicted_risk = val$pred, data = val, outcome = "day30", thresholds = z)$label, "pred")
+  expect_equal(nb_val(predicted_risk = "pred", data = val, outcome = "day30", thresholds = z)$models, "pred")                        # a column of data
+  expect_equal(nb_val(predicted_risk = val$pred, data = val, outcome = "day30", thresholds = z)$models, "pred")
   expect_equal(nb_val(predicted_risk = p, data = val, outcome = "day30", thresholds = z,
-                       label = "Full")$label, "Full")
+                       label = "Full")$models, "Full")
   # the same draws, so the same value of information
   set.seed(1); e_m <- evpi(m, n_sim = 200)
   set.seed(1); e_r <- evpi(r, n_sim = 200)

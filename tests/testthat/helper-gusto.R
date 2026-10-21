@@ -24,7 +24,7 @@ dcurves_nb <- function(risk, data, outcome, thresholds) {
 # nb_val() result vs dcurves::dca() on the same predicted risks: model, treat all
 # and treat none at every threshold.
 expect_same_as_dcurves <- function(res, val) {
-  ref <- dcurves_nb(res$risk, val, "day30", all_z)
+  ref <- dcurves_nb(res$risk[, 1], val, "day30", all_z)
   expect_equal(res$estimates$threshold, ref$threshold)
   expect_equal(res$estimates$NB_model, ref$NB_model, tolerance = 1e-10)
   expect_equal(res$estimates$NB_all, ref$NB_all, tolerance = 1e-10)

@@ -25,9 +25,9 @@ test_that("delta_NB is NB_model - max(NB_all, NB_none)", {
 
 test_that("label: default from the model's name, given, or reserved", {
   fit <- fixed_model(toy$p)
-  expect_equal(nb_val(toy, fit, "y", thresholds = z)$label, "fit")
-  expect_equal(nb_val(toy, fixed_model(toy$p), "y", thresholds = z)$label, "Model")
-  expect_equal(nb_val(toy, fit, "y", thresholds = z, label = "A")$label, "A")
+  expect_equal(nb_val(toy, fit, "y", thresholds = z)$models, "fit")
+  expect_equal(nb_val(toy, fixed_model(toy$p), "y", thresholds = z)$models, "Model")
+  expect_equal(nb_val(toy, fit, "y", thresholds = z, label = "A")$models, "A")
   expect_output(print(nb_val(toy, fit, "y", thresholds = z, label = "A")),
                 "Net benefit of A.*delta_NB")
   expect_error(nb_val(toy, fit, "y", label = "treat all"), "default strategies")
@@ -117,8 +117,8 @@ test_that("results that cannot be drawn together are refused", {
   # same label twice, unknown argument, other objects
   expect_error(plot(r1, r1), "same label \\(\"A\"\\)")
   expect_error(plot(r1, ty = "delta"), "Unknown argument `ty`")
-  expect_error(plot(r1, data.frame(x = 1)), "Only results of nb\\(\\)")
+  expect_error(plot(r1, data.frame(x = 1)), "Only results of nb_val\\(\\)")
   expect_error(plot(r1, labels = c("a", "b")), "`labels` must be one string")
-  expect_error(plot(r1, labels = "Treat None"), "cannot be used as labels")
+  expect_error(plot(r1, labels = "Treat None"), "cannot be labelled")
   expect_error(plot(r1, type = "roc"), "should be one of")
 })

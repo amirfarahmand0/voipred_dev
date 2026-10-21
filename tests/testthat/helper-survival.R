@@ -31,7 +31,7 @@ surv_z <- seq(0, 0.99, by = 0.01)
 # cause of interest comes first, as dcurves always uses the first event level.
 expect_same_as_dcurves_surv <- function(res, data, time, status, horizon,
                                         levels = NULL) {
-  d <- data.frame(tt = data[[time]], ss = data[[status]], risk = res$risk)
+  d <- data.frame(tt = data[[time]], ss = data[[status]], risk = res$risk[, 1])
   if (!is.null(levels)) d$ss <- factor(d$ss, levels = levels)
   ref <- suppressMessages(suppressWarnings(
     dcurves::dca(survival::Surv(tt, ss) ~ risk, data = d, time = horizon,

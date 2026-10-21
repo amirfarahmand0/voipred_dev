@@ -14,7 +14,7 @@ check_cr <- function(model, s, own_risk, cause = NULL, horizon = 5) {
   expect_no_warning(res <- suppress_matching(
     nb_val(s$val, model, cr_outcome, horizon = horizon, thresholds = surv_z, cause = cause),
     "^No patient treated"))
-  r <- res$risk
+  r <- res$risk[, 1]
   expect_true(all(r >= 0 & r <= 1))
   expect_equal(r, as.vector(own_risk), tolerance = 1e-6)
   lev <- if (identical(cause, "death")) c("censored", "death", "recurrence") else NULL
@@ -31,7 +31,7 @@ test_that("riskRegression::CSC for both causes, with numeric or labelled causes 
                  cause = "death")
   expect_identical(r2$outcome$cause, "death")
   # the cumulative incidences of the two causes cannot add up to more than 1
-  expect_true(all(r1$risk + r2$risk <= 1 + 1e-12))
+  expect_true(all(r1$risk[, 1] + r2$risk[, 1] <= 1 + 1e-12))
   # causes coded by label in the model
   dev <- s$dev
   csl <- riskRegression::CSC(prodlim::Hist(cr_time, cr_status, cens.code = "censored") ~
@@ -77,19 +77,19 @@ test_that("survival's multi-state coxph: Aalen-Johansen from cause-specific Cox 
                 times = 5)$pstate
   r1 <- check_cr(ms, s, ps[1, , 2])
   r2 <- check_cr(ms, s, ps[1, , 3], cause = "death")
-  expect_true(all(r1$risk + r2$risk <= 1 + 1e-12))
+  expect_true(all(r1$risk[, 1] + r2$risk[, 1] <= 1 + 1e-12))
   # reference 2: the same cause-specific Cox models fitted by riskRegression::CSC
   csc <- riskRegression::CSC(Hist(cr_time, cr_code) ~ age + size + nodes + grade + hormon,
                              data = s$dev, ties = "breslow")
-  expect_equal(r1$risk, as.vector(riskRegression::predictRisk(csc, s$val, times = 5,
+  expect_equal(r1$risk[, 1], as.vector(riskRegression::predictRisk(csc, s$val, times = 5,
                                                                       cause = 1)), tolerance = 1e-7)
-  expect_equal(r2$risk, as.vector(riskRegression::predictRisk(csc, s$val, times = 5,
+  expect_equal(r2$risk[, 1], as.vector(riskRegression::predictRisk(csc, s$val, times = 5,
                                                                       cause = 2)), tolerance = 1e-7)
   # Efron ties: the baseline hazards differ slightly between the two packages
   mse <- survival::coxph(survival::Surv(cr_time, st) ~ age + nodes, data = dev, id = pid,
                          model = TRUE)
   cse <- riskRegression::CSC(Hist(cr_time, cr_code) ~ age + nodes, data = s$dev)
-  re <- nb_val(s$val, mse, cr_outcome, horizon = 5, thresholds = 0.2)$risk
+  re <- nb_val(s$val, mse, cr_outcome, horizon = 5, thresholds = 0.2)$risk[, 1]
   expect_lt(max(abs(re - riskRegression::predictRisk(cse, s$val, times = 5, cause = 1))), 1e-3)
 })
 
@@ -99,12 +99,12 @@ test_that("multi-state coxph: causes matched by label or position, and the check
   dev$st <- factor(dev$cr_code, 0:2, c("censored", "recurrence", "death"))
   ms <- survival::coxph(survival::Surv(cr_time, st) ~ age + nodes, data = dev, id = pid,
                         model = TRUE)
-  ref <- nb_val(s$val, ms, cr_outcome, horizon = 5, thresholds = 0.2, cause = "death")$risk
+  ref <- nb_val(s$val, ms, cr_outcome, horizon = 5, thresholds = 0.2, cause = "death")$risk[, 1]
   # the model's states named differently from the outcome's: matched by position
   dev$st2 <- factor(dev$cr_code, 0:2, c("cens", "rec", "dth"))
   ms2 <- survival::coxph(survival::Surv(cr_time, st2) ~ age + nodes, data = dev, id = pid,
                          model = TRUE)
-  expect_equal(nb_val(s$val, ms2, cr_outcome, horizon = 5, thresholds = 0.2, cause = "death")$risk, ref)
+  expect_equal(nb_val(s$val, ms2, cr_outcome, horizon = 5, thresholds = 0.2, cause = "death")$risk[, 1], ref)
   # with a single-event or binary outcome
   expect_error(suppress_matching(nb_val(s$val, ms, ~ survival::Surv(cr_time, cr_code > 0),
                                      horizon = 5), "^No patient treated"),
@@ -116,7 +116,7 @@ test_that("multi-state coxph: causes matched by label or position, and the check
   # also when its data is no longer reachable and no model frame was kept
   fit <- function(d) survival::coxph(survival::Surv(cr_time, st) ~ age + nodes, data = d, id = pid)
   far <- fit(dev)
-  expect_equal(nb_val(s$val, far, cr_outcome, horizon = 5, thresholds = 0.2, cause = "death")$risk, ref)
+  expect_equal(nb_val(s$val, far, cr_outcome, horizon = 5, thresholds = 0.2, cause = "death")$risk[, 1], ref)
 })
 
 test_that("a Fine-Gray model for another cause is rejected (riskRegression would not notice)", {

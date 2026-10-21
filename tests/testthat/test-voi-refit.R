@@ -80,7 +80,7 @@ test_that("refit_function replaces the automatic refit", {
                tolerance = 1e-10)
   # the refit really changes the censoring weights: not the same as nb_val()'s weights
   v <- voi_info(a)
-  fixed <- nb_core_cipcw(v$time, v$status, v$k, v$risk, v$thresholds, v$horizon,
+  fixed <- nb_core_cipcw(v$time, v$status, v$k, v$risk[, 1], v$thresholds, v$horizon,
                          v$weight_event, v$weight_horizon, W[, 1])
   expect_false(isTRUE(all.equal(fixed_draws(a, W = W)$nb[1, , 1], fixed$NB_model,
                                 tolerance = 1e-8)))
