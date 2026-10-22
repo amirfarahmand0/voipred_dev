@@ -7,10 +7,11 @@
 \method{plot}{voipred_p_useful}(x, ..., labels = NULL, colors = NULL, interactive = FALSE)
 }
 \arguments{
-\item{x}{A result of \code{\link[=p_useful]{p_useful()}}.}
+\item{x}{The P(useful) of a result of \code{\link[=evpi]{evpi()}}, \code{e$p_useful}.}
 
-\item{...}{More results of \code{\link[=p_useful]{p_useful()}} to draw on the same plot. A result
-with one model given here with a name is labelled with its name.}
+\item{...}{More P(useful) results to draw on the same plot, e.g. from other
+validation samples (\code{plot(e1$p_useful, e2$p_useful)}). A result with one
+model given here with a name is labelled with its name.}
 
 \item{labels}{Optional names of the curves, one per model, in order.
 Default: the models' labels (or the argument names).}
@@ -26,8 +27,9 @@ package). Default \code{FALSE}.}
 A ggplot object, or a plotly widget with \code{interactive = TRUE}.
 }
 \description{
-The plot of results of \code{\link[=p_useful]{p_useful()}}: P(useful) against the threshold, one
-curve per model of each result, in the colours of \code{\link[=plot.voipred_nb]{plot.voipred_nb()}}.
+The plot of P(useful), \code{e$p_useful} for a result \code{e} of \code{\link[=evpi]{evpi()}} (also
+drawn by \code{plot(e, type = "p_useful")}): P(useful) against the threshold, one
+curve per model, in the colours of \code{\link[=plot.voipred_nb]{plot.voipred_nb()}}.
 }
 \examples{
 df_dev_binary <- gusto[1:5000, ]
@@ -40,8 +42,8 @@ res <- nb_val(data = df_val_binary,
               outcome = "day30",
               thresholds = seq(0.01, 0.3, by = 0.01))
 set.seed(1)
-pu <- p_useful(res, n_sim = 500)
-plot(pu)
+e <- evpi(res, n_sim = 500)
+plot(e$p_useful)                # the same as plot(e, type = "p_useful")
 
 # two models
 fit_age <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
@@ -51,8 +53,8 @@ both <- nb_val(data = df_val_binary,
                outcome = "day30",
                thresholds = seq(0.01, 0.3, by = 0.01))
 set.seed(1)
-plot(p_useful(both, n_sim = 500))
+plot(evpi(both, n_sim = 500)$p_useful)
 }
 \seealso{
-\code{\link[=p_useful]{p_useful()}}, \code{\link[=plot.voipred_p_best]{plot.voipred_p_best()}}
+\code{\link[=evpi]{evpi()}}, \code{\link[=plot.voipred_p_best]{plot.voipred_p_best()}}
 }

@@ -10,9 +10,10 @@ methods_setup <- function() {
   r1 <- nb_val(val, f1, "day30", thresholds = z, label = "Full")
   r2 <- nb_val(val, f2, "day30", thresholds = z, label = "Age")
   set.seed(1)
-  list(val = val, z = z, r1 = r1, r2 = r2,
-       e = evpi(r1, r2, n_sim = 200), pu = p_useful(r1, n_sim = 200),
-       pb = p_best(r1, r2, n_sim = 200), o = evsi(r1, r2, future_n = c(250, 1000), n_sim = 200))
+  e <- evpi(r1, r2, n_sim = 200)
+  e1 <- evpi(r1, n_sim = 200)
+  list(val = val, z = z, r1 = r1, r2 = r2, e = e, pu = e1$p_useful, pb = e$p_best,
+       o = evsi(r1, r2, future_n = c(250, 1000), n_sim = 200))
 }
 
 test_that("nb_val() returns a list with its parts, not attributes", {
@@ -144,8 +145,9 @@ test_that("the value-of-information results are lists with print(), summary() an
   se <- summary(s$e)
   expect_s3_class(se, "summary.voipred_evpi")
   expect_match(se$lines, "^EVPI > 0 at .*; largest [0-9.]+ at 0\\.[0-9]+$")
-  enb <- as.matrix(s$e$ENB[, -1])
-  expect_equal(se$table[["best now"]], colnames(enb)[apply(enb, 1, which.max)])
+  # EVPI only, with the columns of as.data.frame()
+  expect_named(se$table, c("threshold", "EVPI", "rEVPI"))
+  expect_equal(se$table$rEVPI, s$e$estimates$rEVPI)
   so <- summary(s$o)
   expect_equal(nrow(so$table), 3 * 2)                   # the 3 thresholds with the largest EVPI, 2 sizes
   expect_named(so$table, c("threshold", "future_n", "EVSI", "EVPI", "EVSI / EVPI"))
@@ -195,8 +197,8 @@ test_that("the value-of-information results are lists with print(), summary() an
   kc <- quiet_nb(sv$val, cx, surv_outcome, horizon = 5, thresholds = c(0.2, 0.3), label = "Cox",
                  cipcw = cipcw_control(model = cens))
   set.seed(1)
-  for (x in list(evpi(kc, n_sim = 5), p_useful(kc, n_sim = 5), p_best(kc, n_sim = 5),
-                 evsi(kc, future_n = 100, n_sim = 5)))
+  ek <- evpi(kc, n_sim = 5)
+  for (x in list(ek, ek$p_useful, ek$p_best, evsi(kc, future_n = 100, n_sim = 5)))
     # the prior is on the first line, or (EVSI) on the second
     expect_match(paste(capture.output(print(x))[1:2], collapse = " "),
                  "survival, horizon 5, n = 1482, censoring cIPCW \\(coxph\\), .*prior improper")

@@ -3,6 +3,8 @@
 ## Breaking changes
 
 * `nb()` is renamed `nb_val()`.
+* `p_useful()` and `p_best()` are removed: P(useful) and P(best) come from
+  `evpi()`, as `evpi(res)$p_useful` and `evpi(res)$p_best`.
 * `nb_val()` has one input argument, `predicted_risk`: a vector of risks, a
   column name or a fitted model, or, for several models, a `list()` of these.
   The `model` argument is removed (give the fitted model as `predicted_risk`),
@@ -34,10 +36,12 @@
   those covariates (refitted in every draw of the value-of-information
   functions). `cipcw` also takes a fitted censoring model, and
   `cipcw_control()` is optional, for the other settings.
-* `evpi()` also computes P(useful) and P(best) from its draws: `p_useful(e)`,
-  `p_best(e)`, `plot(e, type = "p_useful")` and `plot(e, type = "p_best")`;
-  `summary(e)` gives the probability that the strategy that is best now is
-  the best. `p_useful()` takes several models.
+* P(useful) and P(best) are computed only by `evpi()`, from the same draws as
+  EVPI, and kept in its result as `e$p_useful` and `e$p_best`, each with
+  `print()`, `summary()`, `plot()` and `as.data.frame()`;
+  `plot(e, type = "p_useful")` and `plot(e, type = "p_best")` draw them. The
+  separate functions `p_useful()` and `p_best()` are removed (breaking
+  change). `summary(e)` shows EVPI only.
 * `nb_informative()`: the informative prior of bayesDCA, whose priors on the
   sensitivity and specificity change with the threshold (binary outcomes),
   as `nb_val(prior = nb_informative())`, with bayesDCA's defaults; its shapes

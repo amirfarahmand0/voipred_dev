@@ -43,7 +43,7 @@
 #' and a predicted risk of exactly 0 is never treated, as in dcurves.
 #'
 #' **Prior.** `nb_val()` works in a Bayesian framework, which the
-#' value-of-information functions ([p_useful()], [p_best()], [evpi()],
+#' value-of-information functions ([evpi()], with P(useful) and P(best), and
 #' [evsi()]) use to represent the uncertainty of the net benefit. By default
 #' it uses no prior information: with the improper prior [nb_improper()]
 #' (Beta(0, 0)) only the data are used, and the net benefit is exactly the
@@ -281,8 +281,8 @@
 #'   \eqn{\Delta NB} curve of every model; `as.data.frame()` returns
 #'   `estimates`; [c()][c.voipred_nb] combines results.
 #' @seealso [summary.voipred_nb()], [plot.voipred_nb()], [c.voipred_nb()], [nb_priors],
-#'   [cipcw_control()], and the value-of-information functions [p_useful()],
-#'   [p_best()], [evpi()] and [evsi()].
+#'   [cipcw_control()], and the value-of-information functions [evpi()] (with
+#'   P(useful) and P(best)) and [evsi()].
 #' @examples
 #' df_dev_binary <- gusto[1:5000, ]
 #' df_val_binary <- gusto[5001:10000, ]

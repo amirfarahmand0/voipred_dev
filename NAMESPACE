@@ -71,8 +71,6 @@ export(nb_informative)
 export(nb_jeffreys)
 export(nb_uniform)
 export(nb_val)
-export(p_best)
-export(p_useful)
 importFrom(Rcpp,sourceCpp)
 importFrom(ggplot2,
   .data,

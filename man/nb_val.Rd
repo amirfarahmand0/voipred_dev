@@ -216,7 +216,7 @@ A patient is treated when the predicted risk is at or above the threshold,
 and a predicted risk of exactly 0 is never treated, as in dcurves.
 
 \strong{Prior.} \code{nb_val()} works in a Bayesian framework, which the
-value-of-information functions (\code{\link[=p_useful]{p_useful()}}, \code{\link[=p_best]{p_best()}}, \code{\link[=evpi]{evpi()}},
+value-of-information functions (\code{\link[=evpi]{evpi()}}, with P(useful) and P(best), and
 \code{\link[=evsi]{evsi()}}) use to represent the uncertainty of the net benefit. By default
 it uses no prior information: with the improper prior \code{\link[=nb_improper]{nb_improper()}}
 (Beta(0, 0)) only the data are used, and the net benefit is exactly the
@@ -451,6 +451,6 @@ nb_val(data = df_val_survival,
 }
 \seealso{
 \code{\link[=summary.voipred_nb]{summary.voipred_nb()}}, \code{\link[=plot.voipred_nb]{plot.voipred_nb()}}, \code{\link[=c.voipred_nb]{c.voipred_nb()}}, \link{nb_priors},
-\code{\link[=cipcw_control]{cipcw_control()}}, and the value-of-information functions \code{\link[=p_useful]{p_useful()}},
-\code{\link[=p_best]{p_best()}}, \code{\link[=evpi]{evpi()}} and \code{\link[=evsi]{evsi()}}.
+\code{\link[=cipcw_control]{cipcw_control()}}, and the value-of-information functions \code{\link[=evpi]{evpi()}} (with
+P(useful) and P(best)) and \code{\link[=evsi]{evsi()}}.
 }

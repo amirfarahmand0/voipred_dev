@@ -10,12 +10,21 @@
 # recomputed with the same estimator as nb_val() (Kaplan-Meier / Aalen-Johansen,
 # or cIPCW with the censoring model refitted in each draw).
 
-#' Expected value of perfect information (EVPI) for model validation
+#' Value of information: EVPI, P(useful) and P(best)
 #'
-#' The expected loss in net benefit due to uncertainty about which strategy
-#' (each model, treat all, treat none) is best, at each threshold. With
-#' \eqn{NB_s} the net benefit of strategy \eqn{s} and expectations over its
-#' posterior:
+#' From one set of draws of the net benefit of every strategy (each model,
+#' treat all, treat none), `evpi()` computes three measures at each threshold:
+#' the expected value of perfect information (EVPI, and relative EVPI), the
+#' probability that each model is useful, P(useful), and the probability that
+#' each strategy is the best, P(best). EVPI is the result itself; P(useful)
+#' and P(best) are kept in it, as `e$p_useful` and `e$p_best` (for a result
+#' `e`), each with its own `print()`, `summary()`, `plot()` and
+#' `as.data.frame()`. As they come from the same draws, the three measures
+#' agree with each other exactly.
+#'
+#' **EVPI.** The expected loss in net benefit due to uncertainty about which
+#' strategy is best. With \eqn{NB_s} the net benefit of strategy \eqn{s} and
+#' expectations over its posterior:
 #' \deqn{ENB_{perfect} = E\{\max_s NB_s\}, \qquad
 #'       ENB_{current} = \max_s E\{NB_s\},}
 #' \deqn{EVPI = ENB_{perfect} - ENB_{current}.}
@@ -31,6 +40,22 @@
 #' benefit than using the best model now. It is `Inf` when no model is better
 #' than the default strategies in expectation (the denominator is 0) and EVPI
 #' is positive, and `NA` when both are 0.
+#'
+#' **P(useful)** (`e$p_useful`). For each model, the probability that it gives
+#' a higher net benefit than both default strategies:
+#' \deqn{P(useful) = P\{NB_{model} > \max(NB_{all}, 0)\} = P(\Delta NB > 0),}
+#' the share of the draws in which the model's net benefit is strictly higher.
+#' A model that ties with a default strategy (e.g. at a threshold where it
+#' treats everyone, or no one) is not counted as useful. P(useful) compares
+#' each model only with the default strategies, so it does not depend on the
+#' other models.
+#'
+#' **P(best)** (`e$p_best`). For each strategy, the probability that it has the
+#' highest net benefit:
+#' \deqn{P(best_s) = P\{NB_s = \max_t NB_t\},}
+#' the share of the draws in which it is the best. Exact ties are shared
+#' equally, so the probabilities of all strategies add up to 1 at each
+#' threshold.
 #'
 #' @section Uncertainty:
 #' The uncertainty about the net benefit is its posterior (see the prior of
@@ -51,12 +76,7 @@
 #'   [cipcw_control()]).
 #'
 #' The predicted risks are kept fixed in every draw. The expected net benefits
-#' are the means of the draws. `evpi()` also computes P(useful) and P(best)
-#' from its draws, so the three come from the same draws: read them with
-#' `p_useful(e)` and `p_best(e)` for a result `e` of `evpi()`. [p_useful()]
-#' and [p_best()] given results of [nb_val()] instead draw again; called
-#' with the same seed (and the same models and `n_sim`) as `evpi()`, they
-#' use the same draws.
+#' are the means of the draws.
 #'
 #' @param x A result of [nb_val()], for one model or several.
 #' @param ... More results of [nb_val()], for other models evaluated on the same
@@ -66,22 +86,34 @@
 #' @param n_sim Number of draws. Default 1000.
 #' @param labels Optional names of the models, one per model, in order;
 #'   default: the models' labels.
-#' @return An object of class `voipred_evpi`, a list with `estimates` (a data
-#'   frame with one row per threshold and columns `threshold`, `ENB_current`,
-#'   `ENB_perfect`, `EVPI` and `rEVPI`), `ENB` (the expected net benefit of
-#'   each strategy at each threshold), `p_useful` and `p_best` (the results of
-#'   [p_useful()] and [p_best()] from the same draws, also returned by
-#'   `p_useful(e)` and `p_best(e)`), `models`, `outcome`, `censoring`,
-#'   `prior`, `draws` (`"posterior"` or `"Bayesian bootstrap"`), `n_sim` and
-#'   `call`. It has `print()`, `summary()` (which adds the probability that
-#'   the strategy that is best now is the best), `plot()` (EVPI, relative
-#'   EVPI, P(useful) or P(best)) and `as.data.frame()` methods; EVPI can also
-#'   be drawn under the decision curve with `plot(<nb_val result>, evpi = )`.
+#' @return An object of class `voipred_evpi`, a list with:
+#'   * `estimates`: a data frame with one row per threshold and columns
+#'     `threshold`, `ENB_current`, `ENB_perfect`, `EVPI` and `rEVPI`
+#'     (returned by `as.data.frame()`);
+#'   * `p_useful`: P(useful), an object of class `voipred_p_useful` whose
+#'     `estimates` (and `as.data.frame()`) have one row per threshold and model
+#'     and columns `threshold`, `model` and `p_useful`;
+#'   * `p_best`: P(best), an object of class `voipred_p_best` whose
+#'     `estimates` (and `as.data.frame()`) have one row per threshold and
+#'     strategy and columns `threshold`, `strategy` and `p_best`;
+#'   * `ENB`: the expected net benefit of each strategy at each threshold;
+#'   * `models`, `outcome`, `censoring`, `prior`, `draws` (`"posterior"` or
+#'     `"Bayesian bootstrap"`), `n_sim` and `call`.
+#'
+#'   The result and its parts have `print()`, `summary()`, `plot()` and
+#'   `as.data.frame()` methods ([summary.voipred_voi()],
+#'   [plot.voipred_evpi()], [plot.voipred_p_useful()],
+#'   [plot.voipred_p_best()]); `plot(e, type = "p_useful")` and
+#'   `plot(e, type = "p_best")` draw P(useful) and P(best). EVPI can also be
+#'   drawn under the decision curve with `plot(<nb_val result>, evpi = )`.
 #' @references Sadatsafavi M, Lee TY, Wynants L, Vickers AJ, Gustafson P.
 #'   Value-of-information analysis for external validation of risk prediction
-#'   models. Medical Decision Making 2023; 43(5): 564-575. Rubin DB. The
-#'   Bayesian bootstrap. Annals of Statistics 1981; 9(1): 130-134.
-#' @seealso [evsi()], [p_useful()], [p_best()], [plot.voipred_evpi()], [summary.voipred_voi()]
+#'   models. Medical Decision Making 2023; 43(5): 564-575. Wynants L, Riley RD,
+#'   Timmerman D, Van Calster B. Random-effects meta-analysis of the clinical
+#'   utility of tests and prediction models. Statistics in Medicine 2018; 37:
+#'   2034-2052. Rubin DB. The Bayesian bootstrap. Annals of Statistics 1981;
+#'   9(1): 130-134.
+#' @seealso [evsi()], [plot.voipred_evpi()], [summary.voipred_voi()]
 #' @examples
 #' df_dev_binary <- gusto[1:5000, ]
 #' df_val_binary <- gusto[5001:5500, ]
@@ -90,147 +122,33 @@
 #' df_val_binary$p1 <- predict(fit1, newdata = df_val_binary, type = "response")
 #' fit2 <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
 #' df_val_binary$p2 <- predict(fit2, newdata = df_val_binary, type = "response")
-#' z <- seq(0.01, 0.3, by = 0.01)
-#' res1 <- nb_val(data = df_val_binary,
-#'                predicted_risk = df_val_binary$p1,
-#'                outcome = "day30",
-#'                thresholds = z,
-#'                label = "Full")
-#' res2 <- nb_val(data = df_val_binary,
-#'                predicted_risk = df_val_binary$p2,
-#'                outcome = "day30",
-#'                thresholds = z,
-#'                label = "Age only")
+#' res <- nb_val(data = df_val_binary,
+#'               predicted_risk = list(Full = "p1", `Age only` = "p2"),
+#'               outcome = "day30",
+#'               thresholds = seq(0.01, 0.3, by = 0.01))
 #' set.seed(1)
-#' e <- evpi(res1, res2)
+#' e <- evpi(res)
+#' # EVPI
 #' e
 #' summary(e)
 #' plot(e)
 #' plot(e, type = "relative")
 #' # P(useful) and P(best), from the same draws
-#' p_useful(e)
-#' p_best(e)
+#' e$p_useful
+#' summary(e$p_useful)
+#' plot(e, type = "p_useful")
+#' e$p_best
+#' summary(e$p_best)
 #' plot(e, type = "p_best")
+#' # as data frames
+#' head(as.data.frame(e))
+#' head(as.data.frame(e$p_useful))
+#' head(as.data.frame(e$p_best))
 #' @export
 evpi <- function(x, ..., n_sim = 1000, labels = NULL) {
   call <- match.call()
   res <- collect_voi(x, list(...), labels, "evpi()", "`n_sim` and `labels`")
   evpi_from_draws(nb_draws(res, n_sim), res, call)
-}
-
-#' Probability that a model is useful
-#'
-#' For each model, at each threshold, the probability that using the model
-#' gives a higher net benefit than both default strategies (treat all and
-#' treat none):
-#' \deqn{P(useful) = P\{NB_{model} > \max(NB_{all}, 0)\} = P(\Delta NB > 0),}
-#' estimated as the share of the posterior draws in which the model's net
-#' benefit is strictly higher. A model that ties with a default strategy (e.g.
-#' at a threshold where it treats everyone, or no one) is not counted as
-#' useful.
-#'
-#' P(useful) compares each model only with treat all and treat none, so a
-#' model's P(useful) does not depend on the other models; to compare the
-#' models with each other, use [p_best()].
-#'
-#' [evpi()] computes P(useful) from its own draws: `p_useful(e)`, with `e` a
-#' result of [evpi()], returns it (with no new draws, and no other
-#' arguments).
-#'
-#' @inheritSection evpi Uncertainty
-#' @param x A result of [nb_val()], for one model or several, or a result of
-#'   [evpi()].
-#' @param ... More results of [nb_val()] (see [evpi()]).
-#' @param n_sim Number of draws. Default 1000.
-#' @param labels Optional names of the models, one per model, in order.
-#' @return An object of class `voipred_p_useful`, a list with `estimates` (a
-#'   data frame with columns `threshold`, `model` and `p_useful`, one row per
-#'   model and threshold), `models` (the labels of the models), `outcome`,
-#'   `censoring`, `prior`, `draws`, `n_sim` and `call`, with `print()`,
-#'   `summary()`, `plot()` and `as.data.frame()` methods.
-#' @seealso [p_best()], [evpi()], [plot.voipred_p_useful()], [summary.voipred_voi()]
-#' @examples
-#' df_dev_binary <- gusto[1:5000, ]
-#' df_val_binary <- gusto[5001:5500, ]
-#' fit <- glm(day30 ~ age + Killip + sysbp + pulse,
-#'            family = binomial, data = df_dev_binary)
-#' df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
-#' res <- nb_val(data = df_val_binary,
-#'               predicted_risk = df_val_binary$p,
-#'               outcome = "day30",
-#'               thresholds = seq(0.01, 0.3, by = 0.01))
-#' set.seed(1)
-#' pu <- p_useful(res)
-#' pu
-#' summary(pu)
-#' plot(pu)
-#' # the same draws as evpi()
-#' set.seed(1)
-#' e <- evpi(res)
-#' all.equal(p_useful(e)$estimates, pu$estimates)
-#' @export
-p_useful <- function(x, ..., n_sim = 1000, labels = NULL) {
-  call <- match.call()
-  if (inherits(x, "voipred_evpi"))
-    return(from_evpi(x, "p_useful", list(...), missing(n_sim) && is.null(labels)))
-  res <- collect_voi(x, list(...), labels, "p_useful()", "`n_sim` and `labels`")
-  p_useful_from_draws(nb_draws(res, n_sim), res, call)
-}
-
-#' Probability that each strategy is the best
-#'
-#' For each strategy (each model, treat all and treat none) and threshold,
-#' the probability that it has the highest net benefit:
-#' \deqn{P(best_s) = P\{NB_s = \max_t NB_t\},}
-#' estimated as the share of the posterior draws in which it is the best.
-#' Exact ties are shared equally, so the probabilities of all strategies add up
-#' to 1 at each threshold.
-#'
-#' [evpi()] computes P(best) from its own draws: `p_best(e)`, with `e` a
-#' result of [evpi()], returns it (with no new draws, and no other
-#' arguments).
-#'
-#' @inheritSection evpi Uncertainty
-#' @inheritParams evpi
-#' @param x A result of [nb_val()], for one model or several, or a result of
-#'   [evpi()].
-#' @return An object of class `voipred_p_best`, a list with `estimates` (a
-#'   data frame with columns `threshold`, `strategy` and `p_best`, one row per
-#'   threshold and strategy), `strategies`, `models`, `outcome`, `censoring`, `prior`,
-#'   `draws`, `n_sim` and `call`, with `print()`, `summary()`, `plot()` and
-#'   `as.data.frame()` methods.
-#' @seealso [p_useful()], [evpi()], [plot.voipred_p_best()], [summary.voipred_voi()]
-#' @examples
-#' df_dev_binary <- gusto[1:5000, ]
-#' df_val_binary <- gusto[5001:5500, ]
-#' fit1 <- glm(day30 ~ age + Killip + sysbp + pulse,
-#'             family = binomial, data = df_dev_binary)
-#' df_val_binary$p1 <- predict(fit1, newdata = df_val_binary, type = "response")
-#' fit2 <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
-#' df_val_binary$p2 <- predict(fit2, newdata = df_val_binary, type = "response")
-#' z <- seq(0.01, 0.3, by = 0.01)
-#' res1 <- nb_val(data = df_val_binary,
-#'                predicted_risk = df_val_binary$p1,
-#'                outcome = "day30",
-#'                thresholds = z,
-#'                label = "Full")
-#' res2 <- nb_val(data = df_val_binary,
-#'                predicted_risk = df_val_binary$p2,
-#'                outcome = "day30",
-#'                thresholds = z,
-#'                label = "Age only")
-#' set.seed(1)
-#' pb <- p_best(res1, res2)
-#' pb
-#' summary(pb)
-#' plot(pb)
-#' @export
-p_best <- function(x, ..., n_sim = 1000, labels = NULL) {
-  call <- match.call()
-  if (inherits(x, "voipred_evpi"))
-    return(from_evpi(x, "p_best", list(...), missing(n_sim) && is.null(labels)))
-  res <- collect_voi(x, list(...), labels, "p_best()", "`n_sim` and `labels`")
-  p_best_from_draws(nb_draws(res, n_sim), res, call)
 }
 
 # ---- draws (internal) ---------------------------------------------------------
@@ -299,18 +217,6 @@ evpi_from_draws <- function(d, res = NULL, call = NULL) {
   out$p_useful <- p_useful_from_draws(d, res, call)
   out$p_best <- p_best_from_draws(d, res, call)
   out
-}
-
-# P(useful) or P(best) kept in a result of evpi() (from the same draws).
-from_evpi <- function(x, what, dots, no_args) {
-  if (length(dots) || !no_args)
-    stop(what, "() of a result of evpi() returns the ", what, " computed by evpi() ",
-         "from its draws, and takes no other arguments. To compute it again, give ",
-         "results of nb_val().", call. = FALSE)
-  if (is.null(x[[what]]))
-    stop("This result of evpi() has no ", what, ": it was made by an older version ",
-         "of voipred; run evpi() again.", call. = FALSE)
-  x[[what]]
 }
 
 p_useful_from_draws <- function(d, res = NULL, call = NULL) {

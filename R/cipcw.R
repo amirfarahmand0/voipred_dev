@@ -66,7 +66,7 @@
 #' **Uncertainty (value of information).** The censoring model is estimated
 #' from the validation data, so its uncertainty is part of the uncertainty
 #' about the net benefit. The value-of-information functions ([evpi()],
-#' [evsi()], [p_useful()], [p_best()]) therefore refit the censoring
+#' [evsi()]) therefore refit the censoring
 #' model in every draw of the Bayesian bootstrap, with that draw's weights as
 #' case weights, and recompute the censoring weights from it. The refit is
 #' done:

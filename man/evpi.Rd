@@ -2,7 +2,7 @@
 % Please edit documentation in R/voi.R
 \name{evpi}
 \alias{evpi}
-\title{Expected value of perfect information (EVPI) for model validation}
+\title{Value of information: EVPI, P(useful) and P(best)}
 \usage{
 evpi(x, ..., n_sim = 1000, labels = NULL)
 }
@@ -20,31 +20,51 @@ with a name is labelled with its name.}
 default: the models' labels.}
 }
 \value{
-An object of class \code{voipred_evpi}, a list with \code{estimates} (a data
-frame with one row per threshold and columns \code{threshold}, \code{ENB_current},
-\code{ENB_perfect}, \code{EVPI} and \code{rEVPI}), \code{ENB} (the expected net benefit of
-each strategy at each threshold), \code{p_useful} and \code{p_best} (the results of
-\code{\link[=p_useful]{p_useful()}} and \code{\link[=p_best]{p_best()}} from the same draws, also returned by
-\code{p_useful(e)} and \code{p_best(e)}), \code{models}, \code{outcome}, \code{censoring},
-\code{prior}, \code{draws} (\code{"posterior"} or \code{"Bayesian bootstrap"}), \code{n_sim} and
-\code{call}. It has \code{print()}, \code{summary()} (which adds the probability that
-the strategy that is best now is the best), \code{plot()} (EVPI, relative
-EVPI, P(useful) or P(best)) and \code{as.data.frame()} methods; EVPI can also
-be drawn under the decision curve with \verb{plot(<nb_val result>, evpi = )}.
+An object of class \code{voipred_evpi}, a list with:
+\itemize{
+\item \code{estimates}: a data frame with one row per threshold and columns
+\code{threshold}, \code{ENB_current}, \code{ENB_perfect}, \code{EVPI} and \code{rEVPI}
+(returned by \code{as.data.frame()});
+\item \code{p_useful}: P(useful), an object of class \code{voipred_p_useful} whose
+\code{estimates} (and \code{as.data.frame()}) have one row per threshold and model
+and columns \code{threshold}, \code{model} and \code{p_useful};
+\item \code{p_best}: P(best), an object of class \code{voipred_p_best} whose
+\code{estimates} (and \code{as.data.frame()}) have one row per threshold and
+strategy and columns \code{threshold}, \code{strategy} and \code{p_best};
+\item \code{ENB}: the expected net benefit of each strategy at each threshold;
+\item \code{models}, \code{outcome}, \code{censoring}, \code{prior}, \code{draws} (\code{"posterior"} or
+\code{"Bayesian bootstrap"}), \code{n_sim} and \code{call}.
+}
+
+The result and its parts have \code{print()}, \code{summary()}, \code{plot()} and
+\code{as.data.frame()} methods (\code{\link[=summary.voipred_voi]{summary.voipred_voi()}},
+\code{\link[=plot.voipred_evpi]{plot.voipred_evpi()}}, \code{\link[=plot.voipred_p_useful]{plot.voipred_p_useful()}},
+\code{\link[=plot.voipred_p_best]{plot.voipred_p_best()}}); \code{plot(e, type = "p_useful")} and
+\code{plot(e, type = "p_best")} draw P(useful) and P(best). EVPI can also be
+drawn under the decision curve with \verb{plot(<nb_val result>, evpi = )}.
 }
 \description{
-The expected loss in net benefit due to uncertainty about which strategy
-(each model, treat all, treat none) is best, at each threshold. With
-\eqn{NB_s} the net benefit of strategy \eqn{s} and expectations over its
-posterior:
+From one set of draws of the net benefit of every strategy (each model,
+treat all, treat none), \code{evpi()} computes three measures at each threshold:
+the expected value of perfect information (EVPI, and relative EVPI), the
+probability that each model is useful, P(useful), and the probability that
+each strategy is the best, P(best). EVPI is the result itself; P(useful)
+and P(best) are kept in it, as \code{e$p_useful} and \code{e$p_best} (for a result
+\code{e}), each with its own \code{print()}, \code{summary()}, \code{plot()} and
+\code{as.data.frame()}. As they come from the same draws, the three measures
+agree with each other exactly.
+}
+\details{
+\strong{EVPI.} The expected loss in net benefit due to uncertainty about which
+strategy is best. With \eqn{NB_s} the net benefit of strategy \eqn{s} and
+expectations over its posterior:
 \deqn{ENB_{perfect} = E\{\max_s NB_s\}, \qquad
       ENB_{current} = \max_s E\{NB_s\},}
 \deqn{EVPI = ENB_{perfect} - ENB_{current}.}
 EVPI is in net benefit units (net true positives per patient); it is 0 when
 the best strategy is certain. It is never negative: both terms are means
 over the same draws.
-}
-\details{
+
 The \strong{relative EVPI} compares the gain from perfect information with the
 gain from using the model(s), both relative to the best default strategy:
 \deqn{rEVPI = \frac{ENB_{perfect} - \max\{0, E(NB_{all})\}}
@@ -53,6 +73,22 @@ For example, 1.25 means that perfect information would give 25\% more net
 benefit than using the best model now. It is \code{Inf} when no model is better
 than the default strategies in expectation (the denominator is 0) and EVPI
 is positive, and \code{NA} when both are 0.
+
+\strong{P(useful)} (\code{e$p_useful}). For each model, the probability that it gives
+a higher net benefit than both default strategies:
+\deqn{P(useful) = P\{NB_{model} > \max(NB_{all}, 0)\} = P(\Delta NB > 0),}
+the share of the draws in which the model's net benefit is strictly higher.
+A model that ties with a default strategy (e.g. at a threshold where it
+treats everyone, or no one) is not counted as useful. P(useful) compares
+each model only with the default strategies, so it does not depend on the
+other models.
+
+\strong{P(best)} (\code{e$p_best}). For each strategy, the probability that it has the
+highest net benefit:
+\deqn{P(best_s) = P\{NB_s = \max_t NB_t\},}
+the share of the draws in which it is the best. Exact ties are shared
+equally, so the probabilities of all strategies add up to 1 at each
+threshold.
 }
 \section{Uncertainty}{
 
@@ -76,12 +112,7 @@ every draw and the censoring weights recomputed from it (see
 }
 
 The predicted risks are kept fixed in every draw. The expected net benefits
-are the means of the draws. \code{evpi()} also computes P(useful) and P(best)
-from its draws, so the three come from the same draws: read them with
-\code{p_useful(e)} and \code{p_best(e)} for a result \code{e} of \code{evpi()}. \code{\link[=p_useful]{p_useful()}}
-and \code{\link[=p_best]{p_best()}} given results of \code{\link[=nb_val]{nb_val()}} instead draw again; called
-with the same seed (and the same models and \code{n_sim}) as \code{evpi()}, they
-use the same draws.
+are the means of the draws.
 }
 
 \examples{
@@ -92,34 +123,38 @@ fit1 <- glm(day30 ~ age + Killip + sysbp + pulse,
 df_val_binary$p1 <- predict(fit1, newdata = df_val_binary, type = "response")
 fit2 <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
 df_val_binary$p2 <- predict(fit2, newdata = df_val_binary, type = "response")
-z <- seq(0.01, 0.3, by = 0.01)
-res1 <- nb_val(data = df_val_binary,
-               predicted_risk = df_val_binary$p1,
-               outcome = "day30",
-               thresholds = z,
-               label = "Full")
-res2 <- nb_val(data = df_val_binary,
-               predicted_risk = df_val_binary$p2,
-               outcome = "day30",
-               thresholds = z,
-               label = "Age only")
+res <- nb_val(data = df_val_binary,
+              predicted_risk = list(Full = "p1", `Age only` = "p2"),
+              outcome = "day30",
+              thresholds = seq(0.01, 0.3, by = 0.01))
 set.seed(1)
-e <- evpi(res1, res2)
+e <- evpi(res)
+# EVPI
 e
 summary(e)
 plot(e)
 plot(e, type = "relative")
 # P(useful) and P(best), from the same draws
-p_useful(e)
-p_best(e)
+e$p_useful
+summary(e$p_useful)
+plot(e, type = "p_useful")
+e$p_best
+summary(e$p_best)
 plot(e, type = "p_best")
+# as data frames
+head(as.data.frame(e))
+head(as.data.frame(e$p_useful))
+head(as.data.frame(e$p_best))
 }
 \references{
 Sadatsafavi M, Lee TY, Wynants L, Vickers AJ, Gustafson P.
 Value-of-information analysis for external validation of risk prediction
-models. Medical Decision Making 2023; 43(5): 564-575. Rubin DB. The
-Bayesian bootstrap. Annals of Statistics 1981; 9(1): 130-134.
+models. Medical Decision Making 2023; 43(5): 564-575. Wynants L, Riley RD,
+Timmerman D, Van Calster B. Random-effects meta-analysis of the clinical
+utility of tests and prediction models. Statistics in Medicine 2018; 37:
+2034-2052. Rubin DB. The Bayesian bootstrap. Annals of Statistics 1981;
+9(1): 130-134.
 }
 \seealso{
-\code{\link[=evsi]{evsi()}}, \code{\link[=p_useful]{p_useful()}}, \code{\link[=p_best]{p_best()}}, \code{\link[=plot.voipred_evpi]{plot.voipred_evpi()}}, \code{\link[=summary.voipred_voi]{summary.voipred_voi()}}
+\code{\link[=evsi]{evsi()}}, \code{\link[=plot.voipred_evpi]{plot.voipred_evpi()}}, \code{\link[=summary.voipred_voi]{summary.voipred_voi()}}
 }

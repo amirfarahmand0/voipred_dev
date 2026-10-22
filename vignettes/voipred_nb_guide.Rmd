@@ -55,8 +55,8 @@ combined.
 
 **Contents.** Part 1: a binary outcome; Part 2: survival and competing-risks
 outcomes; then "Results computed separately" and the references. The
-value-of-information functions (`p_useful()`, `p_best()`, `evpi()`,
-`evsi()`), which take the results of `nb_val()`, are in a separate guide,
+value-of-information functions (`evpi()`, which also gives P(useful) and
+P(best), and `evsi()`), which take the results of `nb_val()`, are in a separate guide,
 `voipred_voi_guide.Rmd`. The help pages give the full details: `?nb_val`,
 `?summary.voipred_nb`, `?plot.voipred_nb`, `?cipcw_control` and `?nb_priors`.
 
@@ -186,7 +186,7 @@ Prior information is optional; it is explained in "The prior" below.
 
 These are point estimates. How uncertain they are, and whether more data
 would change the decision, is the subject of the value-of-information guide
-(`p_useful()`, `p_best()`, `evpi()` and `evsi()`).
+(`evpi()`, with P(useful) and P(best), and `evsi()`).
 
 **`summary()`** gives the best strategy along the thresholds and the
 largest gain of each model, and adds to the table the model's sensitivity
@@ -321,7 +321,7 @@ positives per 100 patients than the best default strategy. The three models
 differ by less than 0.002, and the "best strategy" switches between them from
 one threshold to the next: in this sample none is clearly better than the
 others. Whether such small differences are real or due to chance is what
-`p_best()` (in the value-of-information guide) quantifies.
+P(best), from `evpi()` (in the value-of-information guide), quantifies.
 
 The same result, from the fitted models, or from a list that mixes them with
 risks (here also the vector of the logistic model's risks):

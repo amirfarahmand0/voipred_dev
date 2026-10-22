@@ -106,7 +106,6 @@ test_that("results with different priors are not compared; `method` is gone", {
   expect_error(draws_t(r, r2), "different prior")
   expect_error(evpi(r, r2), "different prior")
   expect_error(evpi(r, method = "ordinary"), "Unknown argument `method`")
-  expect_error(p_useful(r, method = "bayesian"), "Unknown argument `method`")
   expect_error(evsi(r, future_n = 100, method = "ordinary"), "Unknown argument `method`")
 })
 

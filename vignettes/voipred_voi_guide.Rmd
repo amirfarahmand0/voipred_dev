@@ -26,18 +26,17 @@ the best. They all take a result of `nb_val()` (see the net benefit guide,
 
 | Function | What it gives |
 |---|---|
-| `p_useful()` | Probability that each model is better than treating all and treating none |
-| `p_best()` | Probability that each strategy (each model, treat all, treat none) is the best |
-| `evpi()` | Expected value of perfect information (EVPI) and relative EVPI; also P(useful) and P(best) from the same draws |
+| `evpi()` | From one set of draws: the expected value of perfect information (EVPI) and relative EVPI; the probability that each model is better than treating all and treating none, P(useful), in `$p_useful`; and the probability that each strategy (each model, treat all, treat none) is the best, P(best), in `$p_best` |
 | `evsi()` | Expected value of sample information (EVSI) of a future validation study |
 
-Each result has `print()`, `summary()`, `as.data.frame()` and `plot()`, and
+Each result (and the P(useful) and P(best) in a result of `evpi()`) has
+`print()`, `summary()`, `as.data.frame()` and `plot()`, and
 EVPI and EVSI can also be drawn below the decision curve. Every function works
 for binary, survival and competing-risks outcomes and any number of models.
 When models are compared, give them to one call of `nb_val()`, as a list,
 and pass that result to the VoI functions; this guide does so throughout,
 and its last section shows that results computed separately can be used too.
-The help pages give the full details: `?p_useful`, `?p_best`, `?evpi`,
+The help pages give the full details: `?evpi` (with P(useful) and P(best)),
 `?evsi`, `?summary.voipred_voi` and the `plot()` methods
 (`?plot.voipred_evpi`, ...).
 
@@ -215,10 +214,10 @@ are the Bayesian bootstrap.
 
 When models are compared, all of them are evaluated on the same patients
 within each draw, so their correlation is preserved. With cIPCW the censoring
-model is refitted in every draw. `evpi()` computes P(useful) and P(best) from
-its own draws (see "EVPI"); with the same seed, models and `n_sim`,
-`p_useful()`, `p_best()`, `evpi()` and `evsi()` also use the same draws. This
-guide uses `n_sim = 5000`.
+model is refitted in every draw. `evpi()` computes EVPI, P(useful) and
+P(best) from the same draws, so the three agree with each other exactly; with
+the same seed, models and `n_sim`, `evsi()` also uses those draws. This guide
+uses `n_sim = 5000`.
 
 **Small effective sample sizes.** When few patients are on one side of a
 threshold (typically at very low or very high thresholds), the data say
@@ -246,26 +245,38 @@ round(data.frame(threshold = z,
                  informative = e_informative$estimates$EVPI)[c(1, 2, 5, 10, 20, 30), ], 5)
 ```
 
-The arguments the four functions share:
+The arguments of `evpi()` and `evsi()`:
 
 | Argument | What it does |
 |---|---|
-| `x`, `...` | Results of `nb_val()`, each with one model or several, for models evaluated on the same data, outcome, thresholds, censoring method and prior. A result with one model given in `...` with a name is labelled with it. For `p_useful()` and `p_best()`, `x` can instead be a result of `evpi()`. |
+| `x`, `...` | Results of `nb_val()`, each with one model or several, for models evaluated on the same data, outcome, thresholds, censoring method and prior. A result with one model given in `...` with a name is labelled with it. |
 | `n_sim` | Number of draws. Default 1000. |
 | `labels` | Names of the models, one per model, in order. Default: their labels. |
 
-# P(useful)
+# EVPI, P(useful) and P(best)
+
+`evpi()` draws the net benefit of every strategy once and computes, from
+these draws, three measures at each threshold. Its result is EVPI; P(useful)
+and P(best) are kept in it, as `$p_useful` and `$p_best`, each with its own
+`print()`, `summary()`, `plot()` and `as.data.frame()`. As they come from the
+same draws, the three measures agree with each other exactly.
+
+```{r evpi}
+set.seed(10)
+e <- evpi(res_bin, n_sim = 5000)
+```
+
+## P(useful)
 
 The probability that a model is better than both default strategies,
 $P\{NB_{model} > \max(NB_{all}, 0)\}$: the share of draws in which its net
 benefit is strictly higher. It compares each model only with treat all and
 treat none, so a model's P(useful) does not depend on the other models; to
-compare the models with each other, use `p_best()` (below). Given several
-models, `p_useful()` gives P(useful) of each.
+compare the models with each other, use P(best) (below). P(useful) of each
+model is in `e$p_useful`:
 
 ```{r pu}
-set.seed(10)
-pu <- p_useful(res_bin, n_sim = 5000)
+pu <- e$p_useful
 ```
 
 **`print()`** gives the header (the models, the outcome, the number of
@@ -300,22 +311,22 @@ plot(pu, labels = c("Model A", "Model B"), colors = c("darkred", "steelblue"))
 
 ```{r pu-survival}
 set.seed(11)
-pu_surv <- p_useful(res_surv, n_sim = 5000)
+e_surv <- evpi(res_surv, n_sim = 5000)
+pu_surv <- e_surv$p_useful
 print(pu_surv)
 summary(pu_surv)
 plot(pu_surv)
 ```
 
-# P(best)
+## P(best)
 
 The probability that each strategy (each model, treat all, treat none) has
-the highest net benefit. It compares the models with each other, so
-`p_best()` takes the result with all the models. Ties share the draw, so the
-probabilities sum to 1 at each threshold.
+the highest net benefit. It compares the models with each other, so it is
+computed for all the models of the result together, in `e$p_best`. Ties
+share the draw, so the probabilities sum to 1 at each threshold.
 
 ```{r pb}
-set.seed(10)
-pb <- p_best(res_bin, n_sim = 5000)
+pb <- e$p_best
 ```
 
 **`print()`** gives the header and, at the first thresholds, P(best) of each
@@ -343,13 +354,13 @@ plot(pb)
 
 ```{r pb-competing}
 set.seed(12)
-pb_cr <- p_best(res_csc, n_sim = 5000)
+pb_cr <- evpi(res_csc, n_sim = 5000)$p_best
 print(pb_cr)
 summary(pb_cr, thresholds = c(0.2, 0.3, 0.4, 0.5))
 plot(pb_cr)
 ```
 
-# EVPI
+## EVPI
 
 With $ENB_{current} = \max_s E\{NB_s\}$ (use the strategy that is best on
 average) and $ENB_{perfect} = E\{\max_s NB_s\}$ (use the best strategy in each
@@ -358,12 +369,7 @@ benefit from not knowing which strategy is best, in net true positives per
 patient. The relative EVPI compares the gain from perfect information with
 the gain from using the model(s), both over the best default strategy; 1.2
 means perfect information would give 20% more net benefit than using the
-best model now.
-
-```{r evpi}
-set.seed(10)
-e <- evpi(res_bin, n_sim = 5000)
-```
+best model now. EVPI is the result `e` itself.
 
 **`print()`** gives the header and EVPI and relative EVPI at the first
 thresholds:
@@ -373,10 +379,9 @@ print(e)
 ```
 
 **`summary()`** gives the thresholds where EVPI is positive and its largest
-value, and at each threshold EVPI, relative EVPI, the strategy that is best
-now (highest expected net benefit) and its expected net benefit (all
-thresholds by default, of which the first 10 are printed, or those in
-`thresholds`):
+value, and EVPI and relative EVPI at each threshold (all thresholds by
+default, of which the first 10 are printed, or those in `thresholds`);
+P(useful) and P(best) have their own `summary()` (above):
 
 ```{r evpi-summary}
 summary(e, thresholds = c(0.02, 0.05, 0.1, 0.2))
@@ -392,16 +397,11 @@ plot(e)
 plot(e, type = "relative")
 ```
 
-**P(useful) and P(best) from the same draws.** `evpi()` also computes
-P(useful) and P(best) from its draws, so the three measures agree with each
-other exactly; `p_useful(e)` and `p_best(e)` return them (with no new draws),
-with their usual `print()`, `summary()` and `plot()`, and `plot(e, type = )`
-draws them. `summary(e)` above has, in the column `P(best)`, the probability
-that the strategy that is best now is the best.
+`plot(e, type = "p_useful")` and `plot(e, type = "p_best")` draw P(useful)
+and P(best) from the result of `evpi()`, the same as `plot(e$p_useful)` and
+`plot(e$p_best)`:
 
 ```{r evpi-pu-pb}
-p_useful(e)
-summary(p_best(e), thresholds = c(0.02, 0.05, 0.1, 0.2))
 plot(e, type = "p_useful")
 plot(e, type = "p_best")
 ```
@@ -541,25 +541,73 @@ summary(o_s)
 plot(o_s, thresholds = c(0.1, 0.2, 0.3))
 ```
 
-# Extracting values
+# Using the results as data frames
 
-Every result is a list, and its whole table is `as.data.frame()` (the same as
-`$estimates`), one row per threshold (and per model, strategy or future
-sample size). Thresholds made with `seq()` are not exact decimals (0.1 is
-stored as 0.1000000000000000055), so select a threshold with `round()`:
+Every result is a list, and `as.data.frame()` gives its whole table (the same
+as `$estimates`), with fixed column names and one row per threshold (and per
+model, strategy or future sample size):
 
-```{r extract}
-d_pu <- as.data.frame(pu)
-d_pu[round(d_pu$threshold, 2) == 0.1, ]                     # P(useful) at 0.1
+| Data frame | Columns |
+|---|---|
+| `as.data.frame(e)` | `threshold`, `ENB_current`, `ENB_perfect`, `EVPI`, `rEVPI` |
+| `as.data.frame(e$p_useful)` | `threshold`, `model`, `p_useful` |
+| `as.data.frame(e$p_best)` | `threshold`, `strategy`, `p_best` |
+| `as.data.frame(o)` (EVSI) | `threshold`, `future_n`, `EVSI`, `EVPI` |
+| `as.data.frame(res_bin)` (net benefit) | `threshold`, `model`, `NB_model`, `NB_all`, `NB_none`, `delta_NB` |
 
-d_pb <- as.data.frame(pb)
-d_pb[round(d_pb$threshold, 2) == 0.1, ]                     # P(best) at 0.1
+```{r df}
+d_evpi <- as.data.frame(e)
+d_useful <- as.data.frame(e$p_useful)
+d_best <- as.data.frame(e$p_best)
+head(d_evpi, 3)
+head(d_useful, 4)
+head(d_best, 4)
+```
 
-d_e <- as.data.frame(e)
-d_e$EVPI[round(d_e$threshold, 2) == 0.1]                    # EVPI at 0.1
+Thresholds made with `seq()` are not exact decimals (0.1 is stored as
+0.1000000000000000055), so select a threshold with `round()`:
 
-d_o <- as.data.frame(o)
-d_o[round(d_o$threshold, 2) == 0.1 & d_o$future_n == 2000, ]  # EVSI at 0.1, N = 2000
+```{r df-select}
+d_useful[round(d_useful$threshold, 2) == 0.1, ]                 # P(useful) at 0.1
+d_best[round(d_best$threshold, 2) == 0.1, ]                     # P(best) at 0.1
+d_evpi$EVPI[round(d_evpi$threshold, 2) == 0.1]                  # EVPI at 0.1
+d_evsi <- as.data.frame(o)
+d_evsi[round(d_evsi$threshold, 2) == 0.1 & d_evsi$future_n == 2000, ]  # EVSI at 0.1, N = 2000
+```
+
+**Combining them.** As the tables share the column `threshold` (and `model`),
+they can be merged into one, e.g. the net benefit, P(useful) and P(best) of
+each model, with EVPI, at each threshold:
+
+```{r df-merge}
+d_nb <- as.data.frame(res_bin)
+d_models <- merge(d_nb[, c("threshold", "model", "NB_model", "delta_NB")], d_useful,
+                  by = c("threshold", "model"))
+d_models <- merge(d_models, d_best, by.x = c("threshold", "model"),
+                  by.y = c("threshold", "strategy"))
+d_models <- merge(d_models, d_evpi[, c("threshold", "EVPI")], by = "threshold")
+d_models <- d_models[order(d_models$threshold, d_models$model), ]
+d_models[round(d_models$threshold, 2) %in% c(0.02, 0.05, 0.1), ]
+```
+
+**Reshaping.** One column per strategy (e.g. for a report table) with
+`reshape()`:
+
+```{r df-wide}
+d_best_wide <- reshape(d_best, idvar = "threshold", timevar = "strategy",
+                       direction = "wide")
+head(d_best_wide, 3)
+```
+
+The data frames can also be saved (e.g. `write.csv(d_models, "voi.csv",
+row.names = FALSE)`) or drawn in your own way, e.g. with ggplot2:
+
+```{r df-plot}
+library(ggplot2)
+ggplot(d_useful, aes(threshold, p_useful, colour = model)) +
+  geom_line() +
+  geom_hline(yintercept = 0.95, linetype = "dashed") +
+  labs(x = "Threshold probability", y = "P(useful)", colour = NULL)
 ```
 
 # EVPI and EVSI below the decision curve
@@ -595,7 +643,7 @@ evpi(res_bin, u_bin,                          # different priors
 evpi(as.data.frame(res_bin))                  # not a result of nb_val()
 evsi(res_bin)                                 # future_n is required
 plot(o, thresholds = 0.055)                   # not a threshold of the result
-p_useful(res_bin, labels = "a")               # one label per model
+evpi(res_bin, labels = "a")                   # one label per model
 plot(res_bin, evpi = pu)                      # evpi = must be a result of evpi()
 plot(res_bin, colors = c(Nope = "red"))       # colours named by label
 ```
@@ -606,7 +654,7 @@ The models in this guide were given to one call of `nb_val()`. Results
 computed separately, for example by different people or at different times,
 can be given to the VoI functions together, as long as they come from the
 same data, outcome, thresholds and prior (and horizon and censoring):
-`evpi(res_a, res_b)`, `p_useful(res_a, res_b)`, `p_best(res_a, res_b)` and
+`evpi(res_a, res_b)` (with its P(useful) and P(best)) and
 `evsi(res_a, res_b, future_n = ...)`. They are combined (as by `c()`), and the
 results are the same as with one call:
 
@@ -620,7 +668,7 @@ e_separate <- evpi(res_full_only, res_age_only)
 set.seed(50)
 e_one_call <- evpi(res_bin)
 all.equal(e_separate$estimates, e_one_call$estimates)
-all.equal(p_best(e_separate)$estimates, p_best(e_one_call)$estimates)
+all.equal(e_separate$p_best$estimates, e_one_call$p_best$estimates)
 ```
 
 # References

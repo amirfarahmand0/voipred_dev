@@ -45,11 +45,12 @@
 
 \item{...}{Not used.}
 
-\item{object, x}{A result of \code{\link[=p_useful]{p_useful()}}, \code{\link[=p_best]{p_best()}}, \code{\link[=evpi]{evpi()}} or \code{\link[=evsi]{evsi()}}.}
+\item{object, x}{A result of \code{\link[=evpi]{evpi()}} or \code{\link[=evsi]{evsi()}}, or the P(useful) or P(best)
+of a result \code{e} of \code{\link[=evpi]{evpi()}} (\code{e$p_useful}, \code{e$p_best}).}
 
 \item{thresholds}{Optional thresholds to show (among those of the result).
 Default: all (the first 10 are printed); for \code{evsi()}, the 3 with the
-largest EVPI; for \code{p_useful()}, none (only the bands), and with
+largest EVPI; for P(useful), none (only the bands), and with
 \code{thresholds} also P(useful) at each of them.}
 
 \item{row.names, optional}{Not used (as in \code{\link[=as.data.frame]{as.data.frame()}}).}
@@ -62,23 +63,22 @@ largest EVPI; for \code{p_useful()}, none (only the bands), and with
 \code{print()} shows the results at the first thresholds; \code{summary()} gives the
 main findings:
 \itemize{
-\item \code{\link[=p_useful]{p_useful()}}: the thresholds where P(useful) is above
-0.95, between 0.5 and 0.95, and below 0.5, and with \code{thresholds},
+\item EVPI (\code{\link[=evpi]{evpi()}}, \code{e}): where EVPI is positive and where it is largest, and
+EVPI and relative EVPI at each threshold;
+\item P(useful) (\code{e$p_useful}, from \code{\link[=evpi]{evpi()}}): the thresholds where P(useful) is
+above 0.95, between 0.5 and 0.95, and below 0.5, and with \code{thresholds},
 P(useful) at each of them;
-\item \code{\link[=p_best]{p_best()}}: the most likely best strategy at each threshold, and P(best)
-of each strategy;
-\item \code{\link[=evpi]{evpi()}}: where EVPI is positive and where it is largest, and the
-strategy that is best now (highest expected net benefit) with its
-expected net benefit;
-\item \code{\link[=evsi]{evsi()}}: the share of EVPI that a future study of each size recovers
-(EVSI / EVPI), at the thresholds with the largest EVPI.
+\item P(best) (\code{e$p_best}, from \code{\link[=evpi]{evpi()}}): the most likely best strategy along
+the thresholds, and P(best) of each strategy;
+\item EVSI (\code{\link[=evsi]{evsi()}}): the share of EVPI that a future study of each size
+recovers (EVSI / EVPI), at the thresholds with the largest EVPI.
 }
 }
 \details{
 \code{as.data.frame()} returns the full results (the \code{estimates}).
 
 The tables have the same layout everywhere: one row per threshold and
-model (\code{p_useful()}), strategy (\code{p_best()}) or future sample size
+model (P(useful)), strategy (P(best)) or future sample size
 (\code{evsi()}), in a column of that name, with the values in columns of fixed
 names (\code{p_useful}, \code{p_best}, \code{EVSI} and \code{EVPI}); \code{evpi()} has one row per
 threshold. \code{print()} and \code{summary()} sort the rows by threshold, and print
@@ -107,11 +107,11 @@ set.seed(1)
 e <- evpi(res1, res2)
 e
 summary(e)
-set.seed(1)
-summary(p_useful(res1))
+summary(e$p_useful)
+summary(e$p_best)
 set.seed(1)
 summary(evsi(res1, res2, future_n = c(500, 1000, 2000)))
 }
 \seealso{
-\code{\link[=p_useful]{p_useful()}}, \code{\link[=p_best]{p_best()}}, \code{\link[=evpi]{evpi()}}, \code{\link[=evsi]{evsi()}}
+\code{\link[=evpi]{evpi()}}, \code{\link[=evsi]{evsi()}}
 }

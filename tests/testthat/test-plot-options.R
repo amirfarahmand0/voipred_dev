@@ -36,9 +36,9 @@ test_that("colors: named by label, partial, or unnamed for the models", {
   p <- gg_colors(plot(res, type = "delta", colors = c(Age = "#123456")))
   expect_equal(unname(p["Age"]), "#123456")
   # hex codes and the same colours for the same model in other plots
-  pu <- gg_colors(plot(p_useful(cs$e), colors = c(Full = "darkred")))
+  pu <- gg_colors(plot(cs$e$p_useful, colors = c(Full = "darkred")))
   expect_equal(unname(pu["Full"]), "darkred")
-  pb <- gg_colors(plot(p_best(cs$e), colors = c(Full = "darkred", `Treat None` = "black")))
+  pb <- gg_colors(plot(cs$e$p_best, colors = c(Full = "darkred", `Treat None` = "black")))
   expect_equal(unname(pb[c("Full", "Treat None")]), c("darkred", "black"))
   pb2 <- gg_colors(plot(cs$e, type = "p_best", colors = c("red", "blue")))
   expect_equal(unname(pb2[c("Full", "Age")]), c("red", "blue"))
@@ -72,7 +72,7 @@ test_that("colors are checked", {
   expect_error(plot(res, colors = c(Full = "notacolour")), "invalid colour: \"notacolour\"")
   expect_error(plot(res, colors = 1:2), "must be a character vector of colours")
   expect_error(plot(res, colors = c(Full = "red", "blue")), "Name every colour")
-  expect_error(plot(p_best(cs$e), colors = c("red", "blue", "green")),
+  expect_error(plot(cs$e$p_best, colors = c("red", "blue", "green")),
                "2 colours, one per model")
 })
 
@@ -92,8 +92,8 @@ test_that("a missing plotly or patchwork gives a message on how to install it", 
   msg <- "need the plotly package. Install it with install.packages\\(\"plotly\"\\)"
   expect_error(plot(cs$res, interactive = TRUE), msg)
   expect_error(plot(cs$e, interactive = TRUE), msg)
-  expect_error(plot(p_useful(cs$e), interactive = TRUE), msg)
-  expect_error(plot(p_best(cs$e), interactive = TRUE), msg)
+  expect_error(plot(cs$e$p_useful, interactive = TRUE), msg)
+  expect_error(plot(cs$e$p_best, interactive = TRUE), msg)
   set.seed(3)
   o <- evsi(cs$res, future_n = 500, n_sim = 20)
   expect_error(plot(o, interactive = TRUE), msg)

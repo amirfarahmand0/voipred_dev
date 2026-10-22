@@ -7,7 +7,7 @@
 \method{plot}{voipred_p_best}(x, ..., colors = NULL, interactive = FALSE)
 }
 \arguments{
-\item{x}{A result of \code{\link[=p_best]{p_best()}}.}
+\item{x}{The P(best) of a result of \code{\link[=evpi]{evpi()}}, \code{e$p_best}.}
 
 \item{...}{Not used.}
 
@@ -22,8 +22,9 @@ package). Default \code{FALSE}.}
 A ggplot object, or a plotly widget with \code{interactive = TRUE}.
 }
 \description{
-The plot of a result of \code{\link[=p_best]{p_best()}}: P(best) against the threshold, one curve
-per strategy (each model, treat all and treat none), in the colours of
+The plot of P(best), \code{e$p_best} for a result \code{e} of \code{\link[=evpi]{evpi()}} (also drawn by
+\code{plot(e, type = "p_best")}): P(best) against the threshold, one curve per
+strategy (each model, treat all and treat none), in the colours of
 \code{\link[=plot.voipred_nb]{plot.voipred_nb()}}.
 }
 \examples{
@@ -37,8 +38,9 @@ res <- nb_val(data = df_val_binary,
               outcome = "day30",
               thresholds = seq(0.01, 0.3, by = 0.01))
 set.seed(1)
-plot(p_best(res, n_sim = 500))
+e <- evpi(res, n_sim = 500)
+plot(e$p_best)                  # the same as plot(e, type = "p_best")
 }
 \seealso{
-\code{\link[=p_best]{p_best()}}, \code{\link[=plot.voipred_p_useful]{plot.voipred_p_useful()}}
+\code{\link[=evpi]{evpi()}}, \code{\link[=plot.voipred_p_useful]{plot.voipred_p_useful()}}
 }

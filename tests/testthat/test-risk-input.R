@@ -31,7 +31,8 @@ test_that("binary: risks given directly give the same results as the model", {
                nb_val(val, f, "day30", thresholds = z, prior = nb_uniform())$estimates$NB_model)
   f2 <- glm(day30 ~ age, family = binomial, data = g$dev)
   set.seed(3)
-  expect_equal(nrow(p_best(r, Age = nb_val(val, f2, "day30", thresholds = z), n_sim = 50)$estimates), 16)
+  expect_equal(nrow(evpi(r, Age = nb_val(val, f2, "day30", thresholds = z), n_sim = 50)$p_best$estimates),
+               16)
   expect_s3_class(plot(r), "ggplot")
 })
 
@@ -74,8 +75,8 @@ test_that("a model's risks are predicted once and reused by every later step", {
   expect_equal(calls, 1)
   set.seed(1)
   e <- evpi(r, n_sim = 50)
-  p_useful(r, n_sim = 50)
-  p_best(r, n_sim = 50)
+  e$p_useful
+  e$p_best
   o <- evsi(r, future_n = c(100, 1000), n_sim = 20)
   plot(r)
   plot(e)

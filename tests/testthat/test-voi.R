@@ -1,5 +1,5 @@
 # Value of information: draws_t(), evpi() (and relative EVPI), evsi(),
-# p_useful() and p_best(). The Bayesian-bootstrap engine (used for survival
+# P(useful) and P(best) (computed by evpi()). The Bayesian-bootstrap engine (used for survival
 # and competing-risks outcomes and case weights) is checked against the code of
 # Sadatsafavi et al. (predtools::evpi_val for EVPI; the bootstrap EVSI
 # algorithm of the EVSI paper, resplab/papercode/evsiexval) on the binary case
@@ -163,7 +163,7 @@ test_that("P(useful), P(best) and relative EVPI follow their definitions", {
   set.seed(5)
   expect_equal(evpi(r1, r2, n_sim = 300)$estimates$EVPI, e$estimates$EVPI)
   set.seed(5)
-  expect_equal(p_best(r1, r2, n_sim = 300)$estimates$p_best, pb$estimates$p_best)
+  expect_equal(evpi(r1, r2, n_sim = 300)$p_best$estimates$p_best, pb$estimates$p_best)
 })
 
 test_that("relative EVPI is Inf when no model is better than the defaults but EVPI > 0", {
@@ -265,21 +265,22 @@ test_that("inputs are checked", {
   expect_error(evsi(r, future_n = c(100, 1.5)), "`future_n` must be")
   # no `method`: the draws come from the posterior of nb_val()'s results
   expect_error(evpi(r, method = "bootstrap"), "Unknown argument `method`")
-  expect_error(p_useful(r, method = "ordinary"), "Unknown argument `method`")
   expect_error(evsi(r, future_n = 10, method = "asymptotic"), "Unknown argument `method`")
   # the draws are internal: no nb_draws() and no draws as input
   expect_false("nb_draws" %in% getNamespaceExports("voipred.dev"))
   set.seed(1)
   expect_error(evpi(draws_t(r, n_sim = 10)), "needs results of nb")
   expect_error(evpi(r, nsim = 10), "Unknown argument `nsim`.*evpi\\(\\)")
-  expect_error(p_best(r, n_sim = 1), "at least 2")
+  expect_error(evpi(r, n_sim = 1), "at least 2")
   expect_error(evpi(r, draw_weights = matrix(1, 10, 3)), "Unknown argument `draw_weights`")
   expect_error(evpi(r, nb_val(g$dev, f, "day30", thresholds = c(0.05, 0.1), label = "b")),
                "cannot be used together: different data")
-  expect_error(p_useful(data.frame(x = 1)), "needs results of nb")
-  expect_error(p_useful(r, r), "same label")
-  expect_error(p_useful(r, labels = c("a", "b")), "`labels` must be one string")
-  expect_error(p_useful(r, lab = "a"), "Unknown argument `lab`")
+  expect_error(evpi(data.frame(x = 1)), "needs results of nb")
+  expect_error(evpi(r, r), "same label")
+  expect_error(evpi(r, labels = c("a", "b")), "`labels` must be one string")
+  expect_error(evpi(r, lab = "a"), "Unknown argument `lab`")
+  # P(useful) and P(best) only come from evpi()
+  expect_false(any(c("p_useful", "p_best") %in% getNamespaceExports("voipred.dev")))
   expect_error(evpi(as.data.frame(r)), "needs results of nb")
 })
 

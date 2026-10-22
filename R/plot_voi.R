@@ -53,7 +53,10 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
       stop("plot(type = \"", type, "\") draws one result of evpi().", call. = FALSE)
     if (type == "p_best" && !is.null(labels))
       stop("`labels` is not used with type = \"p_best\".", call. = FALSE)
-    obj <- from_evpi(x, type, list(), TRUE)
+    obj <- x[[type]]
+    if (is.null(obj))
+      stop("This result of evpi() has no ", type, ": it was made by an older version of ",
+           "voipred; run evpi() again.", call. = FALSE)
     return(if (type == "p_useful")
              plot(obj, labels = labels, colors = colors, interactive = interactive)
            else plot(obj, colors = colors, interactive = interactive))
@@ -131,12 +134,14 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, colors = NULL, interact
 
 #' Plot the probability that a model is useful
 #'
-#' The plot of results of [p_useful()]: P(useful) against the threshold, one
-#' curve per model of each result, in the colours of [plot.voipred_nb()].
+#' The plot of P(useful), `e$p_useful` for a result `e` of [evpi()] (also
+#' drawn by `plot(e, type = "p_useful")`): P(useful) against the threshold, one
+#' curve per model, in the colours of [plot.voipred_nb()].
 #'
-#' @param x A result of [p_useful()].
-#' @param ... More results of [p_useful()] to draw on the same plot. A result
-#'   with one model given here with a name is labelled with its name.
+#' @param x The P(useful) of a result of [evpi()], `e$p_useful`.
+#' @param ... More P(useful) results to draw on the same plot, e.g. from other
+#'   validation samples (`plot(e1$p_useful, e2$p_useful)`). A result with one
+#'   model given here with a name is labelled with its name.
 #' @param labels Optional names of the curves, one per model, in order.
 #'   Default: the models' labels (or the argument names).
 #' @param colors Optional colours of the curves, instead of the defaults:
@@ -145,7 +150,7 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, colors = NULL, interact
 #' @param interactive `TRUE` for an interactive plot (needs the plotly
 #'   package). Default `FALSE`.
 #' @return A ggplot object, or a plotly widget with `interactive = TRUE`.
-#' @seealso [p_useful()], [plot.voipred_p_best()]
+#' @seealso [evpi()], [plot.voipred_p_best()]
 #' @examples
 #' df_dev_binary <- gusto[1:5000, ]
 #' df_val_binary <- gusto[5001:5500, ]
@@ -157,8 +162,8 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, colors = NULL, interact
 #'               outcome = "day30",
 #'               thresholds = seq(0.01, 0.3, by = 0.01))
 #' set.seed(1)
-#' pu <- p_useful(res, n_sim = 500)
-#' plot(pu)
+#' e <- evpi(res, n_sim = 500)
+#' plot(e$p_useful)                # the same as plot(e, type = "p_useful")
 #'
 #' # two models
 #' fit_age <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
@@ -168,12 +173,12 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, colors = NULL, interact
 #'                outcome = "day30",
 #'                thresholds = seq(0.01, 0.3, by = 0.01))
 #' set.seed(1)
-#' plot(p_useful(both, n_sim = 500))
+#' plot(evpi(both, n_sim = 500)$p_useful)
 #' @export
 plot.voipred_p_useful <- function(x, ..., labels = NULL, colors = NULL, interactive = FALSE) {
   check_interactive(interactive)
   dots <- list(...)
-  collect_results(x, dots, NULL, "voipred_p_useful", "p_useful()", "plot()",
+  collect_results(x, dots, NULL, "voipred_p_useful", "P(useful) (e$p_useful, from evpi())", "plot()",
                   "`labels`, `colors` and `interactive`", "P(useful)")
   items <- c(list(x), dots)
   nms <- c("", if (is.null(names(dots))) rep("", length(dots)) else names(dots))
@@ -211,11 +216,12 @@ plot.voipred_p_useful <- function(x, ..., labels = NULL, colors = NULL, interact
 
 #' Plot the probability that each strategy is the best
 #'
-#' The plot of a result of [p_best()]: P(best) against the threshold, one curve
-#' per strategy (each model, treat all and treat none), in the colours of
+#' The plot of P(best), `e$p_best` for a result `e` of [evpi()] (also drawn by
+#' `plot(e, type = "p_best")`): P(best) against the threshold, one curve per
+#' strategy (each model, treat all and treat none), in the colours of
 #' [plot.voipred_nb()].
 #'
-#' @param x A result of [p_best()].
+#' @param x The P(best) of a result of [evpi()], `e$p_best`.
 #' @param ... Not used.
 #' @param colors Optional colours of the curves, instead of the defaults:
 #'   named by strategy, e.g. `c(Full = "darkred", "Treat All" = "grey50")`, or
@@ -223,7 +229,7 @@ plot.voipred_p_useful <- function(x, ..., labels = NULL, colors = NULL, interact
 #' @param interactive `TRUE` for an interactive plot (needs the plotly
 #'   package). Default `FALSE`.
 #' @return A ggplot object, or a plotly widget with `interactive = TRUE`.
-#' @seealso [p_best()], [plot.voipred_p_useful()]
+#' @seealso [evpi()], [plot.voipred_p_useful()]
 #' @examples
 #' df_dev_binary <- gusto[1:5000, ]
 #' df_val_binary <- gusto[5001:5500, ]
@@ -235,7 +241,8 @@ plot.voipred_p_useful <- function(x, ..., labels = NULL, colors = NULL, interact
 #'               outcome = "day30",
 #'               thresholds = seq(0.01, 0.3, by = 0.01))
 #' set.seed(1)
-#' plot(p_best(res, n_sim = 500))
+#' e <- evpi(res, n_sim = 500)
+#' plot(e$p_best)                  # the same as plot(e, type = "p_best")
 #' @export
 plot.voipred_p_best <- function(x, ..., colors = NULL, interactive = FALSE) {
   check_interactive(interactive)

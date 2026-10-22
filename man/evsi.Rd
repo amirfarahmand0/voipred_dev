@@ -89,12 +89,7 @@ every draw and the censoring weights recomputed from it (see
 }
 
 The predicted risks are kept fixed in every draw. The expected net benefits
-are the means of the draws. \code{evpi()} also computes P(useful) and P(best)
-from its draws, so the three come from the same draws: read them with
-\code{p_useful(e)} and \code{p_best(e)} for a result \code{e} of \code{evpi()}. \code{\link[=p_useful]{p_useful()}}
-and \code{\link[=p_best]{p_best()}} given results of \code{\link[=nb_val]{nb_val()}} instead draw again; called
-with the same seed (and the same models and \code{n_sim}) as \code{evpi()}, they
-use the same draws.
+are the means of the draws.
 }
 
 \examples{

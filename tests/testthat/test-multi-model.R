@@ -240,24 +240,26 @@ test_that("evpi() computes P(useful) and P(best) from the same draws", {
   v <- m$val
   res <- nb_val(v, list(Full = v$p1, Age = v$p2), "day30", thresholds = m$z)
   set.seed(3); e <- evpi(res, n_sim = 300)
-  set.seed(3); pu <- p_useful(res, n_sim = 300)
-  set.seed(3); pb <- p_best(res, n_sim = 300)
-  expect_s3_class(p_useful(e), "voipred_p_useful")
-  expect_s3_class(p_best(e), "voipred_p_best")
-  expect_equal(p_useful(e)$estimates, pu$estimates)
-  expect_equal(p_best(e)$estimates, pb$estimates)
-  expect_identical(p_useful(e), e$p_useful)
+  # P(useful) and P(best) are computed by evpi(), from its own draws
+  set.seed(3); d <- nb_draws(res, 300)
+  pu <- e$p_useful
+  pb <- e$p_best
+  expect_s3_class(pu, "voipred_p_useful")
+  expect_s3_class(pb, "voipred_p_best")
+  expect_equal(pu$estimates, p_useful_from_draws(d, res)$estimates)
+  expect_equal(pb$estimates, p_best_from_draws(d, res)$estimates)
+  expect_equal(e$estimates, evpi_from_draws(d, res)$estimates)
   expect_equal(unique(pu$estimates$model), c("Full", "Age"))
-  expect_error(p_useful(e, n_sim = 10), "takes no other arguments")
-  expect_error(p_best(e, res), "takes no other arguments")
-  # summary() adds P(best) of the strategy that is best now
+  # there are no separate p_useful() and p_best() functions
+  expect_false(any(c("p_useful", "p_best") %in% getNamespaceExports("voipred.dev")))
+  # summary() of EVPI shows EVPI only, as as.data.frame(); P(useful) and P(best)
+  # have their own summary()
   s <- summary(e)
-  expect_true("P(best)" %in% names(s$table))
-  pbw <- wide(pb$estimates, "strategy", "p_best", pb$strategies)
-  expect_equal(s$table[["P(best)"]],
-               as.matrix(pbw[, -1])[cbind(seq_len(nrow(pbw)),
-                                          match(s$table[["best now"]], pb$strategies))])
-  expect_output(print(e), "From the same draws")
+  expect_named(s$table, c("threshold", "EVPI", "rEVPI"))
+  expect_equal(s$table$EVPI, e$estimates$EVPI)
+  expect_output(print(summary(e$p_useful)), "Thresholds where the probability")
+  expect_output(print(summary(e$p_best)), "Most likely best")
+  expect_output(print(e), "From the same draws: P\\(useful\\) in \\$p_useful, P\\(best\\) in \\$p_best")
   expect_s3_class(plot(e, type = "p_useful"), "ggplot")
   expect_equal(levels(plot(e, type = "p_best")$data$label),
                c("Treat All", "Treat None", "Full", "Age"))
@@ -301,7 +303,7 @@ test_that("several models with survival outcomes, Kaplan-Meier and cIPCW", {
   set.seed(5); e1 <- evpi(ci, n_sim = 10)
   set.seed(5); e2 <- evpi(ca, cb, n_sim = 10)
   expect_equal(e1$estimates, e2$estimates)
-  expect_equal(p_best(e1)$estimates, p_best(e2)$estimates)
+  expect_equal(e1$p_best$estimates, e2$p_best$estimates)
   # results with different censoring models cannot be combined
   cens2 <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age, data = v)
   cc <- nb_val(v, "p2", surv_outcome, horizon = 5, thresholds = z,

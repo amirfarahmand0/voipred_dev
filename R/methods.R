@@ -1,5 +1,5 @@
 # print(), summary() and as.data.frame() methods of the results of nb_val(),
-# p_useful(), p_best(), evpi() and evsi(). (The plot() methods are in plot.R
+# evpi() (with its P(useful) and P(best)) and evsi(). (The plot() methods are in plot.R
 # and plot_voi.R.)
 
 # ---- nb_val() --------------------------------------------------------------------
@@ -122,37 +122,37 @@ as.data.frame.voipred_nb <- function(x, row.names = NULL, optional = FALSE, ...)
 #'
 #' `print()` shows the results at the first thresholds; `summary()` gives the
 #' main findings:
-#' * [p_useful()]: the thresholds where P(useful) is above
-#'   0.95, between 0.5 and 0.95, and below 0.5, and with `thresholds`,
+#' * EVPI ([evpi()], `e`): where EVPI is positive and where it is largest, and
+#'   EVPI and relative EVPI at each threshold;
+#' * P(useful) (`e$p_useful`, from [evpi()]): the thresholds where P(useful) is
+#'   above 0.95, between 0.5 and 0.95, and below 0.5, and with `thresholds`,
 #'   P(useful) at each of them;
-#' * [p_best()]: the most likely best strategy at each threshold, and P(best)
-#'   of each strategy;
-#' * [evpi()]: where EVPI is positive and where it is largest, and the
-#'   strategy that is best now (highest expected net benefit) with its
-#'   expected net benefit;
-#' * [evsi()]: the share of EVPI that a future study of each size recovers
-#'   (EVSI / EVPI), at the thresholds with the largest EVPI.
+#' * P(best) (`e$p_best`, from [evpi()]): the most likely best strategy along
+#'   the thresholds, and P(best) of each strategy;
+#' * EVSI ([evsi()]): the share of EVPI that a future study of each size
+#'   recovers (EVSI / EVPI), at the thresholds with the largest EVPI.
 #'
 #' `as.data.frame()` returns the full results (the `estimates`).
 #'
 #' The tables have the same layout everywhere: one row per threshold and
-#' model (`p_useful()`), strategy (`p_best()`) or future sample size
+#' model (P(useful)), strategy (P(best)) or future sample size
 #' (`evsi()`), in a column of that name, with the values in columns of fixed
 #' names (`p_useful`, `p_best`, `EVSI` and `EVPI`); `evpi()` has one row per
 #' threshold. `print()` and `summary()` sort the rows by threshold, and print
 #' the first `n` thresholds.
 #'
-#' @param object,x A result of [p_useful()], [p_best()], [evpi()] or [evsi()].
+#' @param object,x A result of [evpi()] or [evsi()], or the P(useful) or P(best)
+#'   of a result `e` of [evpi()] (`e$p_useful`, `e$p_best`).
 #' @param thresholds Optional thresholds to show (among those of the result).
 #'   Default: all (the first 10 are printed); for `evsi()`, the 3 with the
-#'   largest EVPI; for `p_useful()`, none (only the bands), and with
+#'   largest EVPI; for P(useful), none (only the bands), and with
 #'   `thresholds` also P(useful) at each of them.
 #' @param n Number of thresholds printed. Default 10.
 #' @param row.names,optional Not used (as in [as.data.frame()]).
 #' @param ... Not used.
 #' @return `summary()`: an object of class `summary.<class>`, printed as shown.
 #'   `as.data.frame()`: the `estimates` data frame.
-#' @seealso [p_useful()], [p_best()], [evpi()], [evsi()]
+#' @seealso [evpi()], [evsi()]
 #' @examples
 #' df_dev_binary <- gusto[1:5000, ]
 #' df_val_binary <- gusto[5001:5500, ]
@@ -176,8 +176,8 @@ as.data.frame.voipred_nb <- function(x, row.names = NULL, optional = FALSE, ...)
 #' e <- evpi(res1, res2)
 #' e
 #' summary(e)
-#' set.seed(1)
-#' summary(p_useful(res1))
+#' summary(e$p_useful)
+#' summary(e$p_best)
 #' set.seed(1)
 #' summary(evsi(res1, res2, future_n = c(500, 1000, 2000)))
 #' @name summary.voipred_voi
@@ -190,7 +190,7 @@ print.voipred_evpi <- function(x, n = 10, ...) {
   print_rows(x$estimates[, c("threshold", "EVPI", "rEVPI")], n,
              "use summary() or as.data.frame()")
   if (!is.null(x$p_best))
-    cat("# From the same draws: p_useful(x) and p_best(x)\n")
+    cat("# From the same draws: P(useful) in $p_useful, P(best) in $p_best\n")
   invisible(x)
 }
 
@@ -198,8 +198,6 @@ print.voipred_evpi <- function(x, n = 10, ...) {
 #' @export
 summary.voipred_evpi <- function(object, thresholds = NULL, ...) {
   e <- object$estimates
-  enb <- as.matrix(object$ENB[, -1, drop = FALSE])
-  best_now <- colnames(enb)[apply(enb, 1, which.max)]
   pos <- is.finite(e$EVPI) & e$EVPI > 1e-12
   line <- if (any(pos)) {
     j <- which(pos)[which.max(e$EVPI[pos])]
@@ -208,16 +206,8 @@ summary.voipred_evpi <- function(object, thresholds = NULL, ...) {
             segments_of(e$threshold[o], pos[o]), fmt_num(e$EVPI[j]),
             fmt_zs(e$threshold)[j])
   } else "EVPI is 0 at every threshold: the best strategy is certain"
-  tab <- data.frame(threshold = e$threshold, EVPI = e$EVPI, rEVPI = e$rEVPI,
-                    best_now = best_now, ENB_best_now = apply(enb, 1, max),
-                    check.names = FALSE)
-  names(tab)[4:5] <- c("best now", "ENB best now")
-  if (!is.null(object$p_best)) {
-    # the probability that the strategy that is best now is the best
-    pb <- wide(object$p_best$estimates, "strategy", "p_best", object$p_best$strategies)
-    pm <- as.matrix(pb[match(e$threshold, pb$threshold), -1, drop = FALSE])
-    tab[["P(best)"]] <- pm[cbind(seq_len(nrow(pm)), match(best_now, colnames(pm)))]
-  }
+  # EVPI only (as as.data.frame()); P(useful) and P(best) have their own summary()
+  tab <- data.frame(threshold = e$threshold, EVPI = e$EVPI, rEVPI = e$rEVPI)
   rows <- select_rows(e$threshold, thresholds)
   structure(list(header = voi_header("EVPI", object), lines = line,
                  table = tab[rows, , drop = FALSE], all_rows = is.null(thresholds)),

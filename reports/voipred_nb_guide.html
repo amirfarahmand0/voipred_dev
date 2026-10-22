@@ -448,8 +448,8 @@ guide uses this whenever models are compared; the last section shows
 that results computed separately can still be combined.</p>
 <p><strong>Contents.</strong> Part 1: a binary outcome; Part 2: survival
 and competing-risks outcomes; then “Results computed separately” and the
-references. The value-of-information functions (<code>p_useful()</code>,
-<code>p_best()</code>, <code>evpi()</code>, <code>evsi()</code>), which
+references. The value-of-information functions (<code>evpi()</code>,
+which also gives P(useful) and P(best), and <code>evsi()</code>), which
 take the results of <code>nb_val()</code>, are in a separate guide,
 <code>voipred_voi_guide.Rmd</code>. The help pages give the full
 details: <code>?nb_val</code>, <code>?summary.voipred_nb</code>,
@@ -583,8 +583,8 @@ decision curve analysis. Prior information is optional; it is explained
 in “The prior” below.</p>
 <p>These are point estimates. How uncertain they are, and whether more
 data would change the decision, is the subject of the
-value-of-information guide (<code>p_useful()</code>,
-<code>p_best()</code>, <code>evpi()</code> and <code>evsi()</code>).</p>
+value-of-information guide (<code>evpi()</code>, with P(useful) and
+P(best), and <code>evsi()</code>).</p>
 <p><strong><code>summary()</code></strong> gives the best strategy along
 the thresholds and the largest gain of each model, and adds to the table
 the model’s sensitivity (<code>Se</code>) and specificity
@@ -810,9 +810,8 @@ threshold of 7%: about 3 more net true positives per 100 patients than
 the best default strategy. The three models differ by less than 0.002,
 and the “best strategy” switches between them from one threshold to the
 next: in this sample none is clearly better than the others. Whether
-such small differences are real or due to chance is what
-<code>p_best()</code> (in the value-of-information guide)
-quantifies.</p>
+such small differences are real or due to chance is what P(best), from
+<code>evpi()</code> (in the value-of-information guide), quantifies.</p>
 <p>The same result, from the fitted models, or from a list that mixes
 them with risks (here also the vector of the logistic model’s
 risks):</p>

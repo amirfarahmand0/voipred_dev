@@ -125,7 +125,7 @@ test_that("the formula route refits its Cox model in every draw", {
   set.seed(4); e1 <- evpi(res, n_sim = 15)
   set.seed(4); e2 <- evpi(by_hand, n_sim = 15)
   expect_equal(e1$estimates, e2$estimates)
-  expect_equal(p_useful(e1)$estimates, p_useful(e2)$estimates)
+  expect_equal(e1$p_useful$estimates, e2$p_useful$estimates)
   # the refits do change the weights from draw to draw
   v_info <- voi_info(res)
   refit <- censoring_refitter(v_info)

@@ -99,7 +99,7 @@ test_that("several models: each model's sensitivity and specificity has its prio
   set.seed(2)
   e <- evpi(res, n_sim = 300)
   expect_equal(e$prior$type, "informative")
-  expect_s3_class(p_best(e), "voipred_p_best")
+  expect_s3_class(e$p_best, "voipred_p_best")
   set.seed(3)
   o <- evsi(res, future_n = c(200, 1000), n_sim = 200)
   expect_true(all(o$estimates$EVSI <= o$estimates$EVPI + 1e-12))

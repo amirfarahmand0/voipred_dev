@@ -63,7 +63,7 @@ test_that("plot() of evsi(): against the future sample size", {
   expect_length(levels(plot(big)$data$label), 4)
 })
 
-test_that("plot() of p_useful() and p_best(): probabilities, in the colours of the decision curve", {
+test_that("plot() of P(useful) and P(best): probabilities, in the colours of the decision curve", {
   s <- voi_plot_setup()
   expect_equal(levels(plot(s$pu)$data$label), "Full")
   # one result per model, drawn together; labelled by the models, argument names or labels
@@ -86,7 +86,7 @@ test_that("plot() of p_useful() and p_best(): probabilities, in the colours of t
     expect_equal(col(p, l), col(dca, l))
     expect_equal(col(b, l), col(dca, l))
   }
-  expect_error(plot(s$pu, s$pb), "plot\\(\\) needs results of p_useful")
+  expect_error(plot(s$pu, s$pb), "plot\\(\\) needs results of P\\(useful\\) \\(e\\$p_useful, from evpi\\(\\)\\)")
   expect_error(plot(s$pb, foo = 1), "Unknown argument")
 })
 

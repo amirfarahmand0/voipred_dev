@@ -61,15 +61,13 @@ several together.
 **Value of information** for validation (Sadatsafavi et al. 2023, 2025), from
 the same `nb_val()` results, for every outcome type and any number of models:
 
-- `evpi()`: expected value of perfect information and relative EVPI;
+- `evpi()`: from one set of draws, the expected value of perfect information
+  and relative EVPI; the probability that each model is better than treating
+  all and treating none, P(useful), in `e$p_useful`; and the probability that
+  each strategy (each model, treat all, treat none) is the best, P(best), in
+  `e$p_best`;
 - `evsi()`: expected value of sample information of a future validation study
   of a given size;
-- `p_useful()`: the probability that each model is better than treating all
-  and treating none;
-- `p_best()`: the probability that each strategy (each model, treat all,
-  treat none) is the best;
-- `evpi()` also computes P(useful) and P(best) from its draws: `p_useful(e)`
-  and `p_best(e)` return them, and `plot(e, type = "p_best")` draws them;
 - the uncertainty is represented with `n_sim` draws from the posterior of
   the net benefit: for a binary outcome from the conjugate Beta model (and
   `evsi()` uses the conjugate algorithm of Sadatsafavi et al. 2025); for
@@ -80,8 +78,8 @@ the same `nb_val()` results, for every outcome type and any number of models:
   your own `coxph`, `survreg`, `cph`, `psm`, `flexsurvreg` and `prodlim`
   censoring models, with `refit_function` in `cipcw_control()` for others.
 
-**Results**: every result (`nb_val()`, `evpi()`, `evsi()`, `p_useful()`,
-`p_best()`) has `print()` (a short table), `summary()` (the main findings),
+**Results**: every result (`nb_val()`, `evpi()` and its `$p_useful` and
+`$p_best`, `evsi()`) has `print()` (a short table), `summary()` (the main findings),
 `as.data.frame()` and `plot()`; `plot(res, evpi = , evsi = )` draws the
 decision curve with EVPI and EVSI in a panel below. Every plot takes
 `interactive = TRUE` for an interactive (plotly) version with a shared hover
@@ -106,8 +104,10 @@ plot(res)
 plot(res, type = "delta")
 
 e <- evpi(res)
-p_useful(e)            # from the same draws as EVPI
-p_best(e)
+summary(e)             # EVPI
+summary(e$p_useful)    # P(useful), from the same draws
+summary(e$p_best)      # P(best), from the same draws
+plot(e, type = "p_best")
 o <- evsi(res, future_n = c(1000, 2000, 4000))
 summary(o)
 plot(o)
@@ -156,8 +156,8 @@ res_i <- nb_val(data = df_val_binary,
   (the data only by default, or prior information), every option explained,
   plots, and the list of supported models.
 - [Value of information guide](vignettes/voipred_voi_guide.Rmd)
-  ([rendered](reports/voipred_voi_guide.html)): `p_useful()`, `p_best()`,
-  `evpi()` and `evsi()` for binary, survival and competing-risks outcomes,
+  ([rendered](reports/voipred_voi_guide.html)): `evpi()` (EVPI, P(useful)
+  and P(best)), `evsi()` and the results as data frames, for binary, survival and competing-risks outcomes,
   with their `print()`, `summary()` and plots, EVPI and EVSI below the
   decision curve, and how to extract values.
 - [Tests and messages](reports/voipred_nb_tests_and_messages.pdf): every

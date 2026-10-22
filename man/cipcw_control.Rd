@@ -137,7 +137,7 @@ of positivity, and stops if a probability is exactly 0.
 \strong{Uncertainty (value of information).} The censoring model is estimated
 from the validation data, so its uncertainty is part of the uncertainty
 about the net benefit. The value-of-information functions (\code{\link[=evpi]{evpi()}},
-\code{\link[=evsi]{evsi()}}, \code{\link[=p_useful]{p_useful()}}, \code{\link[=p_best]{p_best()}}) therefore refit the censoring
+\code{\link[=evsi]{evsi()}}) therefore refit the censoring
 model in every draw of the Bayesian bootstrap, with that draw's weights as
 case weights, and recompute the censoring weights from it. The refit is
 done:
