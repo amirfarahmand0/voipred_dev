@@ -498,11 +498,12 @@ o <- evsi(res_bin, future_n = c(250, 500, 1000, 2000, 4000), n_sim = 5000)
 ```
 
 **`print()`** gives the header and, at the first thresholds, EVPI and the
-EVSI of each future sample size, one column per size. The prior in the
-header is the one given to `nb_val()`. EVPI and EVSI both start from the same
-distribution of the true net benefit given the current data (that prior
-updated with the validation sample); EVSI then adds the information a future
-study of each size would give:
+EVSI of each future sample size, one column per size. The header states
+the information at the two moments that EVSI compares: **before the future
+study**, the prior given to `nb_val()` updated with the validation data (the
+same as for EVPI), and **after it**, that prior updated with the validation
+data and the future study together (for survival outcomes, the Bayesian
+bootstrap of the data, with no prior information):
 
 ```{r evsi-print}
 print(o)

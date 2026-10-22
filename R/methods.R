@@ -380,12 +380,34 @@ censoring_text <- function(x) {
 
 # The first line of print() and summary() of the value-of-information results.
 voi_header <- function(what, x) {
-  paste0(what, ": ", paste(x$models, collapse = ", "), "; ",
-         outcome_text(x$outcome, if (isTRUE(x$case_weights)) TRUE),
-         if (!is.null(x$censoring)) paste0(", censoring ", x$censoring),
-         ", prior ", prior_text(x$prior), ", ",
-         x$n_sim, if (x$draws == "posterior") " posterior draws" else
-           " Bayesian bootstrap draws")
+  evsi <- what == "EVSI"
+  first <- paste0(what, ": ", paste(x$models, collapse = ", "), "; ",
+                  outcome_text(x$outcome, if (isTRUE(x$case_weights)) TRUE),
+                  if (!is.null(x$censoring)) paste0(", censoring ", x$censoring),
+                  if (!evsi) paste0(", prior ", prior_text(x$prior)), ", ",
+                  x$n_sim, if (x$draws == "posterior") " posterior draws" else
+                    " Bayesian bootstrap draws")
+  if (!evsi) return(first)
+  # EVSI: the information before the future study (the same as for EVPI) and
+  # what is known after it, each with its prior
+  n <- x$outcome$n
+  sizes <- format(x$future_n, big.mark = ",", scientific = FALSE, trim = TRUE)
+  sizes <- if (length(sizes) == 1) sizes
+           else paste(paste(sizes[-length(sizes)], collapse = ", "), "or", sizes[length(sizes)])
+  if (x$draws == "posterior") {
+    before <- paste0("prior ", prior_text(x$prior), ", updated with the validation data (n = ",
+                     n, ")")
+    after <- paste0("drawn from that distribution; then the prior is updated with the ",
+                    "validation data and the future study together")
+  } else {
+    before <- paste0("the validation data (n = ", n, "), Bayesian bootstrap (prior ",
+                     prior_text(x$prior), ": the data only)")
+    after <- paste0("resampled from each draw; then the validation data and the future ",
+                    "study together")
+  }
+  paste0(first, "\n",
+         "Before the future study (as for EVPI): ", before, "\n",
+         "Future study: ", sizes, " more patients, ", after)
 }
 
 print_voi_summary <- function(x, n, digits, fixed = FALSE) {

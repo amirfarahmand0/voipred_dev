@@ -43,6 +43,9 @@
   as `nb_val(prior = nb_informative())`, with bayesDCA's defaults; its shapes
   match bayesDCA's exactly. For a binary outcome, the result of `nb_val()`
   holds the prior shapes used at each threshold (`prior_shapes`).
+* The EVSI output states the information before the future study (the prior
+  updated with the validation data, as for EVPI) and after it (with the
+  future study added).
 * Plots take optional colours, by label or in order: `colors =`.
 * Clear messages when plotly (interactive plots) or patchwork (stacked
   panels) is not installed, with how to install them.

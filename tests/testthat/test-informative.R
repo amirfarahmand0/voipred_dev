@@ -169,3 +169,38 @@ test_that("the prior shapes are kept in the result; prior_shapes() is internal",
   expect_null(nb_val(s$val, "p", surv_outcome, horizon = 5, thresholds = 0.2)$prior_shapes)
   expect_false("prior_shapes" %in% getNamespaceExports("voipred.dev"))
 })
+
+test_that("the EVSI output states the information before and after the future study", {
+  g <- gusto_split()
+  v <- g$val[1:400, ]
+  f <- glm(gusto_formula, family = binomial, data = g$dev)
+  v$p <- unname(predict(f, v, type = "response"))
+  z <- seq(0.01, 0.2, by = 0.01)
+  set.seed(1)
+  o <- evsi(nb_val(v, "p", "day30", thresholds = z), future_n = c(500, 2000), n_sim = 50)
+  out <- capture.output(print(o))
+  expect_match(out[1], "^EVSI: p; binary, n = 400, 50 posterior draws$")
+  expect_equal(out[2], paste0("Before the future study (as for EVPI): prior improper Beta(0, 0), ",
+                              "updated with the validation data (n = 400)"))
+  expect_match(out[3], paste0("^Future study: 500 or 2,000 more patients, drawn from that ",
+                              "distribution; then the prior is updated"))
+  expect_output(print(summary(o)), "Before the future study \\(as for EVPI\\)")
+  set.seed(1)
+  oi <- evsi(nb_val(v, "p", "day30", thresholds = z, prior = nb_informative()),
+             future_n = 500, n_sim = 50)
+  expect_output(print(oi), "prior informative \\(bayesDCA, threshold-varying\\), updated with")
+  # survival: Bayesian bootstrap, the data only
+  s <- rott_split()
+  s$val$p <- 0.2
+  s$val$p[1:200] <- 0.4
+  set.seed(2)
+  os <- evsi(nb_val(s$val, "p", surv_outcome, horizon = 5, thresholds = c(0.1, 0.3)),
+             future_n = 300, n_sim = 5)
+  out_s <- capture.output(print(os))
+  expect_match(out_s[2], "Bayesian bootstrap \\(prior improper Beta\\(0, 0\\): the data only\\)")
+  expect_match(out_s[3], "^Future study: 300 more patients, resampled from each draw")
+  # EVPI keeps its one-line header
+  set.seed(3)
+  e <- evpi(nb_val(v, "p", "day30", thresholds = z), n_sim = 50)
+  expect_match(capture.output(print(e))[1], "^EVPI: p; binary, n = 400, prior improper Beta\\(0, 0\\), 50 posterior draws$")
+})

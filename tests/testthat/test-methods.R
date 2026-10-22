@@ -110,9 +110,14 @@ test_that("the value-of-information results are lists with print(), summary() an
     expect_equal(x$n_sim, 200)
     expect_identical(as.data.frame(x), x$estimates)
     out <- capture.output(print(x))
-    expect_match(out[1], paste0(paste(models, collapse = ", "), "; binary, n = 500, prior ",
-                                "improper Beta\\(0, 0\\), 200 posterior draws$"))
-    expect_lte(length(out), 15)
+    # EVSI states the prior on its own lines (before and after the future study)
+    expect_match(out[1], paste0(paste(models, collapse = ", "), "; binary, n = 500, ",
+                                if (!inherits(x, "voipred_evsi"))
+                                  "prior improper Beta\\(0, 0\\), ",
+                                "200 posterior draws$"))
+    if (inherits(x, "voipred_evsi"))
+      expect_match(out[2], "prior improper Beta\\(0, 0\\), updated with the validation data")
+    expect_lte(length(out), 17)
     expect_output(print(summary(x)), paste(models, collapse = ", "))
   }
   expect_s3_class(s$e, "voipred_evpi")
@@ -125,7 +130,7 @@ test_that("the value-of-information results are lists with print(), summary() an
   # print(): wide tables
   expect_match(capture.output(print(s$pu))[3], "threshold +Full$")
   expect_match(capture.output(print(s$pb))[3], "threshold +Full +Age +Treat All +Treat None")
-  expect_match(capture.output(print(s$o))[3], "threshold +EVPI +N=250 +N=1000")
+  expect_match(capture.output(print(s$o))[5], "threshold +EVPI +N=250 +N=1000")   # after 3 header lines
   # summary(): the main findings
   se <- summary(s$e)
   expect_s3_class(se, "summary.voipred_evpi")
@@ -173,8 +178,9 @@ test_that("the value-of-information results are lists with print(), summary() an
   set.seed(1)
   for (x in list(evpi(kc, n_sim = 5), p_useful(kc, n_sim = 5), p_best(kc, n_sim = 5),
                  evsi(kc, future_n = 100, n_sim = 5)))
-    expect_match(capture.output(print(x))[1],
-                 "survival, horizon 5, n = 1482, censoring cIPCW \\(coxph\\), prior improper")
+    # the prior is on the first line, or (EVSI) on the second
+    expect_match(paste(capture.output(print(x))[1:2], collapse = " "),
+                 "survival, horizon 5, n = 1482, censoring cIPCW \\(coxph\\), .*prior improper")
 })
 
 test_that("ranges of thresholds are written compactly", {
