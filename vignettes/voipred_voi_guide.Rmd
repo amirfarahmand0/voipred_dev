@@ -586,7 +586,8 @@ d_models <- merge(d_nb[, c("threshold", "model", "NB_model", "delta_NB")], d_use
 d_models <- merge(d_models, d_best, by.x = c("threshold", "model"),
                   by.y = c("threshold", "strategy"))
 d_models <- merge(d_models, d_evpi[, c("threshold", "EVPI")], by = "threshold")
-d_models <- d_models[order(d_models$threshold, d_models$model), ]
+# by threshold, then the models in their order in the result
+d_models <- d_models[order(d_models$threshold, match(d_models$model, res_bin$models)), ]
 d_models[round(d_models$threshold, 2) %in% c(0.02, 0.05, 0.1), ]
 ```
 
