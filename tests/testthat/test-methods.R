@@ -44,15 +44,20 @@ test_that("print() and summary() of nb_val() are short and say what the result i
   s <- methods_setup()
   out <- capture.output(print(s$r1))
   expect_match(out[1], "^Net benefit of Full: binary, n = 500, [0-9]+ events \\([0-9.]+%\\), prior improper Beta\\(0, 0\\)$")
-  expect_length(out, 1 + 1 + 1 + 10 + 1)                     # header, blank, column names, 10 rows, footer
-  expect_match(out[length(out)], "^# 20 more rows; use summary\\(\\) or as.data.frame\\(\\)$")
+  expect_length(out, 1 + 1 + 1 + 10 + 1)                     # header, blank, column names, 10 thresholds, footer
+  expect_match(out[length(out)], "^# 20 more thresholds; use summary\\(\\) or as.data.frame\\(\\)$")
+  # the same layout as as.data.frame(), with the label in `model`
+  expect_match(out[3], "^ threshold +model +NB_model +NB_all +NB_none +delta_NB$")
+  expect_match(out[4], "^ +0\\.[0-9]+ +Full ")
   expect_length(capture.output(print(s$r1, n = 3)), 1 + 1 + 1 + 3 + 1)
   sm <- summary(s$r1)
   expect_s3_class(sm, "summary.voipred_nb")
   so <- capture.output(sm)
   expect_match(so[2], "^Best strategy: ")
-  expect_match(so[3], "^Largest delta_NB: [0-9.]+ at 0\\.[0-9]+$")
-  expect_named(sm$table, c("threshold", "Se", "Sp", "NB_model", "NB_all", "delta_NB", "best"))
+  expect_match(so[3], "^Largest delta_NB: Full [0-9.]+ at 0\\.[0-9]+$")    # always with the label
+  expect_named(sm$table, c("threshold", "model", "Se", "Sp", "NB_model", "NB_all", "NB_none",
+                           "delta_NB"))
+  expect_equal(unique(sm$table$model), "Full")
   # sensitivity and specificity are the observed proportions with the improper prior
   y <- s$val$day30
   tr <- s$r1$risk[, 1] >= 0.1 & s$r1$risk[, 1] > 0
@@ -61,8 +66,8 @@ test_that("print() and summary() of nb_val() are short and say what the result i
   expect_equal(sm$table$Sp[i], sum(!tr & y == 0) / sum(y == 0))
   # the best strategy follows delta_NB and NB_all
   e <- s$r1$estimates
-  expect_equal(sm$table$best, ifelse(e$delta_NB > 1e-12, s$r1$models,
-                                     ifelse(e$NB_all > 1e-12, "treat all", "treat none")))
+  expect_equal(best_strategy(s$r1), ifelse(e$delta_NB > 1e-12, s$r1$models,
+                                           ifelse(e$NB_all > 1e-12, "treat all", "treat none")))
   # chosen thresholds: all of them shown
   ch <- capture.output(summary(s$r1, thresholds = c(0.05, 0.2)))
   expect_false(any(grepl("more rows", ch)))
@@ -77,7 +82,7 @@ test_that("print() and summary() of nb_val() are short and say what the result i
   expect_match(capture.output(print(k))[1],
                "^Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon [0-9.]+%, censoring cIPCW \\(coxph\\), prior improper")
   st <- summary(k)$table
-  expect_named(st, c("threshold", "Se", "Sp", "NB_model", "NB_all", "delta_NB", "best"))
+  expect_named(st, c("threshold", "model", "Se", "Sp", "NB_model", "NB_all", "NB_none", "delta_NB"))
   # Se and Sp are those implied by the net benefit and the risk by the horizon
   F <- k$outcome$prevalence
   odds <- c(0.1, 0.3) / c(0.9, 0.7)
@@ -117,7 +122,7 @@ test_that("the value-of-information results are lists with print(), summary() an
                                 "200 posterior draws$"))
     if (inherits(x, "voipred_evsi"))
       expect_match(out[2], "prior improper Beta\\(0, 0\\), updated with the validation data")
-    expect_lte(length(out), 17)
+    expect_lte(length(out), 50)           # 10 thresholds (P(best): 4 strategies each)
     expect_output(print(summary(x)), paste(models, collapse = ", "))
   }
   expect_s3_class(s$e, "voipred_evpi")
@@ -127,10 +132,14 @@ test_that("the value-of-information results are lists with print(), summary() an
   expect_named(s$e$ENB, c("threshold", "Full", "Age", "Treat All", "Treat None"))
   expect_equal(s$o$future_n, c(250, 1000))
   expect_equal(s$pb$strategies, c("Full", "Age", "Treat All", "Treat None"))
-  # print(): wide tables
-  expect_match(capture.output(print(s$pu))[3], "threshold +Full$")
-  expect_match(capture.output(print(s$pb))[3], "threshold +Full +Age +Treat All +Treat None")
-  expect_match(capture.output(print(s$o))[5], "threshold +EVPI +N=250 +N=1000")   # after 3 header lines
+  # print(): long tables, one row per threshold and model / strategy / sample size
+  expect_match(capture.output(print(s$pu))[3], "^ threshold +model +p_useful$")
+  expect_match(capture.output(print(s$pb))[3], "^ threshold +strategy +p_best$")
+  expect_match(capture.output(print(s$o))[5], "^ threshold +future_n +EVSI +EVPI$")   # after 3 header lines
+  pb_out <- capture.output(print(s$pb, n = 1))
+  expect_equal(trimws(sub("^ +[0-9.]+ +", "", pb_out[4:7])) |> sub(pattern = " +[0-9.]+$", replacement = ""),
+               c("Full", "Age", "Treat All", "Treat None"))
+  expect_match(pb_out[8], "^# [0-9]+ more thresholds")
   # summary(): the main findings
   se <- summary(s$e)
   expect_s3_class(se, "summary.voipred_evpi")
@@ -138,12 +147,17 @@ test_that("the value-of-information results are lists with print(), summary() an
   enb <- as.matrix(s$e$ENB[, -1])
   expect_equal(se$table[["best now"]], colnames(enb)[apply(enb, 1, which.max)])
   so <- summary(s$o)
-  expect_equal(nrow(so$table), 3)                       # the 3 thresholds with the largest EVPI
+  expect_equal(nrow(so$table), 3 * 2)                   # the 3 thresholds with the largest EVPI, 2 sizes
+  expect_named(so$table, c("threshold", "future_n", "EVSI", "EVPI", "EVSI / EVPI"))
   top <- s$o$estimates[s$o$estimates$future_n == 250, ]
-  expect_setequal(so$table$threshold, top$threshold[order(-top$EVPI)][1:3])
-  expect_match(so$table[["N=1000"]][1], "^[0-9-]+%$|^-$")
+  expect_setequal(unique(so$table$threshold), top$threshold[order(-top$EVPI)][1:3])
+  expect_match(so$table[["EVSI / EVPI"]][1], "^[0-9-]+%$|^-$")
   expect_match(so$lines, "with the largest EVPI")
-  expect_equal(nrow(summary(s$o, thresholds = 0.05)$table), 1)
+  expect_equal(nrow(summary(s$o, thresholds = 0.05)$table), 2)
+  # P(best): the most likely best strategy as a line, P(best) of each strategy in the table
+  sb <- summary(s$pb)
+  expect_match(sb$lines, "^Most likely best: ")
+  expect_named(sb$table, c("threshold", "strategy", "p_best"))
   expect_match(summary(s$o, thresholds = 0.05)$lines, "at the chosen thresholds")
   sp <- summary(s$pu)
   expect_named(sp$table, c("model", "P > 0.95", "0.5 to 0.95", "P < 0.5"))
@@ -152,15 +166,20 @@ test_that("the value-of-information results are lists with print(), summary() an
   # chosen thresholds: P(useful) at each of them, after the bands
   sp2 <- summary(s$pu, thresholds = c(0.05, 0.2))
   expect_equal(sp2$at$threshold, c(0.05, 0.2), tolerance = 1e-12)
-  expect_equal(sp2$at[["P(useful)"]],
+  expect_equal(sp2$at$model, c("Full", "Full"))
+  expect_equal(sp2$at$p_useful,
                s$pu$estimates$p_useful[match(c(5, 20), round(100 * s$pu$estimates$threshold))])
   po <- capture.output(sp2)
   expect_true(any(grepl("At the chosen thresholds", po)))
   expect_true(any(grepl("P > 0.95", po)))
   expect_error(summary(s$pu, thresholds = 0.055), "not among the thresholds")
   sb <- summary(s$pb)
-  w <- as.matrix(wide(s$pb$estimates, "strategy", "p_best", s$pb$strategies)[, -1])
-  expect_equal(sb$table[["P(best)"]], apply(w, 1, max))
+  # every strategy at every threshold, by threshold; the most likely best in the line
+  expect_equal(nrow(sb$table), nrow(s$pb$estimates))
+  expect_equal(sb$table$strategy[1:4], s$pb$strategies)
+  w <- wide(s$pb$estimates, "strategy", "p_best", s$pb$strategies)
+  most <- s$pb$strategies[apply(as.matrix(w[, -1]), 1, which.max)]
+  expect_equal(sb$lines, paste("Most likely best:", segments_text(w$threshold, most)))
   # survival: Bayesian bootstrap draws
   sv <- rott_split()
   cx <- survival::coxph(surv_formula, data = sv$dev)

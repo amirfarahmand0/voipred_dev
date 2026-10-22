@@ -160,15 +160,18 @@ res_glm <- nb_val(data = df_val_binary,
 ```
 
 **`print()`** shows what was evaluated (the model, the outcome, the number
-of patients and events, and the prior) and the first rows of the table
-(`print(res_glm, n = 30)` shows more):
+of patients and events, and the prior) and the table at the first thresholds
+(`print(res_glm, n = 30)` shows 30):
 
 ```{r print-glm}
 print(res_glm)
 ```
 
-The header line shows what was evaluated; the table shows, per threshold:
+The header line shows what was evaluated; the table has one row per
+threshold and model, the same layout for one model or several, in
+`print()`, `summary()` and `as.data.frame()`:
 
+- `model`: the model's label;
 - `NB_model`: net benefit of treating the patients whose predicted risk is at
   or above the threshold;
 - `NB_all`: net benefit of treating everyone;
@@ -186,16 +189,16 @@ would change the decision, is the subject of the value-of-information guide
 (`p_useful()`, `p_best()`, `evpi()` and `evsi()`).
 
 **`summary()`** gives the best strategy along the thresholds and the
-largest gain of the model, and, at each threshold, the model's sensitivity
-(`Se`) and specificity (`Sp`) and the best strategy; `thresholds` picks
-some:
+largest gain of each model, and adds to the table the model's sensitivity
+(`Se`) and specificity (`Sp`); `thresholds` picks some:
 
 ```{r summary-glm}
 summary(res_glm)
 summary(res_glm, thresholds = c(0.05, 0.1, 0.2))
 ```
 
-**`as.data.frame()`** gives the whole table, one row per threshold. Thresholds
+**`as.data.frame()`** gives the whole table, one row per threshold and model
+(by model, then threshold), with the same columns. Thresholds
 made with `seq()` are not exact decimals (0.1 is stored as
 0.1000000000000000055), so select a threshold with `round()`:
 

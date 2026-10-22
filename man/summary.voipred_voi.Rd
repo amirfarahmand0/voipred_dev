@@ -65,7 +65,8 @@ main findings:
 \item \code{\link[=p_useful]{p_useful()}}: the thresholds where P(useful) is above
 0.95, between 0.5 and 0.95, and below 0.5, and with \code{thresholds},
 P(useful) at each of them;
-\item \code{\link[=p_best]{p_best()}}: the most likely best strategy at each threshold;
+\item \code{\link[=p_best]{p_best()}}: the most likely best strategy at each threshold, and P(best)
+of each strategy;
 \item \code{\link[=evpi]{evpi()}}: where EVPI is positive and where it is largest, and the
 strategy that is best now (highest expected net benefit) with its
 expected net benefit;
@@ -74,8 +75,14 @@ expected net benefit;
 }
 }
 \details{
-\code{as.data.frame()} returns the full results (the \code{estimates}, one row per
-threshold, and model, strategy or future sample size).
+\code{as.data.frame()} returns the full results (the \code{estimates}).
+
+The tables have the same layout everywhere: one row per threshold and
+model (\code{p_useful()}), strategy (\code{p_best()}) or future sample size
+(\code{evsi()}), in a column of that name, with the values in columns of fixed
+names (\code{p_useful}, \code{p_best}, \code{EVSI} and \code{EVPI}); \code{evpi()} has one row per
+threshold. \code{print()} and \code{summary()} sort the rows by threshold, and print
+the first \code{n} thresholds.
 }
 \examples{
 df_dev_binary <- gusto[1:5000, ]

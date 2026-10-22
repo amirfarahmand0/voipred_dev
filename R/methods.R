@@ -7,9 +7,16 @@
 #' Summarise the net benefit of a model
 #'
 #' `print()` shows the net benefit at the first thresholds; `summary()` adds
-#' the best strategy at each threshold, where the model is useful, and the
-#' model's sensitivity and specificity;
-#' `as.data.frame()` returns the estimates at every threshold.
+#' the best strategy at each threshold, the largest gain of each model, and
+#' the models' sensitivity and specificity; `as.data.frame()` returns the
+#' estimates at every threshold.
+#'
+#' All three have the same layout, for one model or several: one row per
+#' threshold and model, the model's label in the column `model`, and the
+#' columns `NB_model`, `NB_all`, `NB_none` and `delta_NB` (`summary()` adds
+#' `Se` and `Sp`). `print()` and `summary()` sort the rows by threshold, so
+#' that the models are side by side; `as.data.frame()` keeps the order of the
+#' estimates (by model, then threshold).
 #'
 #' @param object,x A result of [nb_val()].
 #' @param thresholds Optional thresholds to show in the table (among those of
@@ -18,9 +25,11 @@
 #' @param row.names,optional Not used (as in [as.data.frame()]).
 #' @param ... Not used.
 #' @return `summary()`: an object of class `summary.voipred_nb`, printed as
-#'   shown (with several models, the table has one row per threshold and
-#'   model). `as.data.frame()`: the `estimates` data frame (columns
-#'   `threshold`, `model`, `NB_model`, `NB_all`, `NB_none`, `delta_NB`).
+#'   shown: the best strategy at each threshold, the largest `delta_NB` of
+#'   each model, and the table (columns `threshold`, `model`, `Se`, `Sp`,
+#'   `NB_model`, `NB_all`, `NB_none`, `delta_NB`). `as.data.frame()`: the
+#'   `estimates` data frame (columns `threshold`, `model`, `NB_model`,
+#'   `NB_all`, `NB_none`, `delta_NB`).
 #' @details The best strategy at a threshold is the model with the largest
 #'   `delta_NB` if it is positive, otherwise treat all if its net benefit is
 #'   positive, otherwise treat none. For a binary outcome, sensitivity and
@@ -54,14 +63,8 @@ NULL
 #' @export
 print.voipred_nb <- function(x, n = 10, ...) {
   cat(nb_header(x), "\n\n", sep = "")
-  e <- x$estimates
-  tab <- if (length(x$models) == 1) e[names(e) != "model"] else {
-    # one row per threshold: the net benefit of each model and of treating all
-    w <- wide(e, "model", "NB_model", x$models)
-    w[["Treat All"]] <- nb_all(x)
-    w
-  }
-  print_rows(tab, n, "use summary() or as.data.frame()", digits = 4)
+  print_rows(by_threshold(x$estimates, "model", x$models), n,
+             "use summary() or as.data.frame()", per_threshold = TRUE)
   invisible(x)
 }
 
@@ -76,7 +79,8 @@ summary.voipred_nb <- function(object, thresholds = NULL, ...) {
         else if (object$outcome$censoring == "cipcw") sens_spec_cipcw(object)
         else sens_spec_km(object)
   tab <- data.frame(threshold = e$threshold, model = e$model, Se = ss$Se, Sp = ss$Sp,
-                    NB_model = e$NB_model, NB_all = e$NB_all, delta_NB = e$delta_NB)
+                    NB_model = e$NB_model, NB_all = e$NB_all, NB_none = e$NB_none,
+                    delta_NB = e$delta_NB)
   best <- best_strategy(object)
   o <- order(z)
   largest <- vapply(object$models, function(m) {
@@ -86,21 +90,12 @@ summary.voipred_nb <- function(object, thresholds = NULL, ...) {
     j <- which(ok)[which.max(d[ok])]
     sprintf("%s at %s", fmt_num(d[j]), fmt_zs(z)[j])
   }, character(1))
-  largest <- if (M == 1) {
-    if (is.na(largest)) "The model is not better than both default strategies at any threshold"
-    else paste("Largest delta_NB:", largest)
-  } else paste0("Largest delta_NB: ", paste0(object$models, " ",
-                ifelse(is.na(largest), "none (never better than both default strategies)",
-                       largest), collapse = "; "))
+  largest <- paste0("Largest delta_NB: ", paste0(object$models, " ",
+                    ifelse(is.na(largest), "none (never better than both default strategies)",
+                           largest), collapse = "; "))
+  # by threshold, then model (the estimates are by model, then threshold)
   zrows <- select_rows(z, thresholds)
-  if (M == 1) {
-    tab$model <- NULL
-    tab$best <- best
-    rows <- zrows
-  } else {
-    # by threshold, then model (the estimates are by model, then threshold)
-    rows <- as.vector(t(outer(zrows, (seq_len(M) - 1) * Z, `+`)))
-  }
+  rows <- as.vector(t(outer(zrows, (seq_len(M) - 1) * Z, `+`)))
   structure(list(header = nb_header(object),
                  best = paste("Best strategy:", segments_text(z[o], best[o])),
                  largest = largest, table = tab[rows, , drop = FALSE],
@@ -112,7 +107,7 @@ summary.voipred_nb <- function(object, thresholds = NULL, ...) {
 print.summary.voipred_nb <- function(x, n = 10, ...) {
   cat(x$header, "\n", x$best, "\n", x$largest, "\n\n", sep = "")
   print_rows(x$table, if (x$all_rows) n else Inf,
-             "summary(x, thresholds = ) to choose", digits = 3)
+             "summary(x, thresholds = ) to choose", per_threshold = TRUE)
   invisible(x)
 }
 
@@ -130,15 +125,22 @@ as.data.frame.voipred_nb <- function(x, row.names = NULL, optional = FALSE, ...)
 #' * [p_useful()]: the thresholds where P(useful) is above
 #'   0.95, between 0.5 and 0.95, and below 0.5, and with `thresholds`,
 #'   P(useful) at each of them;
-#' * [p_best()]: the most likely best strategy at each threshold;
+#' * [p_best()]: the most likely best strategy at each threshold, and P(best)
+#'   of each strategy;
 #' * [evpi()]: where EVPI is positive and where it is largest, and the
 #'   strategy that is best now (highest expected net benefit) with its
 #'   expected net benefit;
 #' * [evsi()]: the share of EVPI that a future study of each size recovers
 #'   (EVSI / EVPI), at the thresholds with the largest EVPI.
 #'
-#' `as.data.frame()` returns the full results (the `estimates`, one row per
-#' threshold, and model, strategy or future sample size).
+#' `as.data.frame()` returns the full results (the `estimates`).
+#'
+#' The tables have the same layout everywhere: one row per threshold and
+#' model (`p_useful()`), strategy (`p_best()`) or future sample size
+#' (`evsi()`), in a column of that name, with the values in columns of fixed
+#' names (`p_useful`, `p_best`, `EVSI` and `EVPI`); `evpi()` has one row per
+#' threshold. `print()` and `summary()` sort the rows by threshold, and print
+#' the first `n` thresholds.
 #'
 #' @param object,x A result of [p_useful()], [p_best()], [evpi()] or [evsi()].
 #' @param thresholds Optional thresholds to show (among those of the result).
@@ -186,7 +188,7 @@ NULL
 print.voipred_evpi <- function(x, n = 10, ...) {
   cat(voi_header("EVPI", x), "\n\n", sep = "")
   print_rows(x$estimates[, c("threshold", "EVPI", "rEVPI")], n,
-             "use summary() or as.data.frame()", digits = 4)
+             "use summary() or as.data.frame()")
   if (!is.null(x$p_best))
     cat("# From the same draws: p_useful(x) and p_best(x)\n")
   invisible(x)
@@ -226,8 +228,8 @@ summary.voipred_evpi <- function(object, thresholds = NULL, ...) {
 #' @export
 print.voipred_evsi <- function(x, n = 10, ...) {
   cat(voi_header("EVSI", x), "\n\n", sep = "")
-  print_rows(evsi_wide(x, function(e) e$EVSI), n, "use summary() or as.data.frame()",
-             digits = 4)
+  print_rows(by_threshold(x$estimates, "future_n", x$future_n), n,
+             "use summary() or as.data.frame()", per_threshold = TRUE)
   invisible(x)
 }
 
@@ -235,11 +237,10 @@ print.voipred_evsi <- function(x, n = 10, ...) {
 #' @export
 summary.voipred_evsi <- function(object, thresholds = NULL, ...) {
   zs <- pick_thresholds(object, thresholds, n_default = 3, max_all = 3)
-  share <- evsi_wide(object, function(e)
-    ifelse(is.finite(e$EVPI) & e$EVPI > 1e-12,
-           paste0(round(100 * e$EVSI / e$EVPI), "%"), "-"))
-  share <- share[vapply(share$threshold, function(t) any(near(zs, t)), logical(1)), ,
-                 drop = FALSE]
+  e <- by_threshold(object$estimates, "future_n", object$future_n)
+  share <- e[vapply(e$threshold, function(t) any(near(zs, t)), logical(1)), , drop = FALSE]
+  share[["EVSI / EVPI"]] <- ifelse(is.finite(share$EVPI) & share$EVPI > 1e-12,
+                                   paste0(round(100 * share$EVSI / share$EVPI), "%"), "-")
   structure(list(header = voi_header("EVSI", object),
                  lines = if (is.null(thresholds))
                    "EVSI / EVPI at the thresholds with the largest EVPI:"
@@ -252,8 +253,8 @@ summary.voipred_evsi <- function(object, thresholds = NULL, ...) {
 #' @export
 print.voipred_p_useful <- function(x, n = 10, ...) {
   cat(voi_header("P(useful)", x), "\n\n", sep = "")
-  print_rows(wide(x$estimates, "model", "p_useful", x$models), n,
-             "use summary() or as.data.frame()", digits = 3, fixed = TRUE)
+  print_rows(by_threshold(x$estimates, "model", x$models), n,
+             "use summary() or as.data.frame()", per_threshold = TRUE)
   invisible(x)
 }
 
@@ -273,9 +274,9 @@ summary.voipred_p_useful <- function(object, thresholds = NULL, ...) {
   names(tab) <- c("model", "P > 0.95", "0.5 to 0.95", "P < 0.5")
   at <- NULL
   if (!is.null(thresholds)) {
-    w <- wide(e, "model", "p_useful", object$models)
-    at <- w[select_rows(w$threshold, thresholds), , drop = FALSE]
-    if (length(object$models) == 1) names(at)[2] <- "P(useful)"
+    e2 <- by_threshold(e, "model", object$models)
+    zs <- unique(e2$threshold)[select_rows(unique(e2$threshold), thresholds)]
+    at <- e2[e2$threshold %in% zs, , drop = FALSE]
   }
   structure(list(header = voi_header("P(useful)", object),
                  lines = "Thresholds where the probability that the model is useful is:",
@@ -287,8 +288,8 @@ summary.voipred_p_useful <- function(object, thresholds = NULL, ...) {
 #' @export
 print.voipred_p_best <- function(x, n = 10, ...) {
   cat(voi_header("P(best)", x), "\n\n", sep = "")
-  print_rows(wide(x$estimates, "strategy", "p_best", x$strategies), n,
-             "use summary() or as.data.frame()", digits = 3, fixed = TRUE)
+  print_rows(by_threshold(x$estimates, "strategy", x$strategies), n,
+             "use summary() or as.data.frame()", per_threshold = TRUE)
   invisible(x)
 }
 
@@ -297,35 +298,35 @@ print.voipred_p_best <- function(x, n = 10, ...) {
 summary.voipred_p_best <- function(object, thresholds = NULL, ...) {
   w <- wide(object$estimates, "strategy", "p_best", object$strategies)
   pm <- as.matrix(w[, -1, drop = FALSE])
-  j <- apply(pm, 1, which.max)
-  tab <- data.frame(threshold = w$threshold,
-                    most = colnames(pm)[j],
-                    p = pm[cbind(seq_len(nrow(pm)), j)], check.names = FALSE)
-  names(tab)[2:3] <- c("most likely best", "P(best)")
-  rows <- select_rows(w$threshold, thresholds)
-  structure(list(header = voi_header("P(best)", object), lines = NULL,
-                 table = tab[rows, , drop = FALSE], all_rows = is.null(thresholds)),
+  most <- colnames(pm)[apply(pm, 1, which.max)]
+  o <- order(w$threshold)
+  e <- by_threshold(object$estimates, "strategy", object$strategies)
+  zs <- unique(e$threshold)[select_rows(unique(e$threshold), thresholds)]
+  structure(list(header = voi_header("P(best)", object),
+                 lines = paste("Most likely best:", segments_text(w$threshold[o], most[o])),
+                 table = e[e$threshold %in% zs, , drop = FALSE],
+                 all_rows = is.null(thresholds)),
             class = "summary.voipred_p_best")
 }
 
 #' @export
-print.summary.voipred_evpi <- function(x, n = 10, ...) print_voi_summary(x, n, 4)
+print.summary.voipred_evpi <- function(x, n = 10, ...) print_voi_summary(x, n)
 
 #' @export
-print.summary.voipred_evsi <- function(x, n = 10, ...) print_voi_summary(x, n, 4)
+print.summary.voipred_evsi <- function(x, n = 10, ...) print_voi_summary(x, n, TRUE)
 
 #' @export
 print.summary.voipred_p_useful <- function(x, n = 10, ...) {
-  print_voi_summary(x, n, 3)
+  print_voi_summary(x, n)
   if (!is.null(x$at)) {
     cat("\nAt the chosen thresholds:\n\n")
-    print_rows(x$at, Inf, "", digits = 3, fixed = TRUE)
+    print_rows(x$at, Inf, "", per_threshold = TRUE)
   }
   invisible(x)
 }
 
 #' @export
-print.summary.voipred_p_best <- function(x, n = 10, ...) print_voi_summary(x, n, 3, TRUE)
+print.summary.voipred_p_best <- function(x, n = 10, ...) print_voi_summary(x, n, TRUE)
 
 #' @rdname summary.voipred_voi
 #' @export
@@ -410,31 +411,54 @@ voi_header <- function(what, x) {
          "Future study: ", sizes, " more patients, ", after)
 }
 
-print_voi_summary <- function(x, n, digits, fixed = FALSE) {
+print_voi_summary <- function(x, n, per_threshold = FALSE) {
   cat(x$header, "\n", sep = "")
   if (length(x$lines)) cat(x$lines, sep = "\n")
   cat("\n")
   print_rows(x$table, if (x$all_rows) n else Inf, "summary(x, thresholds = ) to choose",
-             digits = digits, fixed = fixed)
+             per_threshold = per_threshold)
   invisible(x)
 }
 
-# Print the first n rows of a table, and how many more there are. Numbers
-# with `digits` significant digits (`fixed`: with `digits` decimals, for
-# probabilities), never in scientific notation; thresholds with a common
-# number of decimals.
-print_rows <- function(tab, n, hint, digits = 4, fixed = FALSE) {
-  m <- nrow(tab)
-  shown <- if (is.finite(n) && m > n) tab[seq_len(n), , drop = FALSE] else tab
+# Print the first n rows of a table (per_threshold: the rows of the first n
+# thresholds), and how many more there are. Probabilities (Se, Sp, p_useful,
+# p_best, P(best)) with 3 decimals; other numbers with 4 significant digits
+# for the largest value of their column, never in scientific notation;
+# thresholds with a common number of decimals.
+print_rows <- function(tab, n, hint, per_threshold = FALSE) {
+  rownames(tab) <- NULL
+  if (per_threshold) {
+    zs <- unique(tab$threshold)
+    m <- length(zs)
+    shown <- if (is.finite(n) && m > n) tab[tab$threshold %in% zs[seq_len(n)], , drop = FALSE]
+             else tab
+    left <- m - length(unique(shown$threshold))
+    unit <- if (left == 1) "threshold" else "thresholds"
+  } else {
+    m <- nrow(tab)
+    shown <- if (is.finite(n) && m > n) tab[seq_len(n), , drop = FALSE] else tab
+    left <- m - nrow(shown)
+    unit <- if (left == 1) "row" else "rows"
+  }
+  probs <- c("Se", "Sp", "p_useful", "p_best", "P(best)")
   for (k in names(shown)) {
     v <- shown[[k]]
     if (!is.numeric(v)) next
-    shown[[k]] <- if (k == "threshold") fmt_zs(v) else fmt_values(v, digits, fixed)
+    shown[[k]] <- if (k == "threshold") fmt_zs(v)
+                  else if (k == "future_n") format(v, big.mark = ",", trim = TRUE, scientific = FALSE)
+                  else if (k %in% probs) fmt_values(v, 3, TRUE)
+                  else fmt_values(v, 4)
   }
   print(shown, row.names = FALSE, right = TRUE)
-  if (nrow(shown) < m)
-    cat("# ", m - nrow(shown), " more ", if (m - nrow(shown) == 1) "row" else "rows",
-        "; ", hint, "\n", sep = "")
+  if (left > 0) cat("# ", left, " more ", unit, "; ", hint, "\n", sep = "")
+}
+
+# A long table sorted by threshold, then by `key` in the order `keys` (the
+# models, strategies or future sample sizes), so that they are side by side.
+by_threshold <- function(e, key, keys) {
+  out <- e[order(e$threshold, match(e[[key]], keys)), , drop = FALSE]
+  rownames(out) <- NULL
+  out
 }
 
 # A long table (threshold, key, value) as one row per threshold and one column
@@ -443,18 +467,6 @@ wide <- function(e, key, value, keys) {
   z <- unique(e$threshold)
   out <- data.frame(threshold = z)
   for (k in keys) out[[k]] <- e[[value]][e[[key]] == k][match(z, e$threshold[e[[key]] == k])]
-  out
-}
-
-# EVSI results with one column per future sample size, after EVPI.
-evsi_wide <- function(x, value) {
-  e <- x$estimates
-  z <- unique(e$threshold)
-  out <- data.frame(threshold = z, EVPI = e$EVPI[match(z, e$threshold)])
-  for (N in x$future_n) {
-    d <- e[e$future_n == N, ]
-    out[[paste0("N=", N)]] <- value(d)[match(z, d$threshold)]
-  }
   out
 }
 

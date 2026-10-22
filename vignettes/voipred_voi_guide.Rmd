@@ -318,16 +318,16 @@ set.seed(10)
 pb <- p_best(res_bin, n_sim = 5000)
 ```
 
-**`print()`** gives the header and, at the first thresholds, one column per
-strategy:
+**`print()`** gives the header and, at the first thresholds, P(best) of each
+strategy (one row per threshold and strategy):
 
 ```{r pb-print}
 print(pb)
 ```
 
-**`summary()`** gives, at each threshold, the strategy most likely to be the
-best and its probability (all thresholds by default, or those in
-`thresholds`):
+**`summary()`** gives the strategy most likely to be the best along the
+thresholds, and P(best) of each strategy (all thresholds by default, or
+those in `thresholds`):
 
 ```{r pb-summary}
 summary(pb, thresholds = c(0.02, 0.05, 0.1, 0.2))
@@ -497,8 +497,9 @@ set.seed(20)
 o <- evsi(res_bin, future_n = c(250, 500, 1000, 2000, 4000), n_sim = 5000)
 ```
 
-**`print()`** gives the header and, at the first thresholds, EVPI and the
-EVSI of each future sample size, one column per size. The header states
+**`print()`** gives the header and, at the first thresholds, EVSI and EVPI
+for each future sample size (one row per threshold and size). The header
+states
 the information at the two moments that EVSI compares: **before the future
 study**, the prior given to `nb_val()` updated with the validation data (the
 same as for EVPI), and **after it**, that prior updated with the validation

@@ -267,7 +267,8 @@ test_that("evpi() computes P(useful) and P(best) from the same draws", {
   expect_equal(levels(plot(pu, labels = c("a", "b"))$data$label), c("a", "b"))
   expect_error(plot(pu, labels = "a"), "one per curve")
   at <- summary(pu, thresholds = c(0.05, 0.1))$at
-  expect_named(at, c("threshold", "Full", "Age"))
+  expect_named(at, c("threshold", "model", "p_useful"))
+  expect_equal(at$model, c("Full", "Age", "Full", "Age"))
 })
 
 test_that("several models with survival outcomes, Kaplan-Meier and cIPCW", {
