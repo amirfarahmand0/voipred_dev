@@ -982,8 +982,14 @@ given_risk <- function(risk, data, label = NULL) {
     stop(arg, " must be numeric: one predicted probability per row of ",
          "`data`, or the name of the column that holds them.", call. = FALSE)
   risk <- as.vector(risk)
-  if (length(risk) != n)
-    stop(arg, " has ", length(risk), " values but `data` has ", n, " rows.", call. = FALSE)
+  if (length(risk) != n) {
+    k <- length(risk) / n
+    stop(arg, " has ", length(risk), " values but `data` has ", n, " rows.",
+         if (k >= 2 && k == round(k))
+           paste0(" To give ", k, " models, use list() rather than c(), which joins ",
+                  "the risks into one vector: predicted_risk = list(A = p1, B = p2)."),
+         call. = FALSE)
+  }
   if (anyNA(risk))
     stop(sum(is.na(risk)), " of the risks in ", arg, " are NA.", call. = FALSE)
   if (any(risk < 0 | risk > 1))

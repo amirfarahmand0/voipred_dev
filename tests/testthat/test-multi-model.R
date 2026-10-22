@@ -76,6 +76,10 @@ test_that("several models: errors name the model", {
                "`predicted_risk` \\(\"B\"\\) has values outside \\[0, 1\\]")
   expect_error(nb_val(v, list(A = v$p1, B = v$p2[-1]), "day30", thresholds = z),
                "\\(\"B\"\\) has .* values but `data` has")
+  # c() of two risk vectors joins them: the message points to list()
+  expect_error(nb_val(v, c(A = v$p1, B = v$p2), "day30", thresholds = z),
+               "To give 2 models, use list\\(\\) rather than c\\(\\)")
+  expect_error(nb_val(v, v$p1[-1], "day30", thresholds = z), "values but `data` has")
   expect_error(nb_val(v, c("p1", "nope"), "day30", thresholds = z),
                "names a column \\(\"nope\"\\) that is not in `data`")
   expect_error(nb_val(v, model = list(A = m$f1, B = v$p2), outcome = "day30", thresholds = z),
