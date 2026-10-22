@@ -47,7 +47,7 @@ test_that("predict_function gets horizon and cause; it is checked like any model
                "returned classes, not probabilities")
   expect_error(nb_val(d, m, "y", predict_function = function(...) as.character(p0)),
                "returned classes, not probabilities")
-  expect_error(nb_val(d, p0, "y", predict_function = function(...) p0), "not used with `predicted_risk`")
+  expect_error(nb_val(d, p0, "y", predict_function = function(...) p0), "has no fitted model")
 })
 
 test_that("output shapes are read generically", {
@@ -113,11 +113,12 @@ test_that("standard survival route: riskRegression::predictRisk, cause by label 
 
 test_that("a model with no usable route gets one clear error with the ways out", {
   d2 <- data.frame(t = c(1, 2, 6, 7, 8, 9), s = c(1, 1, 0, 1, 0, 1))
+  # caught before predicting: no route for this kind of model
   expect_error(nb_val(d, toy("toyH"), "y"),
-               "Could not get predicted risks from this toyH model.*give `predict_function")
-  expect_error(nb_val(d, toy("toyH"), "y"), "returning the risk of the event\\.$")
+               "cannot predict risks from this toyH model.*give `predict_function`")
+  expect_error(nb_val(d, toy("toyH"), "y"), "risk of the event, e\\.g\\.")
   expect_error(nb_val(d2, toy("toyH"), ~ survival::Surv(t, s), horizon = 5),
-               "Could not get predicted risks from this toyH model.*by the horizon")
+               "cannot predict risks from this toyH model.*by the horizon")
 })
 
 test_that("a new survival model works with predict_function", {
@@ -131,7 +132,9 @@ test_that("a new survival model works with predict_function", {
     list(times = sf$time, survival = t(sf$surv))
   })
   m <- fit_new(surv_formula, s$dev)
-  expect_error(nb_val(s$val, m, surv_outcome, horizon = 5), "Could not get predicted risks")
+  # its predict() is not a survival route (riskRegression::predictRisk() is)
+  expect_error(nb_val(s$val, m, surv_outcome, horizon = 5),
+               "cannot predict risks from this newsurv model")
   ref <- predict_risk(m$cox, s$val, horizon = 5)
   res <- nb_val(s$val, m, surv_outcome, horizon = 5, thresholds = c(0.1, 0.3),
                 predict_function = function(model, newdata, ...) {

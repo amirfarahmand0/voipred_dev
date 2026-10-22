@@ -161,10 +161,15 @@ head(res_glm$counts, 3)
 
 ## All the ways to give the risks and the binary outcome
 
-**`predicted_risk =`** takes the risks as
+**`predicted_risk =`** takes, for one model,
 
 - a numeric vector, one risk per row of `data`: `predicted_risk = df_val_binary$p_glm`;
-- or the name of the column of `data` that holds them: `predicted_risk = "p_glm"`.
+- the name of the column of `data` that holds them: `predicted_risk = "p_glm"`;
+- or the fitted model, from which voipred predicts the risks (see "The model
+  instead of the risks" below): `predicted_risk = fit_glm`.
+
+For several models, give a list of these, one element per model (see
+"Comparing models").
 
 **`outcome =`** takes the binary outcome as
 
@@ -213,36 +218,28 @@ plot(res_glm, type = "delta")
 
 ## Comparing models
 
-Give the risks of every model to one call of `nb_val()`: a named list, the
-names of the columns of `data` that hold them (named to relabel them), a data
-frame or matrix with one column per model, or the fitted models,
-`model = list(...)`. The outcome, thresholds and every other option apply to
-all of them. Here the logistic model and two more:
+Give all the models to one call of `nb_val()`, as a list with one element per
+model: the name of a column of `data`, a vector of risks, or a fitted model,
+mixed freely. The outcome, thresholds and every other option apply to all of
+them, and the result compares them: `print()` shows their net benefits side
+by side, `summary()` names the best strategy at each threshold, and `plot()`
+draws them together. Here the logistic model and two more:
 
 ```{r compare}
 fit_rf <- ranger::ranger(factor(day30) ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
                          data = df_dev_binary, probability = TRUE, num.trees = 500, seed = 1)
 df_val_binary$p_rf <- predict(fit_rf, df_val_binary)$predictions[, "1"]
-res_rf <- nb_val(data = df_val_binary,
-                 predicted_risk = df_val_binary$p_rf,
-                 outcome = "day30",
-                 thresholds = seq(0, 0.30, by = 0.01),
-                 label = "Random forest")
 
 library(bayespred)
 fit_bpm <- bpmfit(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
                   data = df_dev_binary, prior = log_f(m = 2))
 # the risk is the posterior mean of risk
 df_val_binary$p_bpm <- predict(fit_bpm, newdata = df_val_binary, type = "response")
-res_bpm <- nb_val(data = df_val_binary,
-                  predicted_risk = df_val_binary$p_bpm,
-                  outcome = "day30",
-                  thresholds = seq(0, 0.30, by = 0.01),
-                  label = "Bayesian logistic")
 
 res_3 <- nb_val(data = df_val_binary,
-                predicted_risk = c(Logistic = "p_glm", `Random forest` = "p_rf",
-                                   `Bayesian logistic` = "p_bpm"),
+                predicted_risk = list(Logistic = "p_glm",
+                                      `Random forest` = "p_rf",
+                                      `Bayesian logistic` = "p_bpm"),
                 outcome = "day30",
                 thresholds = seq(0, 0.30, by = 0.01))
 res_3
@@ -251,29 +248,46 @@ plot(res_3)
 plot(res_3, type = "delta")
 ```
 
-The same result, from the fitted models, or with a list of risks:
+The same result, from the fitted models, or from a list that mixes them with
+risks (here also the vector of the logistic model's risks):
 
-```{r compare-forms, eval = FALSE}
-nb_val(data = df_val_binary,
-       model = list(Logistic = fit_glm, `Random forest` = fit_rf,
-                    `Bayesian logistic` = fit_bpm),
-       outcome = "day30",
-       thresholds = seq(0, 0.30, by = 0.01))
-nb_val(data = df_val_binary,
-       predicted_risk = list(Logistic = df_val_binary$p_glm,
-                             `Random forest` = df_val_binary$p_rf,
-                             `Bayesian logistic` = df_val_binary$p_bpm),
-       outcome = "day30",
-       thresholds = seq(0, 0.30, by = 0.01))
+```{r compare-forms}
+res_3_models <- nb_val(data = df_val_binary,
+                       predicted_risk = list(Logistic = fit_glm,
+                                             `Random forest` = fit_rf,
+                                             `Bayesian logistic` = fit_bpm),
+                       outcome = "day30",
+                       thresholds = seq(0, 0.30, by = 0.01))
+res_3_mixed <- nb_val(data = df_val_binary,
+                      predicted_risk = list(Logistic = df_val_binary$p_glm,
+                                            `Random forest` = fit_rf,
+                                            `Bayesian logistic` = "p_bpm"),
+                      outcome = "day30",
+                      thresholds = seq(0, 0.30, by = 0.01))
+all.equal(res_3_models$estimates, res_3$estimates)
+all.equal(res_3_mixed$estimates, res_3$estimates)
 ```
 
-Results computed separately (on the same data, outcome and thresholds) can
-be combined with `c()`, or given together to `plot()` and to the
-value-of-information functions, which combine them in the same way:
+Use `list()`, not `c()`: `c()` joins vectors of risks into one long vector
+and takes fitted models apart, so voipred stops and asks for `list()`. To
+compare a different set of models, call `nb_val()` with those models.
+
+**Labels.** Each model is labelled by the first of: `label = ` (one per
+model); its name in the list (`Logistic` above); the column name, when it is
+given as one (`"p_glm"`); the name in the call (`df_val_binary$p_glm` gives
+`p_glm`, `fit_glm` gives `fit_glm`); otherwise `Model 1`, `Model 2`, ... The
+labels must be different, and cannot be "Treat All" or "Treat None".
+
+**Results computed separately** (on the same data, outcome and thresholds)
+can still be combined with `c()`, which gives the same result as one call:
 
 ```{r compare-c}
-plot(res_glm, res_rf, res_bpm)
-all.equal(c(res_glm, res_rf, res_bpm)$estimates$NB_model, res_3$estimates$NB_model)
+res_rf <- nb_val(data = df_val_binary, predicted_risk = "p_rf", outcome = "day30",
+                 thresholds = seq(0, 0.30, by = 0.01), label = "Random forest")
+all.equal(c(Logistic = res_glm, res_rf)$estimates,
+          nb_val(data = df_val_binary,
+                 predicted_risk = list(Logistic = "p_glm", `Random forest` = "p_rf"),
+                 outcome = "day30", thresholds = seq(0, 0.30, by = 0.01))$estimates)
 ```
 
 ## Options of `nb_val()` for a binary outcome
@@ -281,7 +295,7 @@ all.equal(c(res_glm, res_rf, res_bpm)$estimates$NB_model, res_3$estimates$NB_mod
 | Argument | What it does |
 |---|---|
 | `data` | The validation sample (first argument). |
-| `predicted_risk` | The predicted risks of the patients in `data`: a vector, one per row (e.g. `df_val_binary$p_glm`), or the name of the column of `data` that holds them (`"p_glm"`). This is all the validation needs. Several models: a named list, several column names, or a data frame or matrix (see "Comparing models"). |
+| `predicted_risk` | The predicted risks of the patients in `data`: a vector, one per row (e.g. `df_val_binary$p_glm`), the name of the column of `data` that holds them (`"p_glm"`), or a fitted model. This is all the validation needs. Several models: a list of these (see "Comparing models"). |
 | `outcome` | The binary outcome: a column name (`"day30"`), a vector, or a formula (`~ day30`); 0/1, logical, or a two-level factor. |
 | `thresholds` | Risk thresholds in [0, 1). Default `seq(0, 0.99, by = 0.01)`. A patient is treated when the risk is at or above the threshold. |
 | `weights` | Optional case weights, one per patient (sampling weights, or a bootstrap draw). Only with the default prior. |
@@ -401,27 +415,30 @@ nb_val(data = df_val_binary, predicted_risk = df_val_binary$p_glm[-1], outcome =
 
 | Argument | What it does |
 |---|---|
-| `x`, `...` | One or more results of `nb_val()`. Results drawn together must come from the same data, outcome and thresholds (voipred checks this). |
+| `x`, `...` | A result of `nb_val()` (with one model or several). More results drawn together must come from the same data, outcome and thresholds (voipred checks this). |
 | `type` | `"nb"`: decision curve with Treat All and Treat None (default). `"delta"`: $\Delta NB$ of each model, with a dashed line at 0. |
-| `labels` | Names of the curves, one per result. Default: the `label` of each result. |
+| `labels` | Names of the curves, one per model. Default: the models' labels. |
+| `colors` | Optional colours of the curves: named by label (e.g. `c(Logistic = "darkred", "Treat All" = "grey50")`; the others keep theirs), or unnamed, one per model in order. By default a model has the same colour in every plot. |
+| `interactive` | `TRUE` for an interactive plot (needs the plotly package). |
 
 See `?plot.voipred_nb` for details. The plot is a ggplot object, so it can be
 changed with `+` or saved with `ggplot2::ggsave()`:
 
 ```{r plot-custom, message = FALSE}
-p <- plot(res_glm, res_rf, labels = c("Logistic regression", "Forest"))
+p <- plot(res_3, labels = c("Logistic regression", "Forest", "Bayesian"),
+          colors = c("Logistic regression" = "darkred", "Treat All" = "grey50"))
 p + ggplot2::coord_cartesian(xlim = c(0, 0.2), ylim = c(-0.005, 0.07))
 ```
 
 ## The model instead of the risks (optional)
 
-Instead of the risks, the fitted model can be given, as `model = fit_glm` or
-in place of the risks. voipred then predicts the risks from it itself, once,
-and every later step reuses them. The result is the same:
+Instead of the risks, the fitted model can be given as `predicted_risk`
+(alone, or as an element of a list). voipred then predicts the risks from it
+itself, once, and every later step reuses them. The result is the same:
 
 ```{r model-binary}
 res_glm_m <- nb_val(data = df_val_binary,
-                    model = fit_glm,
+                    predicted_risk = fit_glm,
                     outcome = "day30",
                     thresholds = seq(0, 0.30, by = 0.01),
                     label = "Logistic")
@@ -446,21 +463,35 @@ for.
 **With `predict_function`**: for any other model, give a function of
 `(model, newdata, horizon, cause)` that returns one predicted risk per row
 of `newdata`. voipred calls it once, with `newdata = data`; when given, it
-always replaces voipred's own route. An SVM, which voipred also handles by
-itself:
+always replaces voipred's own route. If voipred has no way to predict from
+a model and no function is given for it, `nb_val()` stops before predicting
+anything, naming the models. An SVM, which voipred also handles by itself:
 
 ```{r pf-binary}
 fit_svm <- e1071::svm(factor(day30) ~ age + Killip + sysbp + pulse, data = df_dev_binary,
                       probability = TRUE)
 vars <- c("age", "Killip", "sysbp", "pulse")
+predict_svm <- function(model, newdata, ...) {
+  pr <- predict(model, newdata[, vars], probability = TRUE)
+  attr(pr, "probabilities")[, "1"]
+}
 nb_val(data = df_val_binary,
-       model = fit_svm,
+       predicted_risk = fit_svm,
        outcome = "day30",
        thresholds = c(0.05, 0.1, 0.2),
-       predict_function = function(model, newdata, ...) {
-     pr <- predict(model, newdata[, vars], probability = TRUE)
-     attr(pr, "probabilities")[, "1"]
-       })
+       predict_function = predict_svm)
+```
+
+With several fitted models, one function is used for all of them, or give a
+list of functions named by the models they are for (the others use voipred's
+own routes):
+
+```{r pf-binary-several}
+nb_val(data = df_val_binary,
+       predicted_risk = list(SVM = fit_svm, Logistic = fit_glm, Forest = "p_rf"),
+       outcome = "day30",
+       thresholds = c(0.05, 0.1, 0.2),
+       predict_function = list(SVM = predict_svm))
 ```
 
 The risks from a model are checked like any others, and voipred also stops
@@ -469,18 +500,27 @@ when the model cannot give them:
 ```{r checks-model, error = TRUE}
 # a covariate is missing from the validation data
 nb_val(data = df_val_binary[, setdiff(names(df_val_binary), "sysbp")],
-       model = fit_glm,
+       predicted_risk = fit_glm,
        outcome = "day30")
 
 # a forest that only predicts classes (fitted without probability = TRUE)
 fit_class <- ranger::ranger(factor(day30) ~ age + Killip + sysbp + pulse,
                             data = df_dev_binary, num.trees = 100, seed = 1)
-nb_val(data = df_val_binary, model = fit_class, outcome = "day30")
+nb_val(data = df_val_binary, predicted_risk = fit_class, outcome = "day30")
 
 # predictions outside [0, 1] are not probabilities
 nb_val(data = df_val_binary,
-       model = lm(day30 ~ age + Killip, data = df_dev_binary),
+       predicted_risk = lm(day30 ~ age + Killip, data = df_dev_binary),
        outcome = "day30")
+
+# a kind of model voipred cannot predict from, without predict_function
+my_model <- structure(list(coef = 0.1), class = "my_model")
+nb_val(data = df_val_binary,
+       predicted_risk = list(Logistic = fit_glm, Mine = my_model),
+       outcome = "day30")
+
+# several models with c() instead of list()
+nb_val(data = df_val_binary, predicted_risk = c("p_glm", "p_rf"), outcome = "day30")
 ```
 
 # Part 2: survival outcome
@@ -601,15 +641,14 @@ fit_aft <- survreg(Surv(years, death) ~ age + size + nodes, data = df_dev_surviv
                    dist = "weibull")
 df_val_survival$p_aft <- as.vector(riskRegression::predictRisk(
   fit_aft, newdata = df_val_survival, times = 5))
-res_aft <- nb_val(data = df_val_survival,
-                  predicted_risk = df_val_survival$p_aft,
-                  outcome = ~ Surv(years, death),
-                  horizon = 5,
-                  thresholds = seq(0, 0.6, by = 0.01),
-                  label = "Weibull AFT")
-
-plot(res_cox, res_aft)
-plot(res_cox, res_aft, type = "delta")
+res_surv <- nb_val(data = df_val_survival,
+                   predicted_risk = list(Cox = "p_cox", `Weibull AFT` = "p_aft"),
+                   outcome = ~ Surv(years, death),
+                   horizon = 5,
+                   thresholds = seq(0, 0.6, by = 0.01))
+summary(res_surv, thresholds = c(0.1, 0.2, 0.3))
+plot(res_surv)
+plot(res_surv, type = "delta")
 ```
 
 ## Options of `nb_val()` for a survival outcome
@@ -783,14 +822,14 @@ same:
 
 ```{r model-survival}
 res_cox_m <- nb_val(data = df_val_survival,
-                    model = fit_cox,
+                    predicted_risk = fit_cox,
                     outcome = ~ Surv(years, death),
                     horizon = 5,
                     thresholds = seq(0, 0.6, by = 0.01),
                     label = "Cox")
 all.equal(res_cox_m$estimates, res_cox$estimates)
 res_csc_m <- nb_val(data = df_val_survival,
-                    model = fit_csc,
+                    predicted_risk = fit_csc,
                     outcome = ~ Surv(cr_time, cr_status),
                     horizon = 5,
                     cause = "recurrence",
@@ -822,7 +861,7 @@ censoring model can be given its own `predict_function` in the same way, in
 
 ```{r pf-survival}
 nb_val(data = df_val_survival,
-       model = fit_cox,
+       predicted_risk = fit_cox,
        outcome = ~ Surv(years, death),
        horizon = 5,
        thresholds = c(0.1, 0.2, 0.3),

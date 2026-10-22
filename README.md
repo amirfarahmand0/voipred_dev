@@ -29,12 +29,13 @@ The result is an object with `print()`, `summary()` and `plot()` methods:
 `plot()` draws the decision curve and the ΔNB curve, for one model or
 several together.
 
-- **Several models** are validated in one call, on the same patients: a
-  named list of risks (`predicted_risk = list(Full = val$p1, Age = val$p2)`),
-  several column names (`c(Full = "p1", Age = "p2")`), a data frame or
-  matrix with one column per model, or fitted models
-  (`model = list(Full = fit1, Age = fit2)`). Results computed separately can
-  be combined with `c(res1, res2)`.
+- **`predicted_risk`** takes, for one model, a vector of risks, the name of
+  the column that holds them, or the fitted model (voipred then predicts the
+  risks; any model works with `predict_function`). **Several models** are
+  validated in one call, on the same patients, as a list mixing these:
+  `predicted_risk = list(Full = fit1, Age = "p_age", Old = val$p_old)`.
+  Results computed separately can be combined with `c(res1, res2)`.
+- Plots take optional colours, by label: `plot(res, colors = c(Full = "darkred"))`.
 
 - Survival and competing-risks outcomes are evaluated at a time horizon, with
   Kaplan-Meier / Aalen-Johansen estimates or with conditional inverse
@@ -117,7 +118,7 @@ plot(res, evpi = e, evsi = o, interactive = TRUE)
 fit_age <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
 df_val_binary$p_age <- predict(fit_age, newdata = df_val_binary, type = "response")
 both <- nb_val(data = df_val_binary,
-               predicted_risk = c(Logistic = "p", `Age only` = "p_age"),
+               predicted_risk = list(Logistic = "p", `Age only` = fit_age),
                outcome = "day30",
                thresholds = seq(0.01, 0.3, by = 0.01))
 plot(both)
@@ -127,7 +128,7 @@ plot(e2, type = "p_best")
 
 # optional: the model instead of the risks
 nb_val(data = df_val_binary,
-       model = fit,
+       predicted_risk = fit,
        outcome = "day30")
 
 # optional prior information (binary outcome); the default uses the data only

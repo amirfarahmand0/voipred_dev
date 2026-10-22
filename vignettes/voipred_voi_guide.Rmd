@@ -83,30 +83,17 @@ df_val_binary$p_full <- predict(fit_full, newdata = df_val_binary, type = "respo
 df_val_binary$p_age  <- predict(fit_age, newdata = df_val_binary, type = "response")
 
 z <- seq(0.01, 0.30, by = 0.01)
-res_full <- nb_val(data = df_val_binary,
-                   predicted_risk = df_val_binary$p_full,
-                   outcome = "day30",
-                   thresholds = z,
-                   label = "Full")
-res_age  <- nb_val(data = df_val_binary,
-                   predicted_risk = df_val_binary$p_age,
-                   outcome = "day30",
-                   thresholds = z,
-                   label = "Age only")
-plot(res_full, res_age)
+# both models in one call (a list, one element per model)
+res_bin <- nb_val(data = df_val_binary,
+                  predicted_risk = list(Full = "p_full", `Age only` = "p_age"),
+                  outcome = "day30",
+                  thresholds = z)
+plot(res_bin)
 ```
 
-The two models can also be validated in one call, which gives the same
-result as the two calls (`c(res_full, res_age)`); the value-of-information
-functions take either:
-
-```{r data-binary-both}
-res_both <- nb_val(data = df_val_binary,
-                   predicted_risk = c(Full = "p_full", `Age only` = "p_age"),
-                   outcome = "day30",
-                   thresholds = z)
-all.equal(res_both$estimates, c(res_full, res_age)$estimates)
-```
+The value-of-information functions take this result and compare all its
+models; to analyse a different set of models, call `nb_val()` with those
+models.
 
 **Survival and competing risks.** Rotterdam breast cancer data: death by 5
 years (a Cox and a Weibull model), and recurrence by 5 years with death as a
@@ -146,18 +133,11 @@ df_val_survival$p_csc <- as.vector(riskRegression::predictRisk(
   fit_csc, newdata = df_val_survival, times = 5, cause = 1))
 
 zs <- seq(0.05, 0.60, by = 0.01)
-res_cox <- nb_val(data = df_val_survival,
-                  predicted_risk = df_val_survival$p_cox,
-                  outcome = ~ Surv(years, death),
-                  horizon = 5,
-                  thresholds = zs,
-                  label = "Cox")
-res_aft <- nb_val(data = df_val_survival,
-                  predicted_risk = df_val_survival$p_aft,
-                  outcome = ~ Surv(years, death),
-                  horizon = 5,
-                  thresholds = zs,
-                  label = "Weibull")
+res_surv <- nb_val(data = df_val_survival,
+                   predicted_risk = list(Cox = "p_cox", Weibull = "p_aft"),
+                   outcome = ~ Surv(years, death),
+                   horizon = 5,
+                   thresholds = zs)
 res_csc <- nb_val(data = df_val_survival,
                   predicted_risk = df_val_survival$p_csc,
                   outcome = ~ Surv(cr_time, cr_status),
@@ -223,15 +203,15 @@ models, `p_useful()` gives P(useful) of each.
 
 ```{r pu}
 set.seed(10)
-pu_full <- p_useful(res_full, n_sim = 5000)
+pu <- p_useful(res_bin, n_sim = 5000)
 ```
 
-**`print()`** gives the header (the model, the outcome, the number of
+**`print()`** gives the header (the models, the outcome, the number of
 patients, the prior and the number and kind of draws) and P(useful) at the
-first thresholds; `print(pu_full, n = 30)` shows more:
+first thresholds; `print(pu, n = 30)` shows more:
 
 ```{r pu-print}
-print(pu_full)
+print(pu)
 ```
 
 **`summary()`** gives the thresholds where the model is almost surely useful
@@ -239,42 +219,39 @@ print(pu_full)
 ($P < 0.5$); with `thresholds`, it also gives P(useful) at each of them:
 
 ```{r pu-summary}
-summary(pu_full)
-summary(pu_full, thresholds = c(0.05, 0.1, 0.2))
+summary(pu)
+summary(pu, thresholds = c(0.05, 0.1, 0.2))
 ```
 
 **`plot()`** draws P(useful) against the threshold, one curve per model,
-named by its label, in the colours of the decision curve. For two models:
+named by its label, in the colours of the decision curve (other names with
+`labels`, other colours with `colors`):
 
 ```{r pu-plot}
-set.seed(10)
-pu_both <- p_useful(res_both, n_sim = 5000)
-plot(pu_both)
-plot(pu_both, labels = c("Model A", "Model B"))   # other names
+plot(pu)
+plot(pu, labels = c("Model A", "Model B"), colors = c("darkred", "steelblue"))
 ```
 
 **Survival** works the same way:
 
 ```{r pu-survival}
 set.seed(11)
-pu_cox <- p_useful(res_cox, n_sim = 5000)
-print(pu_cox)
-summary(pu_cox)
-set.seed(11)
-pu_aft <- p_useful(res_aft, n_sim = 5000)
-plot(pu_cox, pu_aft)
+pu_surv <- p_useful(res_surv, n_sim = 5000)
+print(pu_surv)
+summary(pu_surv)
+plot(pu_surv)
 ```
 
 # P(best)
 
 The probability that each strategy (each model, treat all, treat none) has
 the highest net benefit. It compares the models with each other, so
-`p_best()` takes all the models together. Ties share the draw, so the
+`p_best()` takes the result with all the models. Ties share the draw, so the
 probabilities sum to 1 at each threshold.
 
 ```{r pb}
 set.seed(10)
-pb <- p_best(res_full, res_age, n_sim = 5000)
+pb <- p_best(res_bin, n_sim = 5000)
 ```
 
 **`print()`** gives the header and, at the first thresholds, one column per
@@ -321,7 +298,7 @@ best model now.
 
 ```{r evpi}
 set.seed(10)
-e <- evpi(res_full, res_age, n_sim = 5000)
+e <- evpi(res_bin, n_sim = 5000)
 ```
 
 **`print()`** gives the header and EVPI and relative EVPI at the first
@@ -365,10 +342,15 @@ plot(e, type = "p_useful")
 plot(e, type = "p_best")
 ```
 
-**Several results on one plot**, e.g. the full model validated on 500 and on
-2000 patients:
+**Several results on one plot**, e.g. the full model alone, validated on 500
+and on 2000 patients:
 
 ```{r evpi-samples}
+res_full <- nb_val(data = df_val_binary,
+                   predicted_risk = "p_full",
+                   outcome = "day30",
+                   thresholds = z,
+                   label = "Full")
 df_val_binary_2000 <- gusto[i[5001:7000], ]
 df_val_binary_2000$p_full <- predict(fit_full, newdata = df_val_binary_2000,
                                      type = "response")
@@ -426,20 +408,13 @@ data only. For a binary outcome, prior information can be added in `nb_val()`
 from that posterior. Results with different priors are not compared:
 
 ```{r evpi-prior}
-u_full <- nb_val(data = df_val_binary,
-                 predicted_risk = df_val_binary$p_full,
-                 outcome = "day30",
-                 thresholds = z,
-                 prior = nb_uniform(),
-                 label = "Full")
-u_age  <- nb_val(data = df_val_binary,
-                 predicted_risk = df_val_binary$p_age,
-                 outcome = "day30",
-                 thresholds = z,
-                 prior = nb_uniform(),
-                 label = "Age only")
+u_bin <- nb_val(data = df_val_binary,
+                predicted_risk = list(Full = "p_full", `Age only` = "p_age"),
+                outcome = "day30",
+                thresholds = z,
+                prior = nb_uniform())
 set.seed(30)
-summary(evpi(u_full, u_age, n_sim = 5000), thresholds = c(0.02, 0.05, 0.1, 0.2))
+summary(evpi(u_bin, n_sim = 5000), thresholds = c(0.02, 0.05, 0.1, 0.2))
 ```
 
 # EVSI
@@ -454,7 +429,7 @@ resampled current patient, with the same follow-up).
 
 ```{r evsi}
 set.seed(20)
-o <- evsi(res_full, res_age, future_n = c(250, 500, 1000, 2000, 4000), n_sim = 5000)
+o <- evsi(res_bin, future_n = c(250, 500, 1000, 2000, 4000), n_sim = 5000)
 ```
 
 **`print()`** gives the header and, at the first thresholds, EVPI and the
@@ -489,7 +464,7 @@ EVSI is about 0 there.
 
 ```{r evsi-survival}
 set.seed(41)
-o_s <- evsi(res_cox, res_aft, future_n = c(500, 1000, 2000, 4000), n_sim = 5000)
+o_s <- evsi(res_surv, future_n = c(500, 1000, 2000, 4000), n_sim = 5000)
 print(o_s)
 summary(o_s)
 plot(o_s, thresholds = c(0.1, 0.2, 0.3))
@@ -503,7 +478,7 @@ sample size). Thresholds made with `seq()` are not exact decimals (0.1 is
 stored as 0.1000000000000000055), so select a threshold with `round()`:
 
 ```{r extract}
-d_pu <- as.data.frame(pu_full)
+d_pu <- as.data.frame(pu)
 d_pu[round(d_pu$threshold, 2) == 0.1, ]                     # P(useful) at 0.1
 
 d_pb <- as.data.frame(pb)
@@ -523,9 +498,9 @@ curve, on the same threshold axis (without `evpi`, the panel takes the EVPI
 of the `evsi()` result):
 
 ```{r dca-voi, fig.height = 6.5}
-plot(res_full, res_age, evpi = e, evsi = o)
-plot(res_full, res_age, type = "delta", evpi = e)
-plot(res_cox, res_aft, evsi = o_s)
+plot(res_bin, evpi = e, evsi = o)
+plot(res_bin, type = "delta", evpi = e)
+plot(res_surv, evsi = o_s)
 ```
 
 # Interactive plots
@@ -534,22 +509,24 @@ Every plot takes `interactive = TRUE` for a plotly version: hovering shows
 the values of all the curves, and clicking a legend entry hides a curve.
 
 ```{r interactive, fig.height = 6.5}
-plot(pu_both, interactive = TRUE)
+plot(pu, interactive = TRUE)
 plot(o, thresholds = c(0.02, 0.05, 0.1, 0.2), interactive = TRUE)
-plot(res_full, res_age, evpi = e, evsi = o, interactive = TRUE)
+plot(res_bin, evpi = e, evsi = o, interactive = TRUE)
 ```
 
 # Checks
 
 ```{r checks, error = TRUE}
-evpi(res_full, n_sim = 1)                     # at least 2 draws
-evpi(res_full, res_cox)                       # results that cannot be compared
-evpi(res_full, u_age)                         # different priors
-evpi(as.data.frame(res_full))                 # not a result of nb_val()
-evsi(res_full)                                # future_n is required
+evpi(res_bin, n_sim = 1)                      # at least 2 draws
+evpi(res_bin, res_surv)                       # results that cannot be compared
+evpi(res_bin, u_bin,                          # different priors
+     labels = c("Full", "Age", "Full (uniform)", "Age (uniform)"))
+evpi(as.data.frame(res_bin))                  # not a result of nb_val()
+evsi(res_bin)                                 # future_n is required
 plot(o, thresholds = 0.055)                   # not a threshold of the result
-p_useful(res_both, labels = "a")              # one label per model
-plot(res_full, evpi = pu_full)                # evpi = must be a result of evpi()
+p_useful(res_bin, labels = "a")               # one label per model
+plot(res_bin, evpi = pu)                      # evpi = must be a result of evpi()
+plot(res_bin, colors = c(Nope = "red"))       # colours named by label
 ```
 
 # References
