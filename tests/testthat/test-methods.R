@@ -20,8 +20,8 @@ test_that("nb_val() returns a list with its parts, not attributes", {
   r <- s$r1
   expect_s3_class(r, "voipred_nb")
   expect_type(r, "list")
-  expect_named(r, c("call", "models", "estimates", "prior", "outcome", "risk", "observed",
-                    "weights", "counts", "cipcw"))
+  expect_named(r, c("call", "models", "estimates", "prior", "prior_shapes", "outcome", "risk",
+                    "observed", "weights", "counts", "cipcw"))
   expect_null(attributes(r$estimates)$voi)
   expect_equal(r$outcome$type, "binary")
   expect_equal(r$outcome$n, 500)

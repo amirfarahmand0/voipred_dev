@@ -36,8 +36,9 @@
 #'   and specificity priors change with the threshold; for small effective
 #'   sample sizes (see its help page).
 #'
-#' All these priors except [nb_informative()] are the same at every threshold;
-#' [prior_shapes()] gives the shapes at each threshold.
+#' All these priors except [nb_informative()] are the same at every threshold.
+#' For a binary outcome, the result of [nb_val()] holds the prior shapes used
+#' at each of its thresholds (`prior_shapes`).
 #'
 #' With the improper prior, a posterior is degenerate where a count is 0 (e.g.
 #' no patient with the event is left untreated at a threshold): it is then the
@@ -158,14 +159,15 @@ nb_jeffreys <- function() nb_beta(c(0.5, 0.5), c(0.5, 0.5), c(0.5, 0.5))
 #' @seealso [nb_priors], [nb_val()]
 #' @examples
 #' nb_informative()
-#' # the prior shapes it gives at some thresholds
-#' prior_shapes(nb_informative(), seq(0, 0.5, by = 0.1))
 #' df_dev <- gusto[1:5000, ]
 #' df_val <- gusto[5001:5500, ]
 #' fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = df_dev)
 #' df_val$p <- predict(fit, newdata = df_val, type = "response")
-#' nb_val(df_val, "p", "day30", thresholds = seq(0, 0.3, by = 0.01),
-#'        prior = nb_informative())
+#' res <- nb_val(df_val, "p", "day30", thresholds = seq(0, 0.3, by = 0.01),
+#'               prior = nb_informative())
+#' res
+#' # the prior used at each threshold
+#' res$prior_shapes[c(1, 6, 11, 16, 21, 26, 31), ]
 #' @export
 nb_informative <- function(sensitivity = c(0.99, 0.01), strength = 5,
                            ignorance = c(0.25, 0.75), ignorance_prior = c(1, 1),
@@ -198,22 +200,10 @@ nb_informative <- function(sensitivity = c(0.99, 0.01), strength = 5,
             class = "nb_prior")
 }
 
-#' The Beta prior shapes at each threshold
-#'
-#' The shapes \eqn{(a, b)} of the Beta priors of the prevalence and, at each
-#' threshold, of the sensitivity and specificity, as [nb_val()] uses them for
-#' a prior (the same at every threshold, except for [nb_informative()]).
-#'
-#' @param prior A prior: [nb_improper()], [nb_uniform()], [nb_jeffreys()],
-#'   [nb_beta()] or [nb_informative()].
-#' @param thresholds The thresholds (as given to [nb_val()]).
-#' @return A data frame with one row per threshold: `threshold`, and the
-#'   shapes `se_a`, `se_b`, `sp_a`, `sp_b`, `prev_a`, `prev_b`.
-#' @seealso [nb_informative()], [nb_priors]
-#' @examples
-#' prior_shapes(nb_uniform(), c(0.05, 0.1))
-#' prior_shapes(nb_informative(), seq(0, 0.5, by = 0.05))
-#' @export
+# The shapes (a, b) of the Beta priors of the prevalence and, at each threshold,
+# of the sensitivity and specificity, as nb_val() uses them: a data frame with
+# one row per threshold (threshold, se_a, se_b, sp_a, sp_b, prev_a, prev_b).
+# Stored in the result of nb_val() (binary outcome) as `prior_shapes`.
 prior_shapes <- function(prior, thresholds) {
   if (!inherits(prior, "nb_prior"))
     stop("`prior` must be a prior, e.g. nb_informative().", call. = FALSE)

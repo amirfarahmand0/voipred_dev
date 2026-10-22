@@ -633,8 +633,9 @@ d_glm[round(d_glm$threshold, 2) == 0.1, ]       # the net benefit at threshold 0
 e.g. the predicted risks, the outcome, and the counts of true and false
 positives and negatives at each threshold:</p>
 <pre class="r"><code>names(res_glm)
-#&gt;  [1] &quot;call&quot;      &quot;models&quot;    &quot;estimates&quot; &quot;prior&quot;     &quot;outcome&quot;   &quot;risk&quot;     
-#&gt;  [7] &quot;observed&quot;  &quot;weights&quot;   &quot;counts&quot;    &quot;cipcw&quot;
+#&gt;  [1] &quot;call&quot;         &quot;models&quot;       &quot;estimates&quot;    &quot;prior&quot;        &quot;prior_shapes&quot;
+#&gt;  [6] &quot;outcome&quot;      &quot;risk&quot;         &quot;observed&quot;     &quot;weights&quot;      &quot;counts&quot;      
+#&gt; [11] &quot;cipcw&quot;
 head(res_glm$risk)
 #&gt;         Logistic
 #&gt; [1,] 0.098865605
@@ -1024,18 +1025,11 @@ is genuinely available, such as the prevalence in earlier studies of the
 same population.</li>
 </ul>
 <p>Reporting the results with and without the prior shows how much it
-matters. <code>prior_shapes()</code> shows the prior at each
-threshold:</p>
-<pre class="r"><code>prior_shapes(nb_informative(), seq(0, 0.30, by = 0.05))
-#&gt;   threshold se_a se_b sp_a sp_b prev_a prev_b
-#&gt; 1      0.00 4.95 0.05 0.05 4.95      1      1
-#&gt; 2      0.05 1.99 1.01 1.01 1.99      1      1
-#&gt; 3      0.10 1.00 1.00 1.00 1.00      1      1
-#&gt; 4      0.15 1.00 1.00 1.00 1.00      1      1
-#&gt; 5      0.20 1.00 1.00 1.00 1.00      1      1
-#&gt; 6      0.25 1.01 1.99 1.99 1.01      1      1
-#&gt; 7      0.30 0.05 4.95 4.95 0.05      1      1
-res_glm_inf &lt;- nb_val(data = df_val_binary,
+matters. The result keeps the prior used at each threshold, as the
+shapes <span class="math inline">\((a, b)\)</span> of the Beta priors
+(<code>se_</code>: sensitivity, <code>sp_</code>: specificity,
+<code>prev_</code>: prevalence):</p>
+<pre class="r"><code>res_glm_inf &lt;- nb_val(data = df_val_binary,
                       predicted_risk = df_val_binary$p_glm,
                       outcome = &quot;day30&quot;,
                       thresholds = seq(0, 0.30, by = 0.01),
@@ -1055,7 +1049,16 @@ res_glm_inf
 #&gt;       0.07  0.02942 -0.00067  0.0000  0.02942
 #&gt;       0.08  0.02721 -0.01155  0.0000  0.02721
 #&gt;       0.09  0.02553 -0.02267  0.0000  0.02553
-#&gt; # 21 more rows; use summary() or as.data.frame()</code></pre>
+#&gt; # 21 more rows; use summary() or as.data.frame()
+res_glm_inf$prior_shapes[c(1, 6, 11, 16, 21, 26, 31), ]
+#&gt;    threshold se_a se_b sp_a sp_b prev_a prev_b
+#&gt; 1       0.00 4.95 0.05 0.05 4.95      1      1
+#&gt; 6       0.05 1.99 1.01 1.01 1.99      1      1
+#&gt; 11      0.10 1.00 1.00 1.00 1.00      1      1
+#&gt; 16      0.15 1.00 1.00 1.00 1.00      1      1
+#&gt; 21      0.20 1.00 1.00 1.00 1.00      1      1
+#&gt; 26      0.25 1.01 1.99 1.99 1.01      1      1
+#&gt; 31      0.30 0.05 4.95 4.95 0.05      1      1</code></pre>
 <p>With 5000 patients the informative prior changes the net benefit very
 little; it matters with few patients near the thresholds of
 interest.</p>

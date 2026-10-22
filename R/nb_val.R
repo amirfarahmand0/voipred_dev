@@ -255,6 +255,10 @@
 #'     \eqn{NB_{model} - \max(NB_{all}, NB_{none})}: positive where the model
 #'     is useful;
 #'   * `models` (the labels of the models), `call` and `prior`;
+#'   * `prior_shapes` (binary outcome): the shapes \eqn{(a, b)} of the Beta
+#'     priors used at each threshold, for the sensitivity and specificity
+#'     (`se_a`, `se_b`, `sp_a`, `sp_b`) and the prevalence (`prev_a`,
+#'     `prev_b`): the same at every threshold, except for [nb_informative()];
 #'   * `outcome`: the outcome type (`"binary"`, `"survival"` or
 #'     `"competing"`), the number of patients `n`, the `prevalence` (binary:
 #'     the posterior mean event rate; survival: the estimated risk of the
@@ -492,6 +496,7 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
   est$delta_NB <- est$NB_model - pmax(est$NB_all, 0)
   rownames(est) <- NULL
   structure(list(call = call, models = labels, estimates = est, prior = prior,
+                 prior_shapes = if (info$type == "binary") prior_shapes(prior, thresholds),
                  outcome = outcome_info, risk = P, observed = observed, weights = w,
                  counts = counts, cipcw = cw),
             class = "voipred_nb")

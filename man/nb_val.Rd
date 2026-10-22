@@ -142,6 +142,10 @@ model and the best default strategy,
 \eqn{NB_{model} - \max(NB_{all}, NB_{none})}: positive where the model
 is useful;
 \item \code{models} (the labels of the models), \code{call} and \code{prior};
+\item \code{prior_shapes} (binary outcome): the shapes \eqn{(a, b)} of the Beta
+priors used at each threshold, for the sensitivity and specificity
+(\code{se_a}, \code{se_b}, \code{sp_a}, \code{sp_b}) and the prevalence (\code{prev_a},
+\code{prev_b}): the same at every threshold, except for \code{\link[=nb_informative]{nb_informative()}};
 \item \code{outcome}: the outcome type (\code{"binary"}, \code{"survival"} or
 \code{"competing"}), the number of patients \code{n}, the \code{prevalence} (binary:
 the posterior mean event rate; survival: the estimated risk of the

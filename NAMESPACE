@@ -73,7 +73,6 @@ export(nb_uniform)
 export(nb_val)
 export(p_best)
 export(p_useful)
-export(prior_shapes)
 importFrom(Rcpp,sourceCpp)
 importFrom(ggplot2,
   .data,

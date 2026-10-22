@@ -81,14 +81,15 @@ little.
 }
 \examples{
 nb_informative()
-# the prior shapes it gives at some thresholds
-prior_shapes(nb_informative(), seq(0, 0.5, by = 0.1))
 df_dev <- gusto[1:5000, ]
 df_val <- gusto[5001:5500, ]
 fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = df_dev)
 df_val$p <- predict(fit, newdata = df_val, type = "response")
-nb_val(df_val, "p", "day30", thresholds = seq(0, 0.3, by = 0.01),
-       prior = nb_informative())
+res <- nb_val(df_val, "p", "day30", thresholds = seq(0, 0.3, by = 0.01),
+              prior = nb_informative())
+res
+# the prior used at each threshold
+res$prior_shapes[c(1, 6, 11, 16, 21, 26, 31), ]
 }
 \references{
 Cruz GNF, Korthauer K. Bayesian decision curve analysis with

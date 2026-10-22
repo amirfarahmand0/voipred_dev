@@ -151,3 +151,21 @@ test_that("nb_informative() checks its inputs and where it can be used", {
                "nb_informative\\(\\)")
   expect_error(prior_shapes(list(), 0.1), "must be a prior")
 })
+
+test_that("the prior shapes are kept in the result; prior_shapes() is internal", {
+  g <- gusto_split()
+  v <- g$val[1:300, ]
+  v$p <- 0.05 + 0.4 * (v$age - min(v$age)) / diff(range(v$age))
+  z <- seq(0, 0.4, by = 0.05)
+  res <- nb_val(v, "p", "day30", thresholds = z, prior = nb_informative())
+  expect_equal(res$prior_shapes, prior_shapes(nb_informative(), z))
+  expect_equal(res$prior_shapes$threshold, z)
+  # the default: Beta(0, 0) everywhere
+  expect_true(all(nb_val(v, "p", "day30", thresholds = z)$prior_shapes[, -1] == 0))
+  # survival outcomes: no Beta priors
+  s <- rott_split()
+  s$val$p <- 0.3
+  s$val$p[1:10] <- 0.5
+  expect_null(nb_val(s$val, "p", surv_outcome, horizon = 5, thresholds = 0.2)$prior_shapes)
+  expect_false("prior_shapes" %in% getNamespaceExports("voipred.dev"))
+})

@@ -484,10 +484,11 @@ Two options:
   the prevalence in earlier studies of the same population.
 
 Reporting the results with and without the prior shows how much it matters.
-`prior_shapes()` shows the prior at each threshold:
+The result keeps the prior used at each threshold, as the shapes $(a, b)$
+of the Beta priors (`se_`: sensitivity, `sp_`: specificity, `prev_`:
+prevalence):
 
 ```{r prior-informative}
-prior_shapes(nb_informative(), seq(0, 0.30, by = 0.05))
 res_glm_inf <- nb_val(data = df_val_binary,
                       predicted_risk = df_val_binary$p_glm,
                       outcome = "day30",
@@ -495,6 +496,7 @@ res_glm_inf <- nb_val(data = df_val_binary,
                       prior = nb_informative(),
                       label = "Logistic")
 res_glm_inf
+res_glm_inf$prior_shapes[c(1, 6, 11, 16, 21, 26, 31), ]
 ```
 
 With 5000 patients the informative prior changes the net benefit very

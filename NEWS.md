@@ -41,8 +41,8 @@
 * `nb_informative()`: the informative prior of bayesDCA, whose priors on the
   sensitivity and specificity change with the threshold (binary outcomes),
   as `nb_val(prior = nb_informative())`, with bayesDCA's defaults; its shapes
-  match bayesDCA's exactly. `prior_shapes()` gives the prior shapes of any
-  prior at each threshold.
+  match bayesDCA's exactly. For a binary outcome, the result of `nb_val()`
+  holds the prior shapes used at each threshold (`prior_shapes`).
 * Plots take optional colours, by label or in order: `colors =`.
 * Clear messages when plotly (interactive plots) or patchwork (stacked
   panels) is not installed, with how to install them.

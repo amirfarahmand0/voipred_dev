@@ -56,8 +56,9 @@ and specificity priors change with the threshold; for small effective
 sample sizes (see its help page).
 }
 
-All these priors except \code{\link[=nb_informative]{nb_informative()}} are the same at every threshold;
-\code{\link[=prior_shapes]{prior_shapes()}} gives the shapes at each threshold.
+All these priors except \code{\link[=nb_informative]{nb_informative()}} are the same at every threshold.
+For a binary outcome, the result of \code{\link[=nb_val]{nb_val()}} holds the prior shapes used
+at each of its thresholds (\code{prior_shapes}).
 
 With the improper prior, a posterior is degenerate where a count is 0 (e.g.
 no patient with the event is left untreated at a threshold): it is then the
