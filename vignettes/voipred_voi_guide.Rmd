@@ -224,9 +224,27 @@ guide uses `n_sim = 5000`.
 threshold (typically at very low or very high thresholds), the data say
 little there, and the VoI measures can behave unexpectedly; for example,
 EVPI may not decrease steadily as the sample size grows (Sadatsafavi et al.,
-2023). Interpret them with care at such thresholds. Prior information is one
-way to stabilise the estimates (Cruz and Korthauer, 2025; see "The prior" in
-the net benefit guide).
+2023). Interpret them with care at such thresholds. For a binary outcome,
+the informative prior of bayesDCA, `nb_val(..., prior = nb_informative())`,
+is designed for this situation and kept EVPI decreasing with the sample size
+in the study of Cruz and Korthauer (2025); see "The prior" in the net
+benefit guide. Comparing EVPI with the default prior and with it shows how
+much the prior matters:
+
+```{r evpi-informative}
+inf_bin <- nb_val(data = df_val_binary,
+                  predicted_risk = list(Full = "p_full", `Age only` = "p_age"),
+                  outcome = "day30",
+                  thresholds = z,
+                  prior = nb_informative())
+set.seed(60)
+e_default <- evpi(res_bin, n_sim = 5000)
+set.seed(60)
+e_informative <- evpi(inf_bin, n_sim = 5000)
+round(data.frame(threshold = z,
+                 default = e_default$estimates$EVPI,
+                 informative = e_informative$estimates$EVPI)[c(1, 2, 5, 10, 20, 30), ], 5)
+```
 
 The arguments the four functions share:
 

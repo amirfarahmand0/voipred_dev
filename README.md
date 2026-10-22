@@ -138,6 +138,14 @@ res_u <- nb_val(data = df_val_binary,
                 thresholds = seq(0.01, 0.3, by = 0.01),
                 prior = nb_uniform())
 evpi(res_u)
+
+# small effective sample sizes: the informative prior of bayesDCA, whose
+# sensitivity and specificity priors change with the threshold
+res_i <- nb_val(data = df_val_binary,
+                predicted_risk = df_val_binary$p,
+                outcome = "day30",
+                thresholds = seq(0.01, 0.3, by = 0.01),
+                prior = nb_informative())
 ```
 
 ## Documentation

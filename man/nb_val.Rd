@@ -100,8 +100,11 @@ Only with the improper prior.}
 \item{prior}{The prior (see "Prior" and \link{nb_priors}). Default
 \code{\link[=nb_improper]{nb_improper()}}: no prior information, the data only, which gives the
 usual net benefit. For a binary outcome, prior information can be added
-with \code{\link[=nb_uniform]{nb_uniform()}}, \code{\link[=nb_jeffreys]{nb_jeffreys()}} or your own Beta priors with
-\code{\link[=nb_beta]{nb_beta()}}. Survival and competing-risks outcomes: only \code{\link[=nb_improper]{nb_improper()}}.}
+with \code{\link[=nb_uniform]{nb_uniform()}}, \code{\link[=nb_jeffreys]{nb_jeffreys()}}, your own Beta priors with
+\code{\link[=nb_beta]{nb_beta()}}, or \code{\link[=nb_informative]{nb_informative()}} (bayesDCA's informative prior, whose
+sensitivity and specificity priors change with the threshold; for small
+effective sample sizes). Survival and competing-risks outcomes: only
+\code{\link[=nb_improper]{nb_improper()}}.}
 
 \item{predict_function}{Optional, for fitted models only: a
 \verb{function(model, newdata, horizon, cause)}
@@ -215,7 +218,8 @@ it uses no prior information: with the improper prior \code{\link[=nb_improper]{
 (Beta(0, 0)) only the data are used, and the net benefit is exactly the
 usual one, \eqn{TP/n - FP/n \cdot z/(1-z)}. For a binary outcome, prior
 information can be added with another prior (\code{\link[=nb_uniform]{nb_uniform()}},
-\code{\link[=nb_jeffreys]{nb_jeffreys()}}, or your own with \code{\link[=nb_beta]{nb_beta()}}; see \link{nb_priors}): the
+\code{\link[=nb_jeffreys]{nb_jeffreys()}}, your own with \code{\link[=nb_beta]{nb_beta()}}, or bayesDCA's threshold-varying
+informative prior \code{\link[=nb_informative]{nb_informative()}}; see \link{nb_priors}): the
 prevalence \eqn{\pi} and, at each threshold, the sensitivity \eqn{Se}
 and specificity \eqn{Sp} of the model then have Beta priors, updated with
 the validation data (as in bayesDCA), and the net benefit columns are the

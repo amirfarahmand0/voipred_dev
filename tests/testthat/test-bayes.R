@@ -58,11 +58,12 @@ test_that("several models are drawn jointly, each keeping its own posterior", {
     })
     names(rs) <- c("", "", "Full again")
     s2 <- bayes_setup(do.call(c, rs))
-    for (m in 1:3) {
-      expect_equal(sum(s2$alpha1[s2$pos[, m]]), pp$sensitivity[1])
-      expect_equal(sum(s2$alpha1[!s2$pos[, m]]), pp$sensitivity[2])
-      expect_equal(sum(s2$alpha0[!s2$pos[, m]]), pp$specificity[1])
-      expect_equal(sum(s2$alpha0[s2$pos[, m]]), pp$specificity[2])
+    # the Dirichlet prior has one row per threshold (the same for these priors)
+    for (j in seq_len(nrow(s2$alpha1))) for (m in 1:3) {
+      expect_equal(sum(s2$alpha1[j, s2$pos[, m]]), pp$sensitivity[1])
+      expect_equal(sum(s2$alpha1[j, !s2$pos[, m]]), pp$sensitivity[2])
+      expect_equal(sum(s2$alpha0[j, !s2$pos[, m]]), pp$specificity[1])
+      expect_equal(sum(s2$alpha0[j, s2$pos[, m]]), pp$specificity[2])
     }
   }
   # so the draws of each model have its posterior mean and spread

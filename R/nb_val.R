@@ -49,7 +49,8 @@
 #' (Beta(0, 0)) only the data are used, and the net benefit is exactly the
 #' usual one, \eqn{TP/n - FP/n \cdot z/(1-z)}. For a binary outcome, prior
 #' information can be added with another prior ([nb_uniform()],
-#' [nb_jeffreys()], or your own with [nb_beta()]; see [nb_priors]): the
+#' [nb_jeffreys()], your own with [nb_beta()], or bayesDCA's threshold-varying
+#' informative prior [nb_informative()]; see [nb_priors]): the
 #' prevalence \eqn{\pi} and, at each threshold, the sensitivity \eqn{Se}
 #' and specificity \eqn{Sp} of the model then have Beta priors, updated with
 #' the validation data (as in bayesDCA), and the net benefit columns are the
@@ -216,8 +217,11 @@
 #' @param prior The prior (see "Prior" and [nb_priors]). Default
 #'   [nb_improper()]: no prior information, the data only, which gives the
 #'   usual net benefit. For a binary outcome, prior information can be added
-#'   with [nb_uniform()], [nb_jeffreys()] or your own Beta priors with
-#'   [nb_beta()]. Survival and competing-risks outcomes: only [nb_improper()].
+#'   with [nb_uniform()], [nb_jeffreys()], your own Beta priors with
+#'   [nb_beta()], or [nb_informative()] (bayesDCA's informative prior, whose
+#'   sensitivity and specificity priors change with the threshold; for small
+#'   effective sample sizes). Survival and competing-risks outcomes: only
+#'   [nb_improper()].
 #' @param predict_function Optional, for fitted models only: a
 #'   `function(model, newdata, horizon, cause)`
 #'   that returns the predicted risks, used instead of the automatic routes
@@ -1028,8 +1032,8 @@ given_risk <- function(risk, data, label = NULL) {
 
 check_prior <- function(prior, info, weights) {
   if (!inherits(prior, "nb_prior"))
-    stop("`prior` must be nb_improper(), nb_uniform(), nb_jeffreys() or nb_beta().",
-         call. = FALSE)
+    stop("`prior` must be nb_improper(), nb_uniform(), nb_jeffreys(), nb_beta() or ",
+         "nb_informative().", call. = FALSE)
   if (prior$type == "improper") return(invisible())
   if (info$type != "binary")
     stop("For survival and competing-risks outcomes the prior is nb_improper() ",

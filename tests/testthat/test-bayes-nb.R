@@ -115,7 +115,7 @@ test_that("priors are checked", {
   expect_equal(pr$sensitivity, c(0, 0))
   expect_equal(pr$specificity, c(0, 0))
   expect_error(nb_val(val, p, "day30", prior = c(1, 1)),
-               "nb_improper\\(\\), nb_uniform\\(\\), nb_jeffreys\\(\\) or nb_beta")
+               "nb_improper\\(\\), nb_uniform\\(\\), nb_jeffreys\\(\\), nb_beta\\(\\) or nb_informative")
   expect_error(nb_val(val, p, "day30", prior = nb_uniform(), weights = rep(1, nrow(val))),
                "Case weights can only be used with the improper prior")
   expect_error(nb_val(val, p, "day30", bayesian = TRUE), "unused argument")

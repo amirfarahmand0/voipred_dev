@@ -49,9 +49,15 @@ benefit is the usual Kaplan-Meier, Aalen-Johansen or cIPCW estimate.
 \item \code{nb_uniform()}: Beta(1, 1) for all three, as in bayesDCA (binary outcome).
 \item \code{nb_jeffreys()}: Jeffreys prior, Beta(1/2, 1/2) for all three.
 \item \code{nb_beta()}: Beta priors with the shapes you give, e.g. an informative
-prior on the prevalence from earlier studies. The other priors are
+prior on the prevalence from earlier studies. The priors above are
 special cases of it.
+\item \code{\link[=nb_informative]{nb_informative()}}: the informative prior of bayesDCA, whose sensitivity
+and specificity priors change with the threshold; for small effective
+sample sizes (see its help page).
 }
+
+All these priors except \code{\link[=nb_informative]{nb_informative()}} are the same at every threshold;
+\code{\link[=prior_shapes]{prior_shapes()}} gives the shapes at each threshold.
 
 With the improper prior, a posterior is degenerate where a count is 0 (e.g.
 no patient with the event is left untreated at a threshold): it is then the

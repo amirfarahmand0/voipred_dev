@@ -38,6 +38,11 @@
   `p_best(e)`, `plot(e, type = "p_useful")` and `plot(e, type = "p_best")`;
   `summary(e)` gives the probability that the strategy that is best now is
   the best. `p_useful()` takes several models.
+* `nb_informative()`: the informative prior of bayesDCA, whose priors on the
+  sensitivity and specificity change with the threshold (binary outcomes),
+  as `nb_val(prior = nb_informative())`, with bayesDCA's defaults; its shapes
+  match bayesDCA's exactly. `prior_shapes()` gives the prior shapes of any
+  prior at each threshold.
 * Plots take optional colours, by label or in order: `colors =`.
 * Clear messages when plotly (interactive plots) or patchwork (stacked
   panels) is not installed, with how to install them.

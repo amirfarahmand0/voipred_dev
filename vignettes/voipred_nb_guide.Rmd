@@ -466,9 +466,39 @@ when the effective sample size is small, for example when most predicted
 risks are on one side of a threshold, so that few patients are treated (or
 untreated) there (Cruz and Korthauer, 2025). There the data say little, and
 estimates, including the value-of-information measures, can be unstable.
-Prior information that is genuinely available, such as the prevalence in
-earlier studies of the same population, can be added with `nb_beta()`;
-reporting the results with and without it shows how much it matters.
+Two options:
+
+- **`nb_informative()`**, the informative prior of bayesDCA (Cruz and
+  Korthauer, 2025), needs no input. Every model treats everyone at a
+  threshold of 0 (sensitivity 1, specificity 0) and no one at a threshold
+  above all predicted risks (sensitivity 0, specificity 1); near the ends of
+  the decision curve, where the data say little, this prior states with
+  little weight that the model behaves like treat all at the lowest
+  threshold and like treat none at the highest, and it stays vague in
+  between. Its priors on the sensitivity and specificity therefore change
+  with the threshold; the prevalence has a uniform prior. In their study, it
+  kept EVPI decreasing with the sample size in small samples, where it
+  otherwise may not. It is for binary outcomes only, and the prior at a
+  threshold depends on the range of thresholds given to `nb_val()`.
+- **`nb_beta()`** adds prior information that is genuinely available, such as
+  the prevalence in earlier studies of the same population.
+
+Reporting the results with and without the prior shows how much it matters.
+`prior_shapes()` shows the prior at each threshold:
+
+```{r prior-informative}
+prior_shapes(nb_informative(), seq(0, 0.30, by = 0.05))
+res_glm_inf <- nb_val(data = df_val_binary,
+                      predicted_risk = df_val_binary$p_glm,
+                      outcome = "day30",
+                      thresholds = seq(0, 0.30, by = 0.01),
+                      prior = nb_informative(),
+                      label = "Logistic")
+res_glm_inf
+```
+
+With 5000 patients the informative prior changes the net benefit very
+little; it matters with few patients near the thresholds of interest.
 
 ## Why a Bayesian framework, and what it asks of you
 

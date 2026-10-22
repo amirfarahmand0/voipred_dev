@@ -67,11 +67,13 @@ export(evpi)
 export(evsi)
 export(nb_beta)
 export(nb_improper)
+export(nb_informative)
 export(nb_jeffreys)
 export(nb_uniform)
 export(nb_val)
 export(p_best)
 export(p_useful)
+export(prior_shapes)
 importFrom(Rcpp,sourceCpp)
 importFrom(ggplot2,
   .data,
