@@ -8,7 +8,7 @@
 \alias{nb_jeffreys}
 \title{Priors for the net benefit}
 \usage{
-nb_beta(prevalence = c(1, 1), sensitivity = c(1, 1), specificity = c(1, 1))
+nb_beta(prevalence = c(0, 0), sensitivity = c(0, 0), specificity = c(0, 0))
 
 nb_improper()
 
@@ -19,7 +19,10 @@ nb_jeffreys()
 \arguments{
 \item{prevalence, sensitivity, specificity}{The two shape parameters
 \eqn{(a, b)} of each Beta prior, non-negative numbers: prior mean
-\eqn{a / (a + b)}, worth \eqn{a + b} patients. Default Beta(1, 1).}
+\eqn{a / (a + b)}, worth \eqn{a + b} patients. Default Beta(0, 0): no
+prior information, so only the parts you give carry prior information
+(e.g. \code{nb_beta(prevalence = c(7, 93))} adds information on the
+prevalence only); \code{nb_beta()} is \code{nb_improper()}.}
 }
 \value{
 A prior, an object of class \code{nb_prior}.

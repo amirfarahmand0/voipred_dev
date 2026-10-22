@@ -108,7 +108,12 @@ test_that("priors are checked", {
   expect_output(print(nb_uniform()), "^Prior: uniform, Beta\\(1, 1\\)")
   expect_output(print(nb_jeffreys()), "^Prior: Jeffreys, Beta\\(0.5, 0.5\\)")
   expect_output(print(nb_beta(prevalence = c(7, 93))),
-                "Prior: Beta: prevalence Beta\\(7, 93\\), sensitivity Beta\\(1, 1\\)")
+                "Prior: Beta: prevalence Beta\\(7, 93\\), sensitivity Beta\\(0, 0\\)")
+  # the parts not given carry no prior information (Beta(0, 0))
+  expect_identical(nb_beta(), nb_improper())
+  pr <- nb_beta(prevalence = c(7, 93))
+  expect_equal(pr$sensitivity, c(0, 0))
+  expect_equal(pr$specificity, c(0, 0))
   expect_error(nb_val(val, p, "day30", prior = c(1, 1)),
                "nb_improper\\(\\), nb_uniform\\(\\), nb_jeffreys\\(\\) or nb_beta")
   expect_error(nb_val(val, p, "day30", prior = nb_uniform(), weights = rep(1, nrow(val))),

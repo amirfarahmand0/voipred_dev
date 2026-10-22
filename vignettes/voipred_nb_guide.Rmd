@@ -354,7 +354,8 @@ res_glm_u
 
 Other priors are `nb_jeffreys()` (Beta(0.5, 0.5)) or your own Beta priors
 with `nb_beta()`, e.g. prior information on the prevalence from earlier
-studies:
+studies. The parts of `nb_beta()` you do not give are Beta(0, 0), with no
+prior information:
 
 ```{r prior-other}
 nb_val(data = df_val_binary,
@@ -366,7 +367,8 @@ nb_val(data = df_val_binary,
        predicted_risk = df_val_binary$p_glm,
        outcome = "day30",
        thresholds = c(0.05, 0.1),
-       prior = nb_beta(prevalence = c(7, 93)))   # prevalence ~7%, worth 100 patients
+       prior = nb_beta(prevalence = c(7, 93)))   # prevalence ~7%, worth 100 patients;
+                                                 # Se and Sp: no prior information
 ```
 
 With 5000 patients the prior changes little; it matters more in small

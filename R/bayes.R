@@ -39,7 +39,10 @@
 #'
 #' @param prevalence,sensitivity,specificity The two shape parameters
 #'   \eqn{(a, b)} of each Beta prior, non-negative numbers: prior mean
-#'   \eqn{a / (a + b)}, worth \eqn{a + b} patients. Default Beta(1, 1).
+#'   \eqn{a / (a + b)}, worth \eqn{a + b} patients. Default Beta(0, 0): no
+#'   prior information, so only the parts you give carry prior information
+#'   (e.g. `nb_beta(prevalence = c(7, 93))` adds information on the
+#'   prevalence only); `nb_beta()` is `nb_improper()`.
 #' @return A prior, an object of class `nb_prior`.
 #' @references Cruz GNF, Korthauer K. Bayesian decision curve analysis with
 #'   bayesDCA. arXiv 2023. Rubin DB. The Bayesian bootstrap. Annals of
@@ -58,7 +61,7 @@ NULL
 
 #' @rdname nb_priors
 #' @export
-nb_beta <- function(prevalence = c(1, 1), sensitivity = c(1, 1), specificity = c(1, 1)) {
+nb_beta <- function(prevalence = c(0, 0), sensitivity = c(0, 0), specificity = c(0, 0)) {
   for (nm in c("prevalence", "sensitivity", "specificity")) {
     v <- get(nm)
     if (!is.numeric(v) || length(v) != 2 || anyNA(v) || any(!is.finite(v)) || any(v < 0))
