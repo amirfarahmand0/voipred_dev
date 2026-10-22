@@ -11,6 +11,7 @@
   labels = NULL,
   evpi = NULL,
   evsi = NULL,
+  colors = NULL,
   interactive = FALSE
 )
 }
@@ -28,6 +29,13 @@ default: the models' labels.}
 \item{evpi, evsi}{Optional results of \code{\link[=evpi]{evpi()}} and \code{\link[=evsi]{evsi()}}, drawn in a panel
 below the decision curve: EVPI, and EVSI for each future sample size,
 against the threshold. The static version needs the patchwork package.}
+
+\item{colors}{Optional colours of the curves, instead of the defaults:
+named by label, e.g. \code{c(Full = "darkred", "Treat All" = "grey50")} (any
+curve, including Treat All, Treat None and, with \code{evpi}/\code{evsi}, the EVPI
+and EVSI curves; the others keep their colours), or unnamed, one per
+model in order. Colour names or hex codes. By default, a model has the
+same colour in every plot of voipred.}
 
 \item{interactive}{\code{TRUE} for an interactive plot (needs the plotly
 package). Default \code{FALSE}.}

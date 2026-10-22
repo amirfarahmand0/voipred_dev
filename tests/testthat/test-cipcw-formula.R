@@ -144,7 +144,7 @@ test_that("several models share one censoring model; results combine", {
   v$p1 <- predict_risk(cx, v, horizon = 5)
   v$p2 <- predict_risk(cx2, v, horizon = 5)
   z <- c(0.1, 0.3)
-  both <- nb_val(v, c(Full = "p1", Age = "p2"), surv_outcome, horizon = 5,
+  both <- nb_val(v, list(Full = "p1", Age = "p2"), surv_outcome, horizon = 5,
                  thresholds = z, cipcw = ~ age + nodes)
   a <- nb_val(v, "p1", surv_outcome, horizon = 5, thresholds = z, cipcw = ~ age + nodes,
               label = "Full")

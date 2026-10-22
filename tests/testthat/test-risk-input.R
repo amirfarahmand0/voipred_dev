@@ -92,14 +92,14 @@ test_that("`predicted_risk` is checked", {
   val <- g$val
   p <- unname(predict(f, val, type = "response"))
   expect_error(nb_val(data = val, outcome = "day30"), "Give the predicted risks with `predicted_risk`")
-  expect_error(nb_val(val, p, "day30", model = f), "either `predicted_risk` or `model`, not both")
+  expect_error(nb_val(val, p, "day30", model = f), "unused argument")
   expect_error(nb_val(predicted_risk = p, data = val, outcome = "day30",
-                      predict_function = function(...) p), "not used with `predicted_risk`")
+                      predict_function = function(...) p), "has no fitted model")
   expect_error(nb_val(predicted_risk = p[-1], data = val, outcome = "day30"), "values but `data` has")
   expect_error(nb_val(predicted_risk = replace(p, 3, NA), data = val, outcome = "day30"), "1 of the risks")
   expect_error(nb_val(predicted_risk = qlogis(p), data = val, outcome = "day30"), "outside \\[0, 1\\]")
   expect_error(nb_val(predicted_risk = as.numeric(p > 0.1), data = val, outcome = "day30"), "only 0s and 1s")
   expect_error(nb_val(predicted_risk = "nope", data = val, outcome = "day30"), "not in `data`")
   expect_error(nb_val(predicted_risk = as.character(p), data = val, outcome = "day30"), "must be numeric")
-  expect_error(nb_val(model = p, data = val, outcome = "day30"), "give them with `predicted_risk =`")
+  expect_error(nb_val(model = p, data = val, outcome = "day30"), "unused argument")
 })

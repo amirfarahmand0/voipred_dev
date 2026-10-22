@@ -14,14 +14,13 @@ nb_val(
   cipcw = NULL,
   weights = NULL,
   prior = nb_improper(),
-  model = NULL,
   predict_function = NULL,
   label = NULL
 )
 }
 \arguments{
 \item{data}{A data frame: the validation sample, one row per patient, with
-the outcome columns when \code{outcome} names them (and, with a \code{model}, every
+the outcome columns when \code{outcome} names them (and, for a fitted model, every
 covariate it uses; with cIPCW, every covariate of the censoring model).}
 
 \item{predicted_risk}{The predicted risks of the patients in \code{data}: a
@@ -30,10 +29,10 @@ e.g. \code{val$p}. Alternatively, the name of the column of \code{data} that hol
 them, e.g. \code{"p"}. For survival outcomes,
 the risk of the event by \code{horizon} (competing risks: of \code{cause} by
 \code{horizon}). This is all the validation needs. A fitted model can also be
-given here instead; it is then used as \code{model}. For several models: a
-named list (of risks, column names or fitted models), several column
-names, or a data frame or matrix with one column per model (see
-"Several models").}
+given instead: voipred predicts the risks from it (see "Predicting the
+risks from a model"). For several models: a list, each element a vector
+of risks, a column name or a fitted model, e.g.
+\code{list(Full = fit1, Age = "p_age")} (see "Several models").}
 
 \item{outcome}{The observed outcome, one per row of \code{data}:
 \itemize{
@@ -104,13 +103,7 @@ usual net benefit. For a binary outcome, prior information can be added
 with \code{\link[=nb_uniform]{nb_uniform()}}, \code{\link[=nb_jeffreys]{nb_jeffreys()}} or your own Beta priors with
 \code{\link[=nb_beta]{nb_beta()}}. Survival and competing-risks outcomes: only \code{\link[=nb_improper]{nb_improper()}}.}
 
-\item{model}{Optional, instead of \code{predicted_risk}: a fitted prediction
-model, from which voipred predicts the risks of the patients in \code{data},
-once, or a named list of fitted models. See "Predicting the risks from a
-model" for the models that work by default and for \code{predict_function}.
-Give either \code{predicted_risk} or \code{model}.}
-
-\item{predict_function}{Optional, with \code{model} only: a
+\item{predict_function}{Optional, for fitted models only: a
 \verb{function(model, newdata, horizon, cause)}
 that returns the predicted risks, used instead of the automatic routes
 (it always takes precedence). voipred calls it once with
@@ -123,17 +116,16 @@ of the event by \code{horizon} (survival), or of \code{cause} by \code{horizon}
 event column is taken: \code{"1"} or \code{".pred_1"}, otherwise the second of
 two), or a curve per patient, \verb{list(time = <grid>, surv = <n x grid matrix>)} or \verb{list(time = <grid>, cif = <n x grid matrix>)}, read at the
 last grid time \verb{<= horizon}. A function that ignores some arguments can
-be written \verb{function(model, newdata, ...)}. With several models, the
-function is used for each of them, or give a list of functions named by
-the labels of the models they are for (the other models use the
-automatic routes).}
+be written \verb{function(model, newdata, ...)}. With several fitted models,
+one function is used for each of them; or give a list of functions named
+by the labels of the models they are for, e.g.
+\code{list(A = predict_a, B = predict_b)} (the other models use the automatic
+routes). If voipred has no way to predict from a fitted model and no
+function is given for it, \code{nb_val()} stops before predicting, naming the
+models.}
 
-\item{label}{Name of the model in printed output and plots, a single
-string (several models: one per model, in order). Default: the name of
-the object given as \code{predicted_risk} or \code{model} (e.g. \code{p}, the column
-name, or \code{fit}), or \code{"Model"} for an expression; for several models,
-their names (see "Several models"). \code{"Treat All"} and \code{"Treat None"} are
-reserved, and the labels must be different.}
+\item{label}{Optional names of the models in printed output and plots: a
+single string, or one per model, in order. Default: see "Labels".}
 }
 \value{
 An object of class \code{voipred_nb}, a list with:
@@ -241,32 +233,40 @@ object is not needed, and the risks can come from anywhere (an R model,
 published coefficients, other software). The outcome alone decides the type
 of analysis (binary, survival or competing risks).
 
-\strong{Several models.} To compare models, give the risks of each, all
-predicted for the same patients (the rows of \code{data}), in one call; every
-other argument (outcome, thresholds, horizon, cause, \code{cipcw}, prior,
-weights) applies to all of them:
-\itemize{
-\item a named list, \code{predicted_risk = list(Full = val$p1, Age = val$p2)};
-\item the names of columns of \code{data}, \code{predicted_risk = c("p1", "p2")}, named to
-relabel them, \code{c(Full = "p1", Age = "p2")};
-\item a data frame or matrix with one column per model,
-\code{predicted_risk = val[c("p1", "p2")]};
-\item fitted models, \code{model = list(Full = fit1, Age = fit2)}, or a list that
-mixes risks and models, \code{predicted_risk = list(Full = fit1, Age = val$p2)}.
+\strong{Several models.} To compare models, give them in one call as a list,
+each element one model: a vector of risks, the name of a column of \code{data},
+or a fitted model, mixed freely, e.g.
+\code{predicted_risk = list(Full = fit1, Age = "p_age", Old = val$p_old)}. All
+are predicted for the same patients (the rows of \code{data}), and every other
+argument (outcome, thresholds, horizon, cause, \code{cipcw}, prior, weights)
+applies to all of them. (\code{c()} cannot hold several models: it joins vectors
+into one and takes fitted models apart, so voipred asks for \code{list()}.) The
+result is the same as computing each model separately and combining the
+results with \link[=c.voipred_nb]{c()}, and the value-of-information functions
+draw the models jointly, so their correlation on the same patients is kept.
+With cIPCW, one censoring model (and one set of censoring weights) is used
+for all the models. To compare a different set of models, call \code{nb_val()}
+with those models.
+
+\strong{Labels.} Each model is labelled, in printed output and plots, by the
+first of:
+\enumerate{
+\item \code{label}, if given (one per model);
+\item its name in the list, e.g. \code{list(Full = ...)};
+\item the column name, when it is given as one, e.g. \code{"p_glm"};
+\item the name in the call: of the object (\code{p_glm}, \code{fit_glm}), or after \code{$}
+(\code{val$p_glm} gives \code{p_glm});
+\item otherwise \code{"Model"} (one model) or \code{"Model 1"}, \code{"Model 2"}, ... (by
+position).
 }
 
-Each model is labelled by its name in the list (or column), otherwise by
-the expression in the call (\code{list(val$p1, fit2)} gives \code{p1} and \code{fit2}),
-or \code{"Model 1"}, \code{"Model 2"}, ...; \code{label} relabels them. The result is the
-same as computing each model separately and combining the results with
-\link[=c.voipred_nb]{c()}, and the value-of-information functions draw the
-models jointly, so their correlation on the same patients is kept. With
-cIPCW, one censoring model (and one set of censoring weights) is used for
-all the models.
+The labels must be different, and cannot be \code{"Treat All"} or
+\code{"Treat None"} (the default strategies); otherwise \code{nb_val()} stops and asks
+for names.
 
 \strong{Predicting the risks from a model (optional).} Instead of the risks,
-the fitted model can be given, as \code{model} (or in place of \code{predicted_risk},
-e.g. \code{nb_val(val, fit, "y")}). voipred then predicts the risks of the patients
+the fitted model can be given as \code{predicted_risk} (e.g.
+\code{nb_val(val, fit, "y")}, or as an element of a list). voipred then predicts the risks of the patients
 in \code{data} from it, once, and every later step (the value-of-information
 functions, plots) reuses them: the probability of the event (binary), of
 the event by \code{horizon} (survival), or of \code{cause} by \code{horizon} (competing
@@ -351,24 +351,28 @@ both <- nb_val(data = df_val_binary,
 both
 summary(both, thresholds = c(0.05, 0.1))
 plot(both)
-# the same with column names, or with the models
+# the same with column names, with the fitted models, or a mix
 nb_val(data = df_val_binary,
-       predicted_risk = c(Full = "p", `Age only` = "p_age"),
+       predicted_risk = list(Full = "p", `Age only` = "p_age"),
        outcome = "day30",
        thresholds = c(0.05, 0.1))
 nb_val(data = df_val_binary,
-       model = list(Full = fit, `Age only` = fit_age),
+       predicted_risk = list(Full = fit, `Age only` = fit_age),
+       outcome = "day30",
+       thresholds = c(0.05, 0.1))
+nb_val(data = df_val_binary,
+       predicted_risk = list(Full = fit, `Age only` = "p_age"),
        outcome = "day30",
        thresholds = c(0.05, 0.1))
 
 # Optionally, the model instead of the risks: by default, or with your own
 # prediction function
 nb_val(data = df_val_binary,
-       model = fit,
+       predicted_risk = fit,
        outcome = "day30",
        thresholds = c(0.05, 0.1))
 nb_val(data = df_val_binary,
-       model = fit,
+       predicted_risk = fit,
        outcome = "day30",
        thresholds = c(0.05, 0.1),
        predict_function = function(model, newdata, ...)
@@ -406,12 +410,12 @@ nb_val(data = df_val_survival,
 # Optionally, the model instead of the risks: by default, or with your own
 # prediction function (here the same risks as above)
 nb_val(data = df_val_survival,
-       model = cox,
+       predicted_risk = cox,
        outcome = ~ Surv(years, death),
        horizon = 5,
        thresholds = c(0.1, 0.2, 0.3))
 nb_val(data = df_val_survival,
-       model = cox,
+       predicted_risk = cox,
        outcome = ~ Surv(years, death),
        horizon = 5,
        thresholds = c(0.1, 0.2, 0.3),

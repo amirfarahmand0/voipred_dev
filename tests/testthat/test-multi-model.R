@@ -11,7 +11,7 @@ multi_case <- function() {
   list(f1 = f1, f2 = f2, val = val, z = c(0.02, 0.05, 0.1, 0.2))
 }
 
-test_that("every way of giving several models gives the same result", {
+test_that("several models are given as a list, mixing fitted models, column names and risks", {
   m <- multi_case()
   v <- m$val
   z <- m$z
@@ -28,44 +28,92 @@ test_that("every way of giving several models gives the same result", {
     expect_equal(r$risk, ref$risk)
     expect_equal(r$counts, ref$counts)
   }
-  same(nb_val(v, c(Full = "p1", Age = "p2"), "day30", thresholds = z))
-  same(nb_val(v, data.frame(Full = v$p1, Age = v$p2), "day30", thresholds = z))
-  same(nb_val(v, cbind(Full = v$p1, Age = v$p2), "day30", thresholds = z))
-  same(nb_val(v, model = list(Full = m$f1, Age = m$f2), outcome = "day30", thresholds = z))
-  same(nb_val(v, list(Full = m$f1, Age = v$p2), "day30", thresholds = z))
   same(nb_val(v, list(Full = "p1", Age = "p2"), "day30", thresholds = z))
-  same(nb_val(v, c("p1", "p2"), "day30", thresholds = z, label = c("Full", "Age")))
+  same(nb_val(v, list(Full = m$f1, Age = m$f2), "day30", thresholds = z))
+  same(nb_val(v, list(Full = m$f1, Age = "p2"), "day30", thresholds = z))
+  same(nb_val(v, list(Full = "p1", Age = v$p2), "day30", thresholds = z))
+  same(nb_val(v, list("p1", "p2"), "day30", thresholds = z, label = c("Full", "Age")))
+  # three kinds in one list
+  three <- nb_val(v, list(Full = m$f1, Age = "p2", Mean = (v$p1 + v$p2) / 2), "day30",
+                  thresholds = z)
+  expect_equal(three$models, c("Full", "Age", "Mean"))
+  expect_equal(three$risk[, 1:2], ref$risk)
   # each model as computed alone
   a <- nb_val(v, v$p1, "day30", thresholds = z)
-  b <- nb_val(v, v$p2, "day30", thresholds = z)
+  b <- nb_val(v, m$f2, "day30", thresholds = z)
   expect_equal(ref$estimates$NB_model[1:4], a$estimates$NB_model)
   expect_equal(ref$estimates$NB_model[5:8], b$estimates$NB_model)
   expect_equal(ref$estimates$NB_all[5:8], a$estimates$NB_all)
 })
 
-test_that("labels: names, expressions, columns, defaults and `label`", {
+test_that("labels follow the naming procedure", {
   m <- multi_case()
   v <- m$val
   z <- 0.1
+  p_glm <- v$p1
+  fit_glm <- m$f1
+  # (nb_val() is called directly: the labels come from the expressions in the call)
+  # 1. `label` overrides everything
+  expect_equal(nb_val(v, list(A = "p1", B = "p2"), "day30", thresholds = z,
+                      label = c("GLM", "Forest"))$models, c("GLM", "Forest"))
+  expect_equal(nb_val(v, "p1", "day30", thresholds = z, label = "GLM")$models, "GLM")
+  # 2. names in the list
+  expect_equal(nb_val(v, list(A = fit_glm, B = "p2"), "day30", thresholds = z)$models,
+               c("A", "B"))
+  # 3. column names
+  expect_equal(nb_val(v, "p1", "day30", thresholds = z)$models, "p1")
+  expect_equal(nb_val(v, list("p1", "p2"), "day30", thresholds = z)$models, c("p1", "p2"))
+  # 4. names in the call: objects, and after `$`
+  expect_equal(nb_val(v, v$p1, "day30", thresholds = z)$models, "p1")
+  expect_equal(nb_val(v, p_glm, "day30", thresholds = z)$models, "p_glm")
+  expect_equal(nb_val(v, fit_glm, "day30", thresholds = z)$models, "fit_glm")
+  expect_equal(nb_val(v, list(v$p1, fit_glm), "day30", thresholds = z)$models,
+               c("p1", "fit_glm"))
   expect_equal(nb_val(v, list(v$p1, m$f2), "day30", thresholds = z)$models, c("p1", "f2"))
-  expect_equal(nb_val(v, c("p1", "p2"), "day30", thresholds = z)$models, c("p1", "p2"))
-  expect_equal(nb_val(v, v[c("p1", "p2")], "day30", thresholds = z)$models, c("p1", "p2"))
-  expect_equal(nb_val(v, cbind(v$p1, v$p2), "day30", thresholds = z)$models,
-               c("Model 1", "Model 2"))
-  expect_equal(nb_val(v, list(v$p1 + 0, A = v$p2), "day30", thresholds = z)$models,
-               c("Model 1", "A"))
-  # one column of a data frame is one model, labelled by the column name
-  one <- nb_val(v, v["p1"], "day30", thresholds = z)
-  expect_equal(one$models, "p1")
-  expect_equal(nb_val(v, c(Full = "p1"), "day30", thresholds = z)$models, "Full")
-  expect_error(nb_val(v, list(A = v$p1, A = v$p2), "day30", thresholds = z),
-               "same label")
+  # 5. fallback by position
+  expect_equal(nb_val(v, v$p1 * 1, "day30", thresholds = z)$models, "Model")
+  expect_equal(nb_val(v, list(v$p1 * 1, B = v$p2), "day30", thresholds = z)$models,
+               c("Model 1", "B"))
+  # the checks
+  expect_error(nb_val(v, list(A = v$p1, A = v$p2), "day30", thresholds = z), "same label")
+  expect_error(nb_val(v, list(v$p1, v$p1), "day30", thresholds = z),
+               "Two models have the same label \\(\"p1\"\\)")
   expect_error(nb_val(v, list(`Treat all` = v$p1, B = v$p2), "day30", thresholds = z),
                "Treat None")
   expect_error(nb_val(v, list(A = v$p1, B = v$p2), "day30", thresholds = z, label = "x"),
                "2 non-empty strings")
   expect_error(nb_val(v, v$p1, "day30", thresholds = z, label = c("a", "b")),
                "single non-empty string")
+})
+
+test_that("forms that are not a list of models are refused, pointing to list()", {
+  m <- multi_case()
+  v <- m$val
+  z <- 0.1
+  run <- function(x, ...) nb_val(v, x, "day30", thresholds = z, ...)
+  # c() of column names
+  expect_error(run(c("p1", "p2")),
+               "use list\\(\\) rather than c\\(\\): predicted_risk = list\\(A = \"p1\", B = \"p2\"\\)")
+  expect_error(run(c(Full = "p1", Age = "p2")),
+               "predicted_risk = list\\(Full = \"p1\", Age = \"p2\"\\)")
+  # c() of risk vectors joins them
+  expect_error(run(c(A = v$p1, B = v$p2)),
+               "To give 2 models, use list\\(\\) rather than c\\(\\)")
+  # a fitted model and a column name in c() is taken apart by R
+  expect_error(run(c(A = m$f1, B = "p2")), "Each element of the list `predicted_risk`")
+  # data frames and matrices
+  expect_error(run(v[c("p1", "p2")]), "To give several models, use a list")
+  expect_error(run(cbind(v$p1, v$p2)), "To give several models, use a list")
+  # the `model` argument is gone
+  expect_error(nb_val(v, model = m$f1, outcome = "day30"), "unused argument")
+  # bad elements
+  expect_error(run(list(A = v$p1, B = list(v$p2))), "element \"B\" is not")
+  expect_error(run(list(A = c("p1", "p2"))), "element \"A\" is not")
+  expect_error(run(list(v$p1, v[c("p1", "p2")])), "element 2 is not")
+  expect_error(run(list()), "empty list")
+  expect_error(nb_val(v, outcome = "day30"), "Give the predicted risks with `predicted_risk`")
+  # risks stored as text are not column names
+  expect_error(run(as.character(v$p1)), "must be numeric")
 })
 
 test_that("several models: errors name the model", {
@@ -76,36 +124,83 @@ test_that("several models: errors name the model", {
                "`predicted_risk` \\(\"B\"\\) has values outside \\[0, 1\\]")
   expect_error(nb_val(v, list(A = v$p1, B = v$p2[-1]), "day30", thresholds = z),
                "\\(\"B\"\\) has .* values but `data` has")
-  # c() of two risk vectors joins them: the message points to list()
-  expect_error(nb_val(v, c(A = v$p1, B = v$p2), "day30", thresholds = z),
-               "To give 2 models, use list\\(\\) rather than c\\(\\)")
   expect_error(nb_val(v, v$p1[-1], "day30", thresholds = z), "values but `data` has")
-  expect_error(nb_val(v, c("p1", "nope"), "day30", thresholds = z),
+  expect_error(nb_val(v, list("p1", "nope"), "day30", thresholds = z),
                "names a column \\(\"nope\"\\) that is not in `data`")
-  expect_error(nb_val(v, model = list(A = m$f1, B = v$p2), outcome = "day30", thresholds = z),
-               "\"B\": `model` must be a fitted model")
-  expect_error(nb_val(v, list(A = v$p1, B = list(v$p2)), "day30", thresholds = z),
-               "Each element of `predicted_risk`")
-  expect_error(nb_val(v, list(), "day30", thresholds = z), "empty list")
-  expect_error(nb_val(v, data.frame(), "day30", thresholds = z), "no columns")
-  # predict_function: one for all the models, or one per model by label
-  calls <- character()
-  pf <- function(model, newdata, ...) {
-    calls <<- c(calls, "pf")
+})
+
+test_that("predict_function: one for every fitted model, or one per model by label", {
+  m <- multi_case()
+  v <- m$val
+  z <- 0.1
+  got <- list()
+  pf1 <- function(model, newdata, ...) {
+    got$pf1 <<- c(got$pf1, deparse(formula(model)))
     predict(model, newdata, type = "response")
   }
-  r <- nb_val(v, model = list(A = m$f1, B = m$f2), outcome = "day30", thresholds = z,
-              predict_function = pf)
-  expect_equal(length(calls), 2)
-  r2 <- nb_val(v, model = list(A = m$f1, B = m$f2), outcome = "day30", thresholds = z,
-               predict_function = list(B = pf))
-  expect_equal(length(calls), 3)
+  pf2 <- function(model, newdata, ...) {
+    got$pf2 <<- c(got$pf2, deparse(formula(model)))
+    stats::plogis(predict(model, newdata))
+  }
+  # two models, two different functions: each gets its own model
+  r <- nb_val(v, list(A = m$f1, B = m$f2), "day30", thresholds = z,
+              predict_function = list(A = pf1, B = pf2))
+  expect_equal(got$pf1, deparse(formula(m$f1)))
+  expect_equal(got$pf2, deparse(formula(m$f2)))
+  expect_equal(unname(r$risk[, "A"]), v$p1)
+  expect_equal(unname(r$risk[, "B"]), v$p2)
+  # one function for every fitted model; risks in the list are not predicted
+  got <- list()
+  r1 <- nb_val(v, list(A = m$f1, B = m$f2, C = "p2"), "day30", thresholds = z,
+               predict_function = pf1)
+  expect_equal(length(got$pf1), 2)
+  # a function for only some models: the others use the automatic routes
+  got <- list()
+  r2 <- nb_val(v, list(A = m$f1, B = m$f2), "day30", thresholds = z,
+               predict_function = list(B = pf2))
+  expect_null(got$pf1)
+  expect_equal(length(got$pf2), 1)
   expect_equal(r2$risk, r$risk)
-  expect_error(nb_val(v, model = list(A = m$f1, B = m$f2), outcome = "day30",
-                      thresholds = z, predict_function = list(C = pf)),
-               "not one of the models")
+  expect_error(nb_val(v, list(A = m$f1, B = m$f2), "day30", thresholds = z,
+                      predict_function = list(C = pf1)), "not one of the fitted models")
+  expect_error(nb_val(v, list(A = m$f1, B = "p2"), "day30", thresholds = z,
+                      predict_function = list(B = pf1)), "not one of the fitted models: \"A\"")
   expect_error(nb_val(v, list(A = v$p1, B = v$p2), "day30", thresholds = z,
-                      predict_function = pf), "not used with `predicted_risk`")
+                      predict_function = pf1), "has no fitted model")
+  expect_error(nb_val(v, m$f1, "day30", thresholds = z, predict_function = "pf1"),
+               "must be a function")
+})
+
+test_that("a fitted model voipred cannot predict from is caught before predicting", {
+  m <- multi_case()
+  v <- m$val
+  z <- 0.1
+  odd <- structure(list(a = 1), class = "my_odd_model")
+  expect_error(nb_val(v, odd, "day30", thresholds = z),
+               "cannot predict risks from this my_odd_model model.*predict_function = my_predict")
+  # several: all the models without a route are named at once
+  slow <- 0
+  pf_slow <- function(model, newdata, ...) {
+    slow <<- slow + 1
+    predict(model, newdata, type = "response")
+  }
+  expect_error(nb_val(v, list(A = odd, B = m$f1, `C d` = odd), "day30", thresholds = z,
+                      predict_function = list(B = pf_slow)),
+               "\"A\" \\(my_odd_model\\), \"C d\" \\(my_odd_model\\).*these models.*list\\(A = my_predict\\)")
+  expect_equal(slow, 0)       # nothing was predicted
+  # with a predict_function for it, any model works
+  r <- nb_val(v, list(A = odd, B = m$f1), "day30", thresholds = z,
+              predict_function = list(A = function(model, newdata, ...) newdata$p1))
+  expect_equal(unname(r$risk[, "A"]), v$p1)
+  # survival: the message says "by the horizon"
+  s <- rott_split()
+  expect_error(nb_val(s$val, odd, surv_outcome, horizon = 5), "risk of the event by the horizon")
+  # a method defined by the user is found
+  predict.my_odd_model <- function(object, newdata, ...) rep(0.2, nrow(newdata))
+  assign("predict.my_odd_model", predict.my_odd_model, envir = globalenv())
+  on.exit(rm("predict.my_odd_model", envir = globalenv()))
+  r2 <- nb_val(v, odd, "day30", thresholds = z)
+  expect_equal(unname(r2$risk[, 1]), rep(0.2, nrow(v)))
 })
 
 test_that("c() combines results, and plot() and the VoI functions combine theirs", {
@@ -183,12 +278,12 @@ test_that("several models with survival outcomes, Kaplan-Meier and cIPCW", {
   z <- c(0.1, 0.2, 0.3)
   v$p1 <- predict_risk(cx, v, horizon = 5)
   v$p2 <- predict_risk(cx2, v, horizon = 5)
-  km <- quiet_nb(v, c(Full = "p1", Age = "p2"), surv_outcome, horizon = 5, thresholds = z)
+  km <- quiet_nb(v, list(Full = "p1", Age = "p2"), surv_outcome, horizon = 5, thresholds = z)
   a <- quiet_nb(v, "p1", surv_outcome, horizon = 5, thresholds = z)
   b <- quiet_nb(v, "p2", surv_outcome, horizon = 5, thresholds = z)
   expect_equal(km$estimates$NB_model, c(a$estimates$NB_model, b$estimates$NB_model))
   cens <- survival::coxph(survival::Surv(dtimey, death == 0) ~ age + nodes, data = v)
-  ci <- nb_val(v, c(Full = "p1", Age = "p2"), surv_outcome, horizon = 5, thresholds = z,
+  ci <- nb_val(v, list(Full = "p1", Age = "p2"), surv_outcome, horizon = 5, thresholds = z,
                cipcw = cipcw_control(model = cens))
   ca <- nb_val(v, "p1", surv_outcome, horizon = 5, thresholds = z,
                cipcw = cipcw_control(model = cens), label = "Full")

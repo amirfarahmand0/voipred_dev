@@ -4,12 +4,16 @@
 \alias{plot.voipred_p_best}
 \title{Plot the probability that each strategy is the best}
 \usage{
-\method{plot}{voipred_p_best}(x, ..., interactive = FALSE)
+\method{plot}{voipred_p_best}(x, ..., colors = NULL, interactive = FALSE)
 }
 \arguments{
 \item{x}{A result of \code{\link[=p_best]{p_best()}}.}
 
 \item{...}{Not used.}
+
+\item{colors}{Optional colours of the curves, instead of the defaults:
+named by strategy, e.g. \code{c(Full = "darkred", "Treat All" = "grey50")}, or
+unnamed, one per model in order (Treat All and Treat None keep theirs).}
 
 \item{interactive}{\code{TRUE} for an interactive plot (needs the plotly
 package). Default \code{FALSE}.}

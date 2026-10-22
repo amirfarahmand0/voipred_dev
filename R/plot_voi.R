@@ -18,6 +18,10 @@
 #'   (`type = "p_useful"`: one per model).
 #'   Default: `"EVPI"` for one result, the argument names (or `"EVPI 1"`,
 #'   `"EVPI 2"`, ...) for several.
+#' @param colors Optional colours of the curves, instead of the defaults:
+#'   named by curve label, or unnamed, one per curve in order (with
+#'   `type = "p_useful"` or `"p_best"`, as in [plot.voipred_p_useful()] and
+#'   [plot.voipred_p_best()]).
 #' @param interactive `TRUE` for an interactive plot (needs the plotly
 #'   package). Default `FALSE`.
 #' @return A ggplot object, or a plotly widget with `interactive = TRUE`.
@@ -40,7 +44,7 @@
 #' plot(e, type = "p_best")
 #' @export
 plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "p_best"),
-                              labels = NULL, interactive = FALSE) {
+                              labels = NULL, colors = NULL, interactive = FALSE) {
   type <- match.arg(type)
   check_interactive(interactive)
   if (type %in% c("p_useful", "p_best")) {
@@ -50,11 +54,12 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
     if (type == "p_best" && !is.null(labels))
       stop("`labels` is not used with type = \"p_best\".", call. = FALSE)
     obj <- from_evpi(x, type, list(), TRUE)
-    return(if (type == "p_useful") plot(obj, labels = labels, interactive = interactive)
-           else plot(obj, interactive = interactive))
+    return(if (type == "p_useful")
+             plot(obj, labels = labels, colors = colors, interactive = interactive)
+           else plot(obj, colors = colors, interactive = interactive))
   }
   res <- collect_results(x, list(...), labels, "voipred_evpi", "evpi()", "plot()",
-                         "`type`, `labels` and `interactive`", "EVPI")
+                         "`type`, `labels`, `colors` and `interactive`", "EVPI")
   col <- if (type == "evpi") "EVPI" else "rEVPI"
   d <- do.call(rbind, Map(function(r, l) curve_data(r$estimates$threshold, l,
                                                      r$estimates[[col]]),
@@ -64,7 +69,7 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
                  "Threshold Probability",
                  if (type == "evpi") "EVPI" else "Relative EVPI",
                  hline = if (type == "relative") 1, fmt = if (type == "evpi") ".5f" else ".3f")
-  render_plot(list(sp), interactive)
+  render_plot(recolor(list(sp), colors, names(res), "result"), interactive)
 }
 
 #' Plot the expected value of sample information
@@ -79,6 +84,9 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
 #' @param ... Not used.
 #' @param thresholds The thresholds to draw, among those of `x`. Default: all
 #'   of them if there are at most 5, otherwise the 4 with the largest EVPI.
+#' @param colors Optional colours of the curves (one per threshold), instead
+#'   of the defaults: named by curve label (e.g. `"Threshold 10%"`), or
+#'   unnamed, one per curve in order.
 #' @param interactive `TRUE` for an interactive plot (needs the plotly
 #'   package). Default `FALSE`.
 #' @return A ggplot object, or a plotly widget with `interactive = TRUE`.
@@ -98,9 +106,9 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
 #' plot(o)
 #' plot(o, thresholds = 0.05)
 #' @export
-plot.voipred_evsi <- function(x, ..., thresholds = NULL, interactive = FALSE) {
+plot.voipred_evsi <- function(x, ..., thresholds = NULL, colors = NULL, interactive = FALSE) {
   check_interactive(interactive)
-  check_no_dots(list(...), "plot()", "`thresholds` and `interactive`")
+  check_no_dots(list(...), "plot()", "`thresholds`, `colors` and `interactive`")
   o <- x$estimates
   zs <- pick_thresholds(x, thresholds, n_default = 4, max_all = 5)
   lev <- paste0("Threshold ", format(100 * zs, trim = TRUE), "%")
@@ -118,7 +126,7 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, interactive = FALSE) {
   ref$label <- factor(ref$label, levels = lev)
   sp <- new_spec(d, stats::setNames(series_colors(length(lev)), lev),
                  "Future sample size", "EVSI", ref = ref, percent = FALSE, fmt = ".5f")
-  render_plot(list(sp), interactive)
+  render_plot(recolor(list(sp), colors, lev, "threshold"), interactive)
 }
 
 #' Plot the probability that a model is useful
@@ -131,6 +139,9 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, interactive = FALSE) {
 #'   with one model given here with a name is labelled with its name.
 #' @param labels Optional names of the curves, one per model, in order.
 #'   Default: the models' labels (or the argument names).
+#' @param colors Optional colours of the curves, instead of the defaults:
+#'   named by label, e.g. `c(Full = "darkred")`, or unnamed, one per curve in
+#'   order.
 #' @param interactive `TRUE` for an interactive plot (needs the plotly
 #'   package). Default `FALSE`.
 #' @return A ggplot object, or a plotly widget with `interactive = TRUE`.
@@ -159,11 +170,11 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, interactive = FALSE) {
 #' set.seed(1)
 #' plot(p_useful(both, n_sim = 500))
 #' @export
-plot.voipred_p_useful <- function(x, ..., labels = NULL, interactive = FALSE) {
+plot.voipred_p_useful <- function(x, ..., labels = NULL, colors = NULL, interactive = FALSE) {
   check_interactive(interactive)
   dots <- list(...)
   collect_results(x, dots, NULL, "voipred_p_useful", "p_useful()", "plot()",
-                  "`labels` and `interactive`", "P(useful)")
+                  "`labels`, `colors` and `interactive`", "P(useful)")
   items <- c(list(x), dots)
   nms <- c("", if (is.null(names(dots))) rep("", length(dots)) else names(dots))
   # one curve per model of each result, labelled by the model, or by the
@@ -195,7 +206,7 @@ plot.voipred_p_useful <- function(x, ..., labels = NULL, interactive = FALSE) {
   cols <- default_hues(length(lev) + 2)[-(1:2)]
   sp <- new_spec(d, stats::setNames(cols, lev), "Threshold Probability", "P(useful)",
                  ylim = c(0, 1), fmt = ".3f")
-  render_plot(list(sp), interactive)
+  render_plot(recolor(list(sp), colors, lev, "curve"), interactive)
 }
 
 #' Plot the probability that each strategy is the best
@@ -206,6 +217,9 @@ plot.voipred_p_useful <- function(x, ..., labels = NULL, interactive = FALSE) {
 #'
 #' @param x A result of [p_best()].
 #' @param ... Not used.
+#' @param colors Optional colours of the curves, instead of the defaults:
+#'   named by strategy, e.g. `c(Full = "darkred", "Treat All" = "grey50")`, or
+#'   unnamed, one per model in order (Treat All and Treat None keep theirs).
 #' @param interactive `TRUE` for an interactive plot (needs the plotly
 #'   package). Default `FALSE`.
 #' @return A ggplot object, or a plotly widget with `interactive = TRUE`.
@@ -223,16 +237,16 @@ plot.voipred_p_useful <- function(x, ..., labels = NULL, interactive = FALSE) {
 #' set.seed(1)
 #' plot(p_best(res, n_sim = 500))
 #' @export
-plot.voipred_p_best <- function(x, ..., interactive = FALSE) {
+plot.voipred_p_best <- function(x, ..., colors = NULL, interactive = FALSE) {
   check_interactive(interactive)
-  check_no_dots(list(...), "plot()", "`interactive`")
+  check_no_dots(list(...), "plot()", "`colors` and `interactive`")
   e <- x$estimates
   lev <- c("Treat All", "Treat None", x$models)
   d <- curve_data(e$threshold, e$strategy, e$p_best)
   d$label <- factor(d$label, levels = lev)
   sp <- new_spec(d, stats::setNames(default_hues(length(lev)), lev),
                  "Threshold Probability", "P(best)", ylim = c(0, 1), fmt = ".3f")
-  render_plot(list(sp), interactive)
+  render_plot(recolor(list(sp), colors, x$models, "model"), interactive)
 }
 
 # ---- internal ----------------------------------------------------------------

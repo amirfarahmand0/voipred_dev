@@ -1,4 +1,4 @@
-# Predicted risks from a fitted model (internal: used by nb_val() when a `model`
+# Predicted risks from a fitted model (internal: used by nb_val() when a fitted model
 # is given instead of `predicted_risk`).
 #
 # Turns a fitted model into one predicted risk per row of `newdata`: the

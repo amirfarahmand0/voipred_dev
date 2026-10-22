@@ -67,30 +67,38 @@
 #' published coefficients, other software). The outcome alone decides the type
 #' of analysis (binary, survival or competing risks).
 #'
-#' **Several models.** To compare models, give the risks of each, all
-#' predicted for the same patients (the rows of `data`), in one call; every
-#' other argument (outcome, thresholds, horizon, cause, `cipcw`, prior,
-#' weights) applies to all of them:
-#' * a named list, `predicted_risk = list(Full = val$p1, Age = val$p2)`;
-#' * the names of columns of `data`, `predicted_risk = c("p1", "p2")`, named to
-#'   relabel them, `c(Full = "p1", Age = "p2")`;
-#' * a data frame or matrix with one column per model,
-#'   `predicted_risk = val[c("p1", "p2")]`;
-#' * fitted models, `model = list(Full = fit1, Age = fit2)`, or a list that
-#'   mixes risks and models, `predicted_risk = list(Full = fit1, Age = val$p2)`.
+#' **Several models.** To compare models, give them in one call as a list,
+#' each element one model: a vector of risks, the name of a column of `data`,
+#' or a fitted model, mixed freely, e.g.
+#' `predicted_risk = list(Full = fit1, Age = "p_age", Old = val$p_old)`. All
+#' are predicted for the same patients (the rows of `data`), and every other
+#' argument (outcome, thresholds, horizon, cause, `cipcw`, prior, weights)
+#' applies to all of them. (`c()` cannot hold several models: it joins vectors
+#' into one and takes fitted models apart, so voipred asks for `list()`.) The
+#' result is the same as computing each model separately and combining the
+#' results with [c()][c.voipred_nb], and the value-of-information functions
+#' draw the models jointly, so their correlation on the same patients is kept.
+#' With cIPCW, one censoring model (and one set of censoring weights) is used
+#' for all the models. To compare a different set of models, call `nb_val()`
+#' with those models.
 #'
-#' Each model is labelled by its name in the list (or column), otherwise by
-#' the expression in the call (`list(val$p1, fit2)` gives `p1` and `fit2`),
-#' or `"Model 1"`, `"Model 2"`, ...; `label` relabels them. The result is the
-#' same as computing each model separately and combining the results with
-#' [c()][c.voipred_nb], and the value-of-information functions draw the
-#' models jointly, so their correlation on the same patients is kept. With
-#' cIPCW, one censoring model (and one set of censoring weights) is used for
-#' all the models.
+#' **Labels.** Each model is labelled, in printed output and plots, by the
+#' first of:
+#' 1. `label`, if given (one per model);
+#' 2. its name in the list, e.g. `list(Full = ...)`;
+#' 3. the column name, when it is given as one, e.g. `"p_glm"`;
+#' 4. the name in the call: of the object (`p_glm`, `fit_glm`), or after `$`
+#'    (`val$p_glm` gives `p_glm`);
+#' 5. otherwise `"Model"` (one model) or `"Model 1"`, `"Model 2"`, ... (by
+#'    position).
+#'
+#' The labels must be different, and cannot be `"Treat All"` or
+#' `"Treat None"` (the default strategies); otherwise `nb_val()` stops and asks
+#' for names.
 #'
 #' **Predicting the risks from a model (optional).** Instead of the risks,
-#' the fitted model can be given, as `model` (or in place of `predicted_risk`,
-#' e.g. `nb_val(val, fit, "y")`). voipred then predicts the risks of the patients
+#' the fitted model can be given as `predicted_risk` (e.g.
+#' `nb_val(val, fit, "y")`, or as an element of a list). voipred then predicts the risks of the patients
 #' in `data` from it, once, and every later step (the value-of-information
 #' functions, plots) reuses them: the probability of the event (binary), of
 #' the event by `horizon` (survival), or of `cause` by `horizon` (competing
@@ -140,7 +148,7 @@
 #' survival probability), by `horizon` and for `cause`.
 #'
 #' @param data A data frame: the validation sample, one row per patient, with
-#'   the outcome columns when `outcome` names them (and, with a `model`, every
+#'   the outcome columns when `outcome` names them (and, for a fitted model, every
 #'   covariate it uses; with cIPCW, every covariate of the censoring model).
 #' @param predicted_risk The predicted risks of the patients in `data`: a
 #'   numeric vector, one probability per row of `data` (in its row order),
@@ -148,10 +156,10 @@
 #'   them, e.g. `"p"`. For survival outcomes,
 #'   the risk of the event by `horizon` (competing risks: of `cause` by
 #'   `horizon`). This is all the validation needs. A fitted model can also be
-#'   given here instead; it is then used as `model`. For several models: a
-#'   named list (of risks, column names or fitted models), several column
-#'   names, or a data frame or matrix with one column per model (see
-#'   "Several models").
+#'   given instead: voipred predicts the risks from it (see "Predicting the
+#'   risks from a model"). For several models: a list, each element a vector
+#'   of risks, a column name or a fitted model, e.g.
+#'   `list(Full = fit1, Age = "p_age")` (see "Several models").
 #' @param outcome The observed outcome, one per row of `data`:
 #'   * binary: a column name (`"y"`), a vector, or a one-sided formula
 #'     (`~ y`); 0/1, logical (`TRUE` is the event) or a two-level factor (the
@@ -210,12 +218,7 @@
 #'   usual net benefit. For a binary outcome, prior information can be added
 #'   with [nb_uniform()], [nb_jeffreys()] or your own Beta priors with
 #'   [nb_beta()]. Survival and competing-risks outcomes: only [nb_improper()].
-#' @param model Optional, instead of `predicted_risk`: a fitted prediction
-#'   model, from which voipred predicts the risks of the patients in `data`,
-#'   once, or a named list of fitted models. See "Predicting the risks from a
-#'   model" for the models that work by default and for `predict_function`.
-#'   Give either `predicted_risk` or `model`.
-#' @param predict_function Optional, with `model` only: a
+#' @param predict_function Optional, for fitted models only: a
 #'   `function(model, newdata, horizon, cause)`
 #'   that returns the predicted risks, used instead of the automatic routes
 #'   (it always takes precedence). voipred calls it once with
@@ -229,16 +232,15 @@
 #'   two), or a curve per patient, `list(time = <grid>, surv = <n x grid
 #'   matrix>)` or `list(time = <grid>, cif = <n x grid matrix>)`, read at the
 #'   last grid time `<= horizon`. A function that ignores some arguments can
-#'   be written `function(model, newdata, ...)`. With several models, the
-#'   function is used for each of them, or give a list of functions named by
-#'   the labels of the models they are for (the other models use the
-#'   automatic routes).
-#' @param label Name of the model in printed output and plots, a single
-#'   string (several models: one per model, in order). Default: the name of
-#'   the object given as `predicted_risk` or `model` (e.g. `p`, the column
-#'   name, or `fit`), or `"Model"` for an expression; for several models,
-#'   their names (see "Several models"). `"Treat All"` and `"Treat None"` are
-#'   reserved, and the labels must be different.
+#'   be written `function(model, newdata, ...)`. With several fitted models,
+#'   one function is used for each of them; or give a list of functions named
+#'   by the labels of the models they are for, e.g.
+#'   `list(A = predict_a, B = predict_b)` (the other models use the automatic
+#'   routes). If voipred has no way to predict from a fitted model and no
+#'   function is given for it, `nb_val()` stops before predicting, naming the
+#'   models.
+#' @param label Optional names of the models in printed output and plots: a
+#'   single string, or one per model, in order. Default: see "Labels".
 #' @return An object of class `voipred_nb`, a list with:
 #'   * `estimates`: a data frame with one row per model and threshold (by
 #'     model, then threshold) and columns `threshold`, `model` (its label),
@@ -305,24 +307,28 @@
 #' both
 #' summary(both, thresholds = c(0.05, 0.1))
 #' plot(both)
-#' # the same with column names, or with the models
+#' # the same with column names, with the fitted models, or a mix
 #' nb_val(data = df_val_binary,
-#'        predicted_risk = c(Full = "p", `Age only` = "p_age"),
+#'        predicted_risk = list(Full = "p", `Age only` = "p_age"),
 #'        outcome = "day30",
 #'        thresholds = c(0.05, 0.1))
 #' nb_val(data = df_val_binary,
-#'        model = list(Full = fit, `Age only` = fit_age),
+#'        predicted_risk = list(Full = fit, `Age only` = fit_age),
+#'        outcome = "day30",
+#'        thresholds = c(0.05, 0.1))
+#' nb_val(data = df_val_binary,
+#'        predicted_risk = list(Full = fit, `Age only` = "p_age"),
 #'        outcome = "day30",
 #'        thresholds = c(0.05, 0.1))
 #'
 #' # Optionally, the model instead of the risks: by default, or with your own
 #' # prediction function
 #' nb_val(data = df_val_binary,
-#'        model = fit,
+#'        predicted_risk = fit,
 #'        outcome = "day30",
 #'        thresholds = c(0.05, 0.1))
 #' nb_val(data = df_val_binary,
-#'        model = fit,
+#'        predicted_risk = fit,
 #'        outcome = "day30",
 #'        thresholds = c(0.05, 0.1),
 #'        predict_function = function(model, newdata, ...)
@@ -360,12 +366,12 @@
 #' # Optionally, the model instead of the risks: by default, or with your own
 #' # prediction function (here the same risks as above)
 #' nb_val(data = df_val_survival,
-#'        model = cox,
+#'        predicted_risk = cox,
 #'        outcome = ~ Surv(years, death),
 #'        horizon = 5,
 #'        thresholds = c(0.1, 0.2, 0.3))
 #' nb_val(data = df_val_survival,
-#'        model = cox,
+#'        predicted_risk = cox,
 #'        outcome = ~ Surv(years, death),
 #'        horizon = 5,
 #'        thresholds = c(0.1, 0.2, 0.3),
@@ -394,7 +400,7 @@
 nb_val <- function(data, predicted_risk = NULL, outcome,
                    thresholds = seq(0, 0.99, by = 0.01), horizon = NULL, cause = NULL,
                    cipcw = NULL, weights = NULL,
-                   prior = nb_improper(), model = NULL, predict_function = NULL,
+                   prior = nb_improper(), predict_function = NULL,
                    label = NULL) {
   call <- match.call()
   if (!is.data.frame(data)) {
@@ -404,8 +410,7 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
     stop("`data` must be a data frame.", call. = FALSE)
   }
   # the models: predicted risks or fitted models, one or several
-  inputs <- model_inputs(predicted_risk, substitute(predicted_risk), model,
-                         substitute(model), data)
+  inputs <- model_inputs(predicted_risk, substitute(predicted_risk), data)
   labels <- model_labels(inputs, label)
   M <- length(inputs)
   # censoring: Kaplan-Meier, or cIPCW when `cipcw` is given
@@ -419,6 +424,7 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
   w <- check_weights(weights, n)
   check_prior(prior, info, w)
   pf <- check_predict_function(predict_function, inputs, labels)
+  check_prediction_routes(inputs, labels, pf, info)
 
   # the risks (one column per model): given, or predicted once from each model
   P <- matrix(NA_real_, n, M, dimnames = list(NULL, labels))
@@ -815,67 +821,44 @@ is_risk_input <- function(x) is.atomic(x)
 # class).
 is_plain_list <- function(x) is.list(x) && !is.object(x)
 
-# The models given with `predicted_risk` or `model`, one element each:
-# list(value, is_model, label), with label NULL when the call gives none.
-model_inputs <- function(predicted_risk, risk_expr, model, model_expr, data) {
-  if (!is.null(predicted_risk) && !is.null(model))
-    stop("Give either `predicted_risk` or `model`, not both.", call. = FALSE)
-  if (is.null(predicted_risk) && is.null(model))
-    stop("Give the predicted risks with `predicted_risk` (or a fitted `model`).",
-         call. = FALSE)
-  if (!is.null(model)) {
-    if (is_plain_list(model)) return(list_inputs(model, model_expr, "model"))
-    return(list(model_input(model, TRUE, expr_name(model_expr))))
-  }
+# The models given with `predicted_risk`, one element each:
+# list(value, is_model, label), with label NULL when the call gives none. One
+# model: risks (a vector or a column name) or a fitted model; several: a list
+# whose elements are any of these.
+model_inputs <- function(predicted_risk, risk_expr, data) {
   x <- predicted_risk
-  if (is.data.frame(x) || (is.matrix(x) && ncol(x) > 1)) return(column_inputs(x))
-  if (is.character(x)) return(name_inputs(x, data))
-  if (is_plain_list(x)) return(list_inputs(x, risk_expr, "predicted_risk"))
+  if (is.null(x))
+    stop("Give the predicted risks with `predicted_risk`: a vector of risks, the ",
+         "name of the column of `data` that holds them, or a fitted model (several ",
+         "models: a list of these).", call. = FALSE)
+  if (is.data.frame(x) || (is.matrix(x) && ncol(x) > 1))
+    stop("To give several models, use a list: predicted_risk = list(A = \"p1\", ",
+         "B = \"p2\"), with column names, vectors of risks or fitted models.",
+         call. = FALSE)
+  if (is.character(x) && length(x) > 1) {
+    # risks stored as text (one per row) rather than several column names
+    if (length(x) == nrow(data) && !any(x %in% names(data)))
+      stop("`predicted_risk` must be numeric: one predicted probability per row of ",
+           "`data`, or the name of the column that holds them.", call. = FALSE)
+    nms <- if (is.null(names(x)) || !all(nzchar(names(x)))) LETTERS[seq_along(x)]
+           else names(x)
+    stop("To give several models, use list() rather than c(): predicted_risk = list(",
+         paste0(nms, " = \"", x, "\"", collapse = ", "), ").", call. = FALSE)
+  }
+  if (is_plain_list(x)) return(list_inputs(x, risk_expr))
   if (is_risk_input(x)) return(list(model_input(x, FALSE, risk_label(risk_expr, x))))
-  # a fitted model given in place of the risks (e.g. nb_val(val, fit, "y"))
-  list(model_input(x, TRUE, expr_name(risk_expr)))
+  # a fitted model
+  list(model_input(x, TRUE, risk_label(risk_expr, NULL)))
 }
 
 model_input <- function(value, is_model, label) list(value = value, is_model = is_model,
                                                      label = label)
 
-# A data frame or matrix of risks: one model per column, labelled by the
-# column names.
-column_inputs <- function(x) {
-  cols <- if (is.data.frame(x)) as.list(x) else lapply(seq_len(ncol(x)), function(j) x[, j])
-  labs <- if (is.data.frame(x)) names(x) else colnames(x)
-  if (!length(cols))
-    stop("`predicted_risk` has no columns.", call. = FALSE)
-  lapply(seq_along(cols), function(j)
-    model_input(cols[[j]], FALSE, if (!is.null(labs) && nzchar(labs[j])) labs[j]))
-}
-
-# Names of columns of `data` that hold the risks, one model each, labelled by
-# the names of the vector if it has them, otherwise by the column names.
-name_inputs <- function(x, data) {
-  found <- x %in% names(data)
-  miss <- unique(x[!found])
-  if (length(miss)) {
-    if (length(x) > 1 && !any(found))
-      stop("`predicted_risk` must be numeric: one predicted probability per row of ",
-           "`data`, or the names of the columns of `data` that hold them.", call. = FALSE)
-    if (length(miss) == 1)
-      stop("`predicted_risk` names a column (\"", miss, "\") that is not in `data`.",
-           call. = FALSE)
-    stop("`predicted_risk` names columns that are not in `data`: ",
-         paste0("\"", miss, "\"", collapse = ", "), ".", call. = FALSE)
-  }
-  nms <- names(x)
-  lapply(seq_along(x), function(i)
-    model_input(unname(x[i]), FALSE,
-                if (!is.null(nms) && nzchar(nms[i])) nms[i] else unname(x[i])))
-}
-
-# A list of models (risks, column names or fitted models), labelled by its
-# names, or else by the expressions in the call (list(val$p1, fit2) gives
-# "p1" and "fit2", list(m$fit) gives "fit").
-list_inputs <- function(x, expr, arg) {
-  if (!length(x)) stop("`", arg, "` is an empty list.", call. = FALSE)
+# A list of models (fitted models, column names or vectors of risks),
+# labelled by its names, or else by the expressions in the call
+# (list(val$p1, fit2) gives "p1" and "fit2").
+list_inputs <- function(x, expr) {
+  if (!length(x)) stop("`predicted_risk` is an empty list.", call. = FALSE)
   nms <- names(x)
   if (is.null(nms)) nms <- rep("", length(x))
   args <- if (is.call(expr) && identical(expr[[1]], as.name("list")))
@@ -883,20 +866,19 @@ list_inputs <- function(x, expr, arg) {
   if (length(args) != length(x)) args <- NULL
   lapply(seq_along(x), function(i) {
     v <- x[[i]]
-    if (is.data.frame(v) || is_plain_list(v) || (is.matrix(v) && ncol(v) > 1))
-      stop("Each element of `", arg, "` must be the predicted risks of one model, ",
-           "or one fitted model.", call. = FALSE)
-    # in `model`, risks are rejected as models (with a message saying so)
-    is_model <- arg == "model" || !is_risk_input(v)
+    if (is.null(v) || is.data.frame(v) || is_plain_list(v) || (is.matrix(v) && ncol(v) > 1) ||
+        (is.character(v) && length(v) != 1))
+      stop("Each element of the list `predicted_risk` must be one model: a vector of ",
+           "risks, the name of a column of `data`, or a fitted model",
+           if (nzchar(nms[i])) paste0(" (element \"", nms[i], "\" is not)")
+           else paste0(" (element ", i, " is not)"), ".", call. = FALSE)
+    is_model <- !is_risk_input(v)
     lab <- if (nzchar(nms[i])) nms[i]
-           else if (!is.null(args)) {
-             risk_label(args[[i]], if (is_model) NULL else v)
-           } else if (is.character(v) && length(v) == 1) v
+           else if (!is.null(args)) risk_label(args[[i]], if (is_model) NULL else v)
+           else if (is.character(v)) v
     model_input(v, is_model, lab)
   })
 }
-
-expr_name <- function(expr) if (is.name(expr)) as.character(expr)
 
 # Label of risks given directly: the column name, or the name of the vector
 # (`p`, or `p` in `val$p`); NULL if there is none.
@@ -944,20 +926,62 @@ check_predict_function <- function(pf, inputs, labels) {
   if (is.null(pf)) return(list())
   is_model <- vapply(inputs, function(i) i$is_model, logical(1))
   if (!any(is_model))
-    stop("`predict_function` predicts from `model`; it is not used with ",
-         "`predicted_risk`.", call. = FALSE)
+    stop("`predict_function` predicts risks from fitted models, but `predicted_risk` ",
+         "has no fitted model.", call. = FALSE)
   if (is.function(pf)) return(stats::setNames(rep(list(pf), sum(is_model)), labels[is_model]))
   if (is_plain_list(pf) && length(pf) && !is.null(names(pf)) && all(nzchar(names(pf))) &&
       all(vapply(pf, is.function, logical(1)))) {
     bad <- setdiff(names(pf), labels[is_model])
     if (length(bad))
       stop("`predict_function` has a function for \"", bad[1], "\", which is not one of ",
-           "the models: ", paste0("\"", labels[is_model], "\"", collapse = ", "), ".",
+           "the fitted models: ", paste0("\"", labels[is_model], "\"", collapse = ", "), ".",
            call. = FALSE)
     return(pf)
   }
   stop("`predict_function` must be a function(model, newdata, horizon, cause), or a ",
        "list of such functions named by the labels of the models.", call. = FALSE)
+}
+
+# Every fitted model needs a way to predict its risks: voipred's own route for
+# its class, riskRegression::predictRisk(), predict() (binary outcomes), or
+# `predict_function`. Checked before predicting, for all the models at once.
+check_prediction_routes <- function(inputs, labels, pf, info) {
+  miss <- vapply(seq_along(inputs), function(m)
+    inputs[[m]]$is_model && is.null(pf[[labels[m]]]) &&
+      !has_route(inputs[[m]]$value, info), logical(1))
+  if (!any(miss)) return(invisible())
+  cls <- vapply(inputs[miss], function(i) class(i$value)[1], character(1))
+  several <- length(inputs) > 1
+  many <- sum(miss) > 1
+  what <- if (several) paste0("\"", labels[miss], "\" (", cls, ")", collapse = ", ")
+          else paste0("this ", cls, " model")
+  stop("voipred cannot predict risks from ", what, ": there is no built-in way to ",
+       "predict from ", if (many) "these models" else "it", " (see \"Predicting the ",
+       "risks from a model\" in ?nb_val). If ", if (many) "they come" else "it comes",
+       " from a package, load that package first. Otherwise give `predict_function`, ",
+       "a function(model, newdata, horizon, cause) returning the risk of the event",
+       if (info$type != "binary") " by the horizon", ", e.g. ",
+       if (several) paste0("predict_function = list(", r_name(labels[miss][1]),
+                           " = my_predict)")
+       else "predict_function = my_predict", ".", call. = FALSE)
+}
+
+# A label as it is written in R code (with backticks when it is not a
+# syntactic name).
+r_name <- function(x) if (identical(make.names(x), x)) x else paste0("`", x, "`")
+
+# Whether voipred knows how to predict risks from `model` for this outcome.
+# Each generic is looked up from where it is defined (methods defined by the
+# user in the global environment are found too).
+has_route <- function(model, info) {
+  cls <- class(model)
+  found <- function(generic, envir)
+    any(vapply(cls, function(k) !is.null(utils::getS3method(generic, k, optional = TRUE,
+                                                            envir = envir)),
+               logical(1)))
+  if (found("predict_risk", topenv(environment(has_route))) ||
+      found("predictRisk", asNamespace("riskRegression"))) return(TRUE)
+  info$type == "binary" && found("predict", globalenv())
 }
 
 # Errors while predicting from one of several models name that model.

@@ -4,7 +4,7 @@
 \alias{plot.voipred_evsi}
 \title{Plot the expected value of sample information}
 \usage{
-\method{plot}{voipred_evsi}(x, ..., thresholds = NULL, interactive = FALSE)
+\method{plot}{voipred_evsi}(x, ..., thresholds = NULL, colors = NULL, interactive = FALSE)
 }
 \arguments{
 \item{x}{A result of \code{\link[=evsi]{evsi()}}.}
@@ -13,6 +13,10 @@
 
 \item{thresholds}{The thresholds to draw, among those of \code{x}. Default: all
 of them if there are at most 5, otherwise the 4 with the largest EVPI.}
+
+\item{colors}{Optional colours of the curves (one per threshold), instead
+of the defaults: named by curve label (e.g. \code{"Threshold 10\%"}), or
+unnamed, one per curve in order.}
 
 \item{interactive}{\code{TRUE} for an interactive plot (needs the plotly
 package). Default \code{FALSE}.}

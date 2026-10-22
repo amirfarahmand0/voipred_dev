@@ -4,7 +4,7 @@
 \alias{plot.voipred_p_useful}
 \title{Plot the probability that a model is useful}
 \usage{
-\method{plot}{voipred_p_useful}(x, ..., labels = NULL, interactive = FALSE)
+\method{plot}{voipred_p_useful}(x, ..., labels = NULL, colors = NULL, interactive = FALSE)
 }
 \arguments{
 \item{x}{A result of \code{\link[=p_useful]{p_useful()}}.}
@@ -14,6 +14,10 @@ with one model given here with a name is labelled with its name.}
 
 \item{labels}{Optional names of the curves, one per model, in order.
 Default: the models' labels (or the argument names).}
+
+\item{colors}{Optional colours of the curves, instead of the defaults:
+named by label, e.g. \code{c(Full = "darkred")}, or unnamed, one per curve in
+order.}
 
 \item{interactive}{\code{TRUE} for an interactive plot (needs the plotly
 package). Default \code{FALSE}.}

@@ -48,6 +48,12 @@
 #' @param evpi,evsi Optional results of [evpi()] and [evsi()], drawn in a panel
 #'   below the decision curve: EVPI, and EVSI for each future sample size,
 #'   against the threshold. The static version needs the patchwork package.
+#' @param colors Optional colours of the curves, instead of the defaults:
+#'   named by label, e.g. `c(Full = "darkred", "Treat All" = "grey50")` (any
+#'   curve, including Treat All, Treat None and, with `evpi`/`evsi`, the EVPI
+#'   and EVSI curves; the others keep their colours), or unnamed, one per
+#'   model in order. Colour names or hex codes. By default, a model has the
+#'   same colour in every plot of voipred.
 #' @param interactive `TRUE` for an interactive plot (needs the plotly
 #'   package). Default `FALSE`.
 #' @return A ggplot object, a patchwork object (with `evpi` or `evsi`), or a
@@ -84,15 +90,15 @@
 #' }
 #' @export
 plot.voipred_nb <- function(x, ..., type = c("nb", "delta"), labels = NULL, evpi = NULL,
-                            evsi = NULL, interactive = FALSE) {
+                            evsi = NULL, colors = NULL, interactive = FALSE) {
   type <- match.arg(type)
   check_interactive(interactive)
   res <- collect_nb(x, list(...), labels, fun = "plot()",
-                    args = "`type`, `labels`, `evpi`, `evsi` and `interactive`")
-  top <- dca_spec(res, type)
-  if (is.null(evpi) && is.null(evsi)) return(render_plot(list(top), interactive))
-  bottom <- voi_panel_spec(evpi, evsi)
-  render_plot(list(top, bottom), interactive, heights = c(0.62, 0.38))
+                    args = "`type`, `labels`, `evpi`, `evsi`, `colors` and `interactive`")
+  specs <- list(dca_spec(res, type))
+  if (!is.null(evpi) || !is.null(evsi)) specs[[2]] <- voi_panel_spec(evpi, evsi)
+  specs <- recolor(specs, colors, res$models, "model")
+  render_plot(specs, interactive, heights = if (length(specs) > 1) c(0.62, 0.38))
 }
 
 # ---- plot specifications -----------------------------------------------------
@@ -180,10 +186,10 @@ plot_style <- list(text = "#444444", grid = "#EEEEEE", ref = "#555555", font_siz
 render_plot <- function(specs, interactive, heights = NULL) {
   if (interactive) return(render_plotly(specs, heights))
   if (length(specs) == 1) return(render_gg(specs[[1]]))
-  if (!requireNamespace("patchwork", quietly = TRUE))
-    stop("The patchwork package is needed to stack the value-of-information panel ",
-         "under the decision curve; install it, or use `interactive = TRUE`.",
-         call. = FALSE)
+  if (!has_package("patchwork"))
+    stop("Drawing the value-of-information panel under the decision curve needs the ",
+         "patchwork package. Install it with install.packages(\"patchwork\"), or use ",
+         "`interactive = TRUE`.", call. = FALSE)
   xr <- range(unlist(lapply(specs, function(sp) sp$data$x)))
   plots <- lapply(seq_along(specs), function(i) {
     p <- render_gg(specs[[i]], xlim = xr)
@@ -296,8 +302,55 @@ plotly_panel <- function(sp, i, legend = NULL) {
 check_interactive <- function(interactive) {
   if (!is.logical(interactive) || length(interactive) != 1 || is.na(interactive))
     stop("`interactive` must be TRUE or FALSE.", call. = FALSE)
-  if (interactive && !requireNamespace("plotly", quietly = TRUE))
-    stop("The plotly package is needed for `interactive = TRUE`.", call. = FALSE)
+  if (interactive && !has_package("plotly"))
+    stop("Interactive plots (`interactive = TRUE`) need the plotly package. Install it ",
+         "with install.packages(\"plotly\").", call. = FALSE)
+}
+
+# Whether an optional package is installed (a function, so tests can mock it).
+has_package <- function(pkg) requireNamespace(pkg, quietly = TRUE)
+
+# The plot specs with the colours of `colors` instead of the defaults: named
+# by curve label (any curve of any panel), or unnamed for the curves
+# `ordered` (e.g. the models), in order. The other curves keep their colours.
+recolor <- function(specs, colors, ordered, what = "model") {
+  if (is.null(colors)) return(specs)
+  defaults <- unlist(lapply(specs, function(sp) sp$colors))
+  new <- plot_colors(defaults, colors, ordered, what)
+  lapply(specs, function(sp) {
+    sp$colors[] <- new[names(sp$colors)]
+    sp
+  })
+}
+
+plot_colors <- function(cols, colors, ordered, what = "model") {
+  if (!is.character(colors) || !length(colors) || anyNA(colors))
+    stop("`colors` must be a character vector of colours, named by label, e.g. ",
+         "colors = c(Full = \"darkred\"), or in order, e.g. ",
+         "colors = c(\"darkred\", \"steelblue\").", call. = FALSE)
+  ok <- vapply(colors, function(k)
+    !inherits(tryCatch(grDevices::col2rgb(k), error = function(e) e), "error"), logical(1))
+  if (!all(ok))
+    stop("`colors` has an invalid colour: \"", colors[!ok][1], "\". Use colour names ",
+         "(e.g. \"darkred\") or hex codes (e.g. \"#8B0000\").", call. = FALSE)
+  nms <- names(colors)
+  if (is.null(nms) || !any(nzchar(nms))) {
+    if (length(colors) != length(ordered))
+      stop("`colors` without names must have ", length(ordered), " colour",
+           if (length(ordered) > 1) "s", ", one per ", what, " in order (",
+           paste(ordered, collapse = ", "), "); or name them by label, e.g. ",
+           "colors = c(", r_name(ordered[1]), " = \"darkred\").", call. = FALSE)
+    cols[ordered] <- unname(colors)
+    return(cols)
+  }
+  if (!all(nzchar(nms)))
+    stop("Name every colour in `colors`, or none.", call. = FALSE)
+  unknown <- setdiff(nms, names(cols))
+  if (length(unknown))
+    stop("`colors` names \"", unknown[1], "\", which is not a curve of this plot: ",
+         paste0("\"", names(cols), "\"", collapse = ", "), ".", call. = FALSE)
+  cols[nms] <- unname(colors)
+  cols
 }
 
 # ---- internal ----------------------------------------------------------------

@@ -9,6 +9,7 @@
   ...,
   type = c("evpi", "relative", "p_useful", "p_best"),
   labels = NULL,
+  colors = NULL,
   interactive = FALSE
 )
 }
@@ -27,6 +28,11 @@ result.}
 (\code{type = "p_useful"}: one per model).
 Default: \code{"EVPI"} for one result, the argument names (or \code{"EVPI 1"},
 \code{"EVPI 2"}, ...) for several.}
+
+\item{colors}{Optional colours of the curves, instead of the defaults:
+named by curve label, or unnamed, one per curve in order (with
+\code{type = "p_useful"} or \code{"p_best"}, as in \code{\link[=plot.voipred_p_useful]{plot.voipred_p_useful()}} and
+\code{\link[=plot.voipred_p_best]{plot.voipred_p_best()}}).}
 
 \item{interactive}{\code{TRUE} for an interactive plot (needs the plotly
 package). Default \code{FALSE}.}
