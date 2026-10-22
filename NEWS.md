@@ -46,6 +46,14 @@
 * The EVSI output states the information before the future study (the prior
   updated with the validation data, as for EVPI) and after it (with the
   future study added).
+* Any survival model can be the censoring model of cIPCW (e.g. a random
+  survival forest, with `refit_function` for the value-of-information
+  functions); `?cipcw_control` has an example with a forest. The outcome of a
+  model is also read from the call that fitted it (e.g. ranger), so the check
+  that a censoring model was fitted to censoring works for forests too.
+* Fix: the automatic refit of a `flexsurvreg` censoring model in the
+  value-of-information functions starts from the original estimates (it could
+  fail with the extreme weights of some draws).
 * Plots take optional colours, by label or in order: `colors =`.
 * Clear messages when plotly (interactive plots) or patchwork (stacked
   panels) is not installed, with how to install them.

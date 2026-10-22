@@ -196,3 +196,63 @@ test_that("printing shows the censoring model", {
   expect_output(print(res$cipcw$control),
                 "Cox censoring model ~age \\+ nodes, fitted by voipred, truncation: min_prob = 0.02")
 })
+
+test_that("any censoring model works, e.g. a random survival forest with refit_function", {
+  skip_if_not_installed("ranger")
+  s <- rott_split()
+  v <- s$val
+  v$censored <- 1 - v$death
+  v$p <- pmin(0.9, 0.1 + v$nodes / 40)
+  z <- c(0.1, 0.3)
+  rf <- ranger::ranger(survival::Surv(dtimey, censored) ~ age + nodes + grade, data = v,
+                       num.trees = 50, seed = 1)
+  # the formula is read from the call, so the censoring outcome is checked (no warning)
+  expect_equal(deparse(model_formula(rf)), "survival::Surv(dtimey, censored) ~ age + nodes + grade")
+  expect_no_warning(res <- nb_val(v, "p", surv_outcome, horizon = 5, thresholds = z, cipcw = rf))
+  expect_equal(res$outcome$censoring, "cipcw")
+  expect_equal(nb_val(v, "p", surv_outcome, horizon = 5, thresholds = z,
+                      cipcw = cipcw_control(model = rf))$estimates, res$estimates)
+  # a forest fitted to the event is caught
+  rf_event <- ranger::ranger(survival::Surv(dtimey, death) ~ age + nodes, data = v,
+                             num.trees = 20, seed = 1)
+  expect_error(nb_val(v, "p", surv_outcome, horizon = 5, thresholds = z, cipcw = rf_event),
+               "fitted to the event, not to censoring")
+  # the value-of-information functions need a way to refit it ...
+  expect_error(evpi(res, n_sim = 2), "Give `refit_function")
+  # ... and use refit_function, once per draw, with the draw's weights
+  calls <- 0
+  refit <- function(data, weights) {
+    calls <<- calls + 1
+    expect_equal(nrow(data), length(weights))
+    ranger::ranger(survival::Surv(dtimey, censored) ~ age + nodes + grade, data = data,
+                   case.weights = weights, num.trees = 50, seed = 1)
+  }
+  res_r <- nb_val(v, "p", surv_outcome, horizon = 5, thresholds = z,
+                  cipcw = cipcw_control(model = rf, refit_function = refit))
+  set.seed(1)
+  e <- evpi(res_r, n_sim = 3)
+  expect_equal(calls, 3)
+  expect_s3_class(e, "voipred_evpi")
+})
+
+test_that("a parametric censoring model is refitted automatically", {
+  skip_if_not_installed("flexsurv")
+  s <- rott_split()
+  v <- s$val
+  v$p <- pmin(0.9, 0.1 + v$nodes / 40)
+  fs <- flexsurv::flexsurvreg(survival::Surv(dtimey, death == 0) ~ age + nodes, data = v,
+                              dist = "weibull")
+  res <- nb_val(v, "p", surv_outcome, horizon = 5, thresholds = c(0.1, 0.3), cipcw = fs)
+  set.seed(2)
+  expect_s3_class(evpi(res, n_sim = 3), "voipred_evpi")
+})
+
+test_that("the formula of a model is read from its call when nothing else gives it", {
+  m <- list(call = quote(fit(y ~ x + z, data = d)))
+  expect_equal(deparse(call_formula(m)), "y ~ x + z")
+  m2 <- list(call = quote(fit(formula = Surv(t, s) ~ x, data = d)))
+  expect_equal(deparse(call_formula(m2)), "Surv(t, s) ~ x")
+  expect_null(call_formula(list(call = quote(fit(d, "y")))))
+  expect_null(call_formula(list()))
+  expect_null(call_formula(1:3))
+})

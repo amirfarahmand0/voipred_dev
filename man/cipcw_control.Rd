@@ -197,4 +197,29 @@ nb_val(data = df_val_survival,
        horizon = 5,
        thresholds = c(0.1, 0.2, 0.3),
        cipcw = cipcw_control(model = cens_fit, min_prob = NULL))
+
+# a flexible censoring model: a random survival forest (ranger), fitted on
+# the validation data with the censored patients as the events
+df_val_survival$censored <- 1 - df_val_survival$death
+cens_forest <- ranger::ranger(Surv(years, censored) ~ age + size + nodes + grade,
+                              data = df_val_survival, num.trees = 200, seed = 1)
+res_forest <- nb_val(data = df_val_survival,
+                     predicted_risk = df_val_survival$p5,
+                     outcome = ~ Surv(years, death),
+                     horizon = 5,
+                     thresholds = c(0.1, 0.2, 0.3),
+                     cipcw = cipcw_control(
+                       model = cens_forest,
+                       # how to refit it in each draw of the value-of-information
+                       # functions, with the draw's case weights
+                       refit_function = function(data, weights)
+                         ranger::ranger(Surv(years, censored) ~ age + size + nodes + grade,
+                                        data = data, case.weights = weights,
+                                        num.trees = 200, seed = 1)))
+res_forest
+\donttest{
+# the forest is refitted in every draw, so this takes a while
+set.seed(1)
+evpi(res_forest, n_sim = 20)
+}
 }

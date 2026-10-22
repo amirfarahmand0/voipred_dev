@@ -31,14 +31,21 @@ test_that("every known censoring model is refitted with the draw's weights", {
     res <- cipcw_nb(r, r$v, fits[[nm]](r$v))
     # weights of 1: the refit is the model itself, so the draw is nb_val()
     one <- fixed_draws(res, W = matrix(1, nrow(r$v), 2))
-    expect_equal(one$nb[1, , 1], res$estimates$NB_model, tolerance = 1e-12, label = nm)
-    expect_equal(one$nb[1, , 2], res$estimates$NB_all, tolerance = 1e-12, label = nm)
+    # flexsurvreg is fitted by numerical optimisation (from the original
+    # estimates in the refit), so it agrees to the optimiser's precision
+    tol <- if (nm == "flexsurvreg") 1e-8 else 1e-12
+    expect_equal(one$nb[1, , 1], res$estimates$NB_model, tolerance = tol, label = nm)
+    expect_equal(one$nb[1, , 2], res$estimates$NB_all, tolerance = tol, label = nm)
     # whole-number weights: the same as nb_val() on the duplicated patients, with the
     # censoring model fitted to them; this fails if the weights were ignored
     ref <- cipcw_nb(r, r$dup, fits[[nm]](r$dup))
     got <- fixed_draws(res, W = cbind(r$w, r$w))
-    expect_equal(got$nb[1, , 1], ref$estimates$NB_model, tolerance = 1e-8, label = nm)
-    expect_equal(got$nb[2, , 2], ref$estimates$NB_all, tolerance = 1e-8, label = nm)
+    # (flexsurvreg: the reference starts from flexsurv's own starting values,
+    # the refit from the original estimates; ignoring the weights would
+    # change the net benefit far more)
+    tol_dup <- if (nm == "flexsurvreg") 1e-6 else 1e-8
+    expect_equal(got$nb[1, , 1], ref$estimates$NB_model, tolerance = tol_dup, label = nm)
+    expect_equal(got$nb[2, , 2], ref$estimates$NB_all, tolerance = tol_dup, label = nm)
   }
 })
 

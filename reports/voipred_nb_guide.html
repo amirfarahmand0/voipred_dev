@@ -1606,7 +1606,27 @@ all.equal(res_cipcw_own$estimates, res_cipcw$estimates)
 <code>cipcw_control()</code>.</strong> Only needed to change the
 defaults, e.g. another truncation,
 <code>cipcw = cipcw_control(~ age + nodes + grade, min_prob = 0.05)</code>,
-or none, <code>min_prob = NULL</code>:</p>
+or none, <code>min_prob = NULL</code>.</p>
+<p><strong>Complex censoring models.</strong> The censoring model does
+not have to be a Cox model: any survival model fitted to the censoring
+times of the validation data can be given, as
+<code>cipcw = &lt;model&gt;</code> or
+<code>cipcw_control(model = &lt;model&gt;)</code>, for example a
+parametric model (<code>flexsurv::flexsurvreg()</code>,
+<code>survival::survreg()</code>, <code>rms::psm()</code>), a model with
+splines (<code>rstpm2::stpm2()</code>), a survival tree
+(<code>partykit::ctree()</code>) or a random survival forest
+(<code>ranger::ranger()</code>, <code>randomForestSRC::rfsrc()</code>,
+<code>aorsf::orsf()</code>). voipred predicts from it in the same way as
+from prediction models (or with your own <code>predict_function</code>).
+For the value-of-information functions, which refit the censoring model
+in every draw, voipred refits <code>coxph</code>, <code>survreg</code>,
+<code>cph</code>, <code>psm</code>, <code>flexsurvreg</code> and
+<code>prodlim</code> models itself; for the others, give
+<code>refit_function</code>, a function of the data and the case weights
+that fits the model again. <code>?cipcw_control</code> shows a complete
+example with a random survival forest. The options of
+<code>cipcw_control()</code>:</p>
 <table>
 <colgroup>
 <col width="50%" />

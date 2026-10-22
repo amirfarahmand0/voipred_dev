@@ -627,6 +627,10 @@ refit_call <- function(model, data, wname = NULL, weights = NULL) {
   env$.voipred_data <- data
   cl$data <- quote(.voipred_data)
   if (!is.null(wname)) cl[[wname]] <- weights   # the values, so no name is looked up
+  # flexsurvreg: start from the estimates of the original fit (its own
+  # starting values can fail with the extreme weights of some draws)
+  if (inherits(model, "flexsurvreg") && is.null(cl$inits) && is.matrix(model$res))
+    cl$inits <- unname(model$res[, "est"])
   eval(cl, env)
 }
 

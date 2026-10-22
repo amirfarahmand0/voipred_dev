@@ -886,7 +886,23 @@ all.equal(res_cipcw_own$estimates, res_cipcw$estimates)
 
 **More options (optional): `cipcw_control()`.** Only needed to change the
 defaults, e.g. another truncation, `cipcw = cipcw_control(~ age + nodes + grade,
-min_prob = 0.05)`, or none, `min_prob = NULL`:
+min_prob = 0.05)`, or none, `min_prob = NULL`.
+
+**Complex censoring models.** The censoring model does not have to be a Cox
+model: any survival model fitted to the censoring times of the validation
+data can be given, as `cipcw = <model>` or `cipcw_control(model = <model>)`,
+for example a parametric model (`flexsurv::flexsurvreg()`,
+`survival::survreg()`, `rms::psm()`), a model with splines
+(`rstpm2::stpm2()`), a survival tree (`partykit::ctree()`) or a random
+survival forest (`ranger::ranger()`, `randomForestSRC::rfsrc()`,
+`aorsf::orsf()`). voipred predicts from it in the same way as from
+prediction models (or with your own `predict_function`). For the
+value-of-information functions, which refit the censoring model in every
+draw, voipred refits `coxph`, `survreg`, `cph`, `psm`, `flexsurvreg` and
+`prodlim` models itself; for the others, give `refit_function`, a function of
+the data and the case weights that fits the model again. `?cipcw_control`
+shows a complete example with a random survival forest. The options of
+`cipcw_control()`:
 
 | Argument | What it does |
 |---|---|

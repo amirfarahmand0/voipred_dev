@@ -205,7 +205,18 @@ model_formula <- function(model) {
                 error = function(e) NULL)
   if (is.null(f))
     f <- tryCatch(suppressWarnings(stats::formula(model)), error = function(e) NULL)
+  if (is.null(f)) f <- call_formula(model)
   if (!inherits(f, "formula") || length(f) < 3) NULL else f
+}
+
+# The formula written in the call that fitted the model (e.g. ranger(), which
+# keeps it only there), or NULL.
+call_formula <- function(model) {
+  cl <- tryCatch(if (is.list(model)) model$call, error = function(e) NULL)
+  if (!is.call(cl)) return(NULL)
+  ff <- if (!is.null(cl$formula)) cl$formula else if (length(cl) > 1) cl[[2]]
+  if (!is.call(ff) || !identical(ff[[1]], as.name("~"))) return(NULL)
+  tryCatch(stats::as.formula(ff, env = globalenv()), error = function(e) NULL)
 }
 
 # The kind of outcome the model was fitted to: from its formula evaluated in
