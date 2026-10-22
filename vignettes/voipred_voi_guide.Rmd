@@ -12,21 +12,31 @@ output:
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4.2)
 ```
 
-A validation sample is finite, so the net benefit of a model is uncertain.
-The value-of-information (VoI) functions measure how much that uncertainty
-matters for the decision of which strategy to use. They all take results of
-`nb_val()` (see the net benefit guide, `voipred_nb_guide.Rmd`):
+This guide is for researchers who validate clinical prediction models and
+want to know whether their validation sample is large enough to trust its
+conclusion. A validation sample is finite, so the net benefit of a model is
+uncertain, and the strategy that looks best (a model, treating everyone, or
+treating no one) may not be the best in the population. The
+value-of-information (VoI) functions of voipred.dev measure how much that
+uncertainty matters for the decision of which strategy to use, following
+Sadatsafavi et al. (2023, 2025) for EVPI and EVSI and Wynants et al. (2018)
+and Cruz and Korthauer (2025) for the probabilities that a model is useful or
+the best. They all take a result of `nb_val()` (see the net benefit guide,
+`voipred_nb_guide.Rmd`), with one model or several:
 
 | Function | What it gives |
 |---|---|
-| `p_useful()` | Probability that a model is better than treating all and treating none (one model) |
+| `p_useful()` | Probability that each model is better than treating all and treating none |
 | `p_best()` | Probability that each strategy (each model, treat all, treat none) is the best |
-| `evpi()` | Expected value of perfect information (EVPI) and relative EVPI |
+| `evpi()` | Expected value of perfect information (EVPI) and relative EVPI; also P(useful) and P(best) from the same draws |
 | `evsi()` | Expected value of sample information (EVSI) of a future validation study |
 
 Each result has `print()`, `summary()`, `as.data.frame()` and `plot()`, and
 EVPI and EVSI can also be drawn below the decision curve. Every function works
 for binary, survival and competing-risks outcomes and any number of models.
+When models are compared, give them to one call of `nb_val()`, as a list,
+and pass that result to the VoI functions; this guide does so throughout,
+and its last section shows that results computed separately can be used too.
 The help pages give the full details: `?p_useful`, `?p_best`, `?evpi`,
 `?evsi`, `?summary.voipred_voi` and the `plot()` methods
 (`?plot.voipred_evpi`, ...).
@@ -59,17 +69,35 @@ remotes::install_github("amirfarahmand0/voipred_dev", force = TRUE,   # voipred.
                         upgrade = "never", lib = lib)
 ```
 
+Every package this guide uses is checked and loaded here, so that a missing
+one is reported at the start rather than halfway through (plotly and
+patchwork are only needed for the plots with panels and the interactive
+plots):
+
 ```{r library}
+pkgs <- c("voipred.dev", "survival", "riskRegression", "prodlim", "partykit",
+          "coin", "plotly", "patchwork")
+missing <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+if (length(missing))
+  stop("Install these packages first (see the code above): ",
+       paste(missing, collapse = ", "))
 library(voipred.dev)
 library(survival)
 ```
 
 # Setup: the net benefit
 
-**Binary outcome.** GUSTO-I, 30-day mortality. Two logistic models are
-fitted on 5000 patients and validated on 500, the size of the case study of
-Sadatsafavi et al. (2023); with thousands of validation patients the
-uncertainty would be small.
+**Binary outcome.** GUSTO-I was an international randomized trial of four
+thrombolytic strategies in 40,830 patients with acute myocardial infarction
+(GUSTO investigators, 1993); voipred.dev ships its data as `gusto`. The
+outcome is death within 30 days (`day30`), about 7% of patients. We fit two
+logistic models on a random development sample of 5000 patients: a "full"
+model (age, Killip class, systolic blood pressure, pulse, previous
+infarction, infarct location and sex) and a model with age only. For
+illustration, we validate them on a small random sample of only 500 other
+patients, the size of the case study of Sadatsafavi et al. (2023), so that
+the uncertainty is visible; with thousands of validation patients it would be
+small. Both models are given to one call of `nb_val()`:
 
 ```{r data-binary}
 set.seed(1)
@@ -95,10 +123,13 @@ The value-of-information functions take this result and compare all its
 models; to analyse a different set of models, call `nb_val()` with those
 models.
 
-**Survival and competing risks.** Rotterdam breast cancer data: death by 5
-years (a Cox and a Weibull model), and recurrence by 5 years with death as a
-competing event (a cause-specific Cox model); fitted on 1500 patients and
-validated on 600. The risks by 5 years are given to `nb_val()`.
+**Survival and competing risks.** The Rotterdam breast cancer data
+(`rotterdam`, from the survival package; Royston and Altman, 2013) describe
+2982 women with primary breast cancer. The outcomes are death by 5 years (a
+Cox and a Weibull model, compared in one call) and recurrence by 5 years with
+death as a competing event (a cause-specific Cox model). For illustration,
+the models are fitted on a random sample of 1500 women and validated on 600
+others. The risks by 5 years are given to `nb_val()`.
 
 In `nb_val()`, `predicted_risk =` is a vector or the name of a column of `data`;
 `outcome =` is, for a binary outcome, a column name (`"day30"`), a formula
@@ -159,30 +190,43 @@ res_ci <- nb_val(data = df_val_survival,
 
 # How the uncertainty is represented
 
-`nb_val()` works in a Bayesian framework, and each function draws `n_sim` times
-(default 1000) from the posterior of the net benefit of every strategy. With
-the default prior, `nb_improper()`, there is no prior information: the
-posterior reflects the data only, and the net benefit equals the usual
-(frequentist) net benefit. The predicted risks stay fixed; only the
-validation sample is uncertain. The draws follow from the `nb_val()` results:
+The VoI functions take the result of `nb_val()` and, each time they are
+called, draw `n_sim` times (default 1000) from the distribution of the true
+net benefit of every strategy given the validation data; all their results
+are computed from these draws. The draws are not stored in the result of
+`nb_val()`: each function makes them itself, from what `nb_val()` stored (the
+predicted risks, the outcomes, the prior). The predicted risks stay fixed;
+only the validation sample is uncertain.
 
-| Results of `nb_val()` | Draws |
+How the draws are made depends on the outcome:
+
+| Outcome (in `nb_val()`) | How the draws are made |
 |---|---|
-| binary, without case weights | the conjugate Beta posterior of the prevalence, sensitivity and specificity, with the results' prior |
-| survival, competing risks, binary with case weights | the Bayesian bootstrap: Dirichlet(1, ..., 1) weights on the patients, the net benefit recomputed with the same estimator as `nb_val()` |
+| binary, without case weights | from the posterior of the prevalence, sensitivity and specificity (Beta distributions, known in closed form), with the prior given to `nb_val()` |
+| survival, competing risks, or binary with case weights | by the Bayesian bootstrap: random weights on the patients (Dirichlet(1, ..., 1)), and the net benefit recomputed with the same estimator as `nb_val()` |
 
-For a survival or competing-risks outcome there is no conjugate (generic)
-Bayesian model for the net benefit with censored data, so `nb_val()` uses only
-the improper prior there, and the draws are the Bayesian bootstrap: the
-posterior under the improper prior (the data only). For a binary outcome
-with the improper prior, the conjugate posterior and the Bayesian bootstrap
-are the same distribution (with another prior, such as the uniform, they
-differ a little: the prior adds information). Several models
-are drawn together, with the same draws, so their correlation on the same
-patients is kept. With cIPCW the censoring model is refitted in every draw.
-`evpi()` computes P(useful) and P(best) from its own draws (see "EVPI");
-with the same seed, models and `n_sim`, `p_useful()`, `p_best()`, `evpi()`
-and `evsi()` also use the same draws. This guide uses `n_sim = 5000`.
+With the default prior, `nb_improper()`, no prior information is used, and
+the two ways give the same distribution for a binary outcome: the uncertainty
+is that of resampling the patients. (With another prior, such as the
+uniform, the prior adds a little information.) For survival and
+competing-risks outcomes there is no closed-form posterior of the net benefit
+with censored data, so only the default prior is available, and the draws
+are the Bayesian bootstrap.
+
+When models are compared, all of them are evaluated on the same patients
+within each draw, so their correlation is preserved. With cIPCW the censoring
+model is refitted in every draw. `evpi()` computes P(useful) and P(best) from
+its own draws (see "EVPI"); with the same seed, models and `n_sim`,
+`p_useful()`, `p_best()`, `evpi()` and `evsi()` also use the same draws. This
+guide uses `n_sim = 5000`.
+
+**Small effective sample sizes.** When few patients are on one side of a
+threshold (typically at very low or very high thresholds), the data say
+little there, and the VoI measures can behave unexpectedly; for example,
+EVPI may not decrease steadily as the sample size grows (Sadatsafavi et al.,
+2023). Interpret them with care at such thresholds. Prior information is one
+way to stabilise the estimates (Cruz and Korthauer, 2025; see "The prior" in
+the net benefit guide).
 
 The arguments the four functions share:
 
@@ -214,9 +258,11 @@ first thresholds; `print(pu, n = 30)` shows more:
 print(pu)
 ```
 
-**`summary()`** gives the thresholds where the model is almost surely useful
-($P > 0.95$), likely useful ($0.5$ to $0.95$), or unlikely to be useful
-($P < 0.5$); with `thresholds`, it also gives P(useful) at each of them:
+**`summary()`** gives, for each model, the thresholds where P(useful) is above
+0.95, between 0.5 and 0.95, and below 0.5; with `thresholds`, it also gives
+P(useful) at each of them. A P(useful) near 0.5 means that the data give no
+evidence either way (the model's net benefit is about that of the best
+default strategy), not that the model is likely to be useful:
 
 ```{r pu-summary}
 summary(pu)
@@ -421,7 +467,8 @@ summary(evpi(u_bin, n_sim = 5000), thresholds = c(0.02, 0.05, 0.1, 0.2))
 
 The expected gain in net benefit from a future validation study of $N$
 patients (`future_n`), added to the current sample, before choosing the
-strategy. It is between 0 and EVPI and approaches EVPI as $N$ grows. Two
+strategy, is quantified by the expected value of sample information (EVSI).
+It is between 0 and EVPI and approaches EVPI as $N$ grows. Two
 algorithms of Sadatsafavi et al. (2025) are used: the conjugate
 (Beta-binomial) one for a binary outcome without case weights, and the
 Bayesian bootstrap one otherwise (for survival, a future patient is a
@@ -433,7 +480,11 @@ o <- evsi(res_bin, future_n = c(250, 500, 1000, 2000, 4000), n_sim = 5000)
 ```
 
 **`print()`** gives the header and, at the first thresholds, EVPI and the
-EVSI of each future sample size, one column per size:
+EVSI of each future sample size, one column per size. The prior in the
+header is the one given to `nb_val()`. EVPI and EVSI both start from the same
+distribution of the true net benefit given the current data (that prior
+updated with the validation sample); EVSI then adds the information a future
+study of each size would give:
 
 ```{r evsi-print}
 print(o)
@@ -529,6 +580,29 @@ plot(res_bin, evpi = pu)                      # evpi = must be a result of evpi(
 plot(res_bin, colors = c(Nope = "red"))       # colours named by label
 ```
 
+# Results computed separately
+
+The models in this guide were given to one call of `nb_val()`. Results
+computed separately, for example by different people or at different times,
+can be given to the VoI functions together, as long as they come from the
+same data, outcome, thresholds and prior (and horizon and censoring):
+`evpi(res_a, res_b)`, `p_useful(res_a, res_b)`, `p_best(res_a, res_b)` and
+`evsi(res_a, res_b, future_n = ...)`. They are combined (as by `c()`), and the
+results are the same as with one call:
+
+```{r separate}
+res_full_only <- nb_val(data = df_val_binary, predicted_risk = "p_full",
+                        outcome = "day30", thresholds = z, label = "Full")
+res_age_only <- nb_val(data = df_val_binary, predicted_risk = "p_age",
+                       outcome = "day30", thresholds = z, label = "Age only")
+set.seed(50)
+e_separate <- evpi(res_full_only, res_age_only)
+set.seed(50)
+e_one_call <- evpi(res_bin)
+all.equal(e_separate$estimates, e_one_call$estimates)
+all.equal(p_best(e_separate)$estimates, p_best(e_one_call)$estimates)
+```
+
 # References
 
 - Sadatsafavi M, Lee TY, Wynants L, Vickers AJ, Gustafson P.
@@ -539,5 +613,13 @@ plot(res_bin, colors = c(Nope = "red"))       # colours named by label
   45(3): 232-244.
 - Rubin DB. The Bayesian bootstrap. *Annals of Statistics* 1981; 9(1):
   130-134.
-- bayesDCA: Bayesian decision curve analysis, R package
-  (github.com/giulianonetto/bayesDCA).
+- Cruz GNF, Korthauer K. Bayesian decision curve analysis with bayesDCA.
+  *Statistics in Medicine* 2025.
+- The GUSTO investigators. An international randomized trial comparing four
+  thrombolytic strategies for acute myocardial infarction. *New England
+  Journal of Medicine* 1993; 329: 673-682.
+- Royston P, Altman DG. External validation of a Cox prognostic model:
+  principles and methods. *BMC Medical Research Methodology* 2013; 13: 33.
+- Wynants L, Riley RD, Timmerman D, Van Calster B. Random-effects
+  meta-analysis of the clinical utility of tests and prediction models.
+  *Statistics in Medicine* 2018; 37: 2034-2052.

@@ -12,27 +12,53 @@ output:
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4.2)
 ```
 
-voipred.dev evaluates a prediction model in a validation sample in two steps:
+This guide is for researchers who develop or validate clinical prediction
+models and want to know whether using a model to decide on treatment does
+more good than harm. It shows how to carry out decision curve analysis in a
+validation sample with the voipred.dev package: `nb_val()` computes the net
+benefit, and `print()`, `summary()` and `plot()` show it.
 
-1. `nb_val()` computes, from the predicted risks of the validation patients, the
-   net benefit of the model, of treating everyone and of treating no one, at
-   each risk threshold;
-2. `print()` and `summary()` show the result, and `plot()` draws the
-   decision curve, or the gain of the model over the best default strategy
-   ($\Delta NB$).
+**The method.** Decision curve analysis (Vickers and Elkin, 2006) compares
+the strategy "treat the patients whose predicted risk is at or above a
+threshold $t$" with treating everyone and treating no one. Its measure is
+the net benefit,
+$$NB = \frac{TP}{n} - \frac{FP}{n} \cdot \frac{t}{1-t},$$
+the proportion of true positives minus the proportion of false positives,
+weighted by the odds of the threshold. The threshold expresses how the harm
+of an unnecessary treatment is weighed against the benefit of a necessary
+one: at $t = 10\%$, treating 9 patients unnecessarily is worth it to treat 1
+patient who needs it. A model is useful at a threshold where its net benefit
+is higher than that of both default strategies, and the decision curve shows
+this over a range of thresholds. Vickers, Van Calster and Steyerberg (2019)
+give a step-by-step guide to interpreting decision curves. For survival
+outcomes, the event is the event by a time horizon, and censoring is handled
+with Kaplan-Meier estimates (Vickers et al., 2008) or, when censoring
+depends on patient characteristics, with conditional inverse probability of
+censoring weights (cIPCW). voipred.dev computes the net benefit in a Bayesian
+framework (Wynants et al., 2018; Cruz and Korthauer, 2025), which its
+value-of-information functions use; by default no prior information is used,
+and the net benefit is exactly the usual one.
 
-The outcome decides the analysis: a binary outcome (part 1), or a survival or
-competing-risks outcome (part 2). Only the predicted risks are needed, and
-this guide gives them that way throughout. Giving the fitted model instead,
-which is optional, is explained once for each part.
+**What you need.** For each patient in the validation sample: the predicted
+risk of the event, from any model or software, and the observed outcome: 0/1
+(or logical, or a two-level factor) for a binary outcome, or a time and a
+status for a survival outcome. Throughout this guide the predicted risks are
+given as a vector (or as the name of a column of the data); giving the
+fitted model instead, which is optional, is explained once for each part.
 
-The value-of-information functions (`p_useful()`, `p_best()`, `evpi()`,
+**Several models at once.** `nb_val()` validates one model or several: give
+several models in one call, as a list, and every result compares them (side
+by side in `print()`, the best strategy at each threshold in `summary()`, all
+the curves in `plot()`). The guide uses this whenever models are compared;
+the last section shows that results computed separately can still be
+combined.
+
+**Contents.** Part 1: a binary outcome; Part 2: survival and competing-risks
+outcomes; then "Results computed separately" and the references. The
+value-of-information functions (`p_useful()`, `p_best()`, `evpi()`,
 `evsi()`), which take the results of `nb_val()`, are in a separate guide,
-`voipred_voi_guide.Rmd`.
-
-This vignette explains each option briefly, with examples. The help pages
-give the full details: `?nb_val`, `?summary.voipred_nb`, `?plot.voipred_nb`,
-`?cipcw_control` and `?nb_priors`.
+`voipred_voi_guide.Rmd`. The help pages give the full details: `?nb_val`,
+`?summary.voipred_nb`, `?plot.voipred_nb`, `?cipcw_control` and `?nb_priors`.
 
 ## Installation
 
@@ -69,18 +95,36 @@ remotes::install_github("amirfarahmand0/voipred_dev", force = TRUE,   # voipred.
                         upgrade = "never", lib = lib)
 ```
 
+Every package this guide uses is checked and loaded here, so that a missing
+one is reported at the start rather than halfway through:
+
 ```{r library}
+pkgs <- c("voipred.dev", "survival", "ggplot2", "riskRegression", "prodlim",
+          "ranger", "e1071", "bayespred")
+missing <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+if (length(missing))
+  stop("Install these packages first (see the code above): ",
+       paste(missing, collapse = ", "))
 library(voipred.dev)
 library(survival)
+library(bayespred)
 ```
 
 # Part 1: binary outcome
 
 ## Data
 
-The GUSTO-I trial data ships with the package. The outcome is 30-day
-mortality (`day30`). We fit the models on a development sample and evaluate
-them on a separate validation sample.
+GUSTO-I was an international randomized trial that compared four
+thrombolytic strategies in 40,830 patients with acute myocardial infarction
+(GUSTO investigators, 1993); its data are a standard example in prediction
+research. voipred.dev ships them as `gusto`. The outcome is death within 30
+days (`day30`, 0/1), which about 7% of the patients had.
+
+For illustration only, we draw two random, non-overlapping samples of 5000
+patients each: the models are fitted on the development sample, and
+evaluated on the validation sample, which plays the role of an independent
+validation sample (a real external validation would use patients from
+another setting or period).
 
 ```{r data}
 set.seed(1)
@@ -93,10 +137,15 @@ mean(df_val_binary$day30)   # prevalence in the validation sample
 
 ## Net benefit of one model
 
-`nb_val()` needs only the predicted risks of the validation patients, given with
-`predicted_risk`: one risk per row of `data`. They can come from any model or
-software, so the model object is not needed (e.g. a published model given as
-coefficients, or risks computed in other software).
+We fit a logistic regression for 30-day mortality on the development sample,
+with age, Killip class (the severity of heart failure), systolic blood
+pressure, pulse, previous myocardial infarction (`pmi`), location of the
+infarction (`miloc`) and sex as predictors, and predict the risks of the
+validation patients. `nb_val()` needs only these predicted risks, given with
+`predicted_risk`, one per row of `data`, and the observed outcome. The risks
+can come from any model or software, so the model object is not needed (e.g.
+a published model given as coefficients, or risks computed in other
+software).
 
 ```{r glm}
 fit_glm <- glm(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
@@ -118,8 +167,7 @@ of patients and events, and the prior) and the first rows of the table
 print(res_glm)
 ```
 
-The table what was evaluated and the first rows of its
-table, which has one row per threshold:
+The header line shows what was evaluated; the table shows, per threshold:
 
 - `NB_model`: net benefit of treating the patients whose predicted risk is at
   or above the threshold;
@@ -127,6 +175,15 @@ table, which has one row per threshold:
 - `NB_none`: net benefit of treating no one (always 0);
 - `delta_NB`: $NB_{model} - \max(NB_{all}, NB_{none})$, the gain of the model
   over the best default strategy. The model is useful where it is positive.
+
+In the header, "prior improper Beta(0, 0)" means the default prior,
+`nb_improper()`: no prior information is used, the estimates come from the
+data alone, and the net benefit is the usual one of decision curve analysis.
+Prior information is optional; it is explained in "The prior" below.
+
+These are point estimates. How uncertain they are, and whether more data
+would change the decision, is the subject of the value-of-information guide
+(`p_useful()`, `p_best()`, `evpi()` and `evsi()`).
 
 **`summary()`** gives the best strategy along the thresholds and the
 largest gain of the model, and, at each threshold, the model's sensitivity
@@ -148,9 +205,9 @@ head(d_glm)
 d_glm[round(d_glm$threshold, 2) == 0.1, ]       # the net benefit at threshold 0.1
 ```
 
-The result is a list, like a `glm` fit, and its other parts are read with
-`$`: the predicted risks, the outcome, and the counts of true and false
-positives and negatives at each threshold:
+The result is a list, and its parts are read with `$`, e.g. the predicted
+risks, the outcome, and the counts of true and false positives and negatives
+at each threshold:
 
 ```{r parts-glm}
 names(res_glm)
@@ -223,14 +280,19 @@ model: the name of a column of `data`, a vector of risks, or a fitted model,
 mixed freely. The outcome, thresholds and every other option apply to all of
 them, and the result compares them: `print()` shows their net benefits side
 by side, `summary()` names the best strategy at each threshold, and `plot()`
-draws them together. Here the logistic model and two more:
+draws them together.
+
+Here we compare the logistic model with two alternatives, both fitted on the
+same development sample with the same predictors: a random forest (ranger),
+and a Bayesian logistic regression with a log-F(2) prior that shrinks the
+coefficients (bayespred). All three are evaluated on the same independent
+validation sample:
 
 ```{r compare}
 fit_rf <- ranger::ranger(factor(day30) ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
                          data = df_dev_binary, probability = TRUE, num.trees = 500, seed = 1)
 df_val_binary$p_rf <- predict(fit_rf, df_val_binary)$predictions[, "1"]
 
-library(bayespred)
 fit_bpm <- bpmfit(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
                   data = df_dev_binary, prior = log_f(m = 2))
 # the risk is the posterior mean of risk
@@ -247,6 +309,16 @@ summary(res_3, thresholds = c(0.05, 0.1, 0.2))
 plot(res_3)
 plot(res_3, type = "delta")
 ```
+
+**Interpretation.** All three models have a higher net benefit than both
+default strategies at every threshold from 1% to 30% (`delta_NB` > 0), so
+each would be useful for deciding on treatment in this population. Their
+largest gain is about 0.03 at a threshold of 7%: about 3 more net true
+positives per 100 patients than the best default strategy. The three models
+differ by less than 0.002, and the "best strategy" switches between them from
+one threshold to the next: in this sample none is clearly better than the
+others. Whether such small differences are real or due to chance is what
+`p_best()` (in the value-of-information guide) quantifies.
 
 The same result, from the fitted models, or from a list that mixes them with
 risks (here also the vector of the logistic model's risks):
@@ -278,17 +350,8 @@ given as one (`"p_glm"`); the name in the call (`df_val_binary$p_glm` gives
 `p_glm`, `fit_glm` gives `fit_glm`); otherwise `Model 1`, `Model 2`, ... The
 labels must be different, and cannot be "Treat All" or "Treat None".
 
-**Results computed separately** (on the same data, outcome and thresholds)
-can still be combined with `c()`, which gives the same result as one call:
-
-```{r compare-c}
-res_rf <- nb_val(data = df_val_binary, predicted_risk = "p_rf", outcome = "day30",
-                 thresholds = seq(0, 0.30, by = 0.01), label = "Random forest")
-all.equal(c(Logistic = res_glm, res_rf)$estimates,
-          nb_val(data = df_val_binary,
-                 predicted_risk = list(Logistic = "p_glm", `Random forest` = "p_rf"),
-                 outcome = "day30", thresholds = seq(0, 0.30, by = 0.01))$estimates)
-```
+Results computed separately can still be combined; see the last section,
+"Results computed separately".
 
 ## Options of `nb_val()` for a binary outcome
 
@@ -298,37 +361,44 @@ all.equal(c(Logistic = res_glm, res_rf)$estimates,
 | `predicted_risk` | The predicted risks of the patients in `data`: a vector, one per row (e.g. `df_val_binary$p_glm`), the name of the column of `data` that holds them (`"p_glm"`), or a fitted model. This is all the validation needs. Several models: a list of these (see "Comparing models"). |
 | `outcome` | The binary outcome: a column name (`"day30"`), a vector, or a formula (`~ day30`); 0/1, logical, or a two-level factor. |
 | `thresholds` | Risk thresholds in [0, 1). Default `seq(0, 0.99, by = 0.01)`. A patient is treated when the risk is at or above the threshold. |
-| `weights` | Optional case weights, one per patient (sampling weights, or a bootstrap draw). Only with the default prior. |
+| `weights` | Optional case weights, one per patient, e.g. sampling weights when patients were sampled with different probabilities (see below). They change the net benefit itself. Only with the default prior. |
 | `prior` | Default `nb_improper()`: no prior information, the data only, which gives the usual net benefit. Prior information can be added with `nb_uniform()`, `nb_jeffreys()` or your own Beta priors with `nb_beta()` (see below). |
-| `model`, `predict_function` | Optional, instead of `predicted_risk`: the fitted model, and your own function to predict from it (see "The model instead of the risks" below). |
+| `predict_function` | Optional, for fitted models given as `predicted_risk`: your own function to predict from them (see "The model instead of the risks" below). |
 | `label` | Name of the model in printed output and plots. Default: the name of the risks (e.g. `p_glm`); with several models, their names, and `label` gives one per model. |
 
 See `?nb_val` for the details of each argument.
 
-**Weights.** An integer weight counts a patient that many times, so
-bootstrap draws can be made without copying the data. The weights of an
-ordinary bootstrap are the number of times each patient is drawn; those of a
-Bayesian bootstrap are Dirichlet(1, ..., 1):
+**Weights.** By default every patient counts once. Case weights are for
+validation samples that do not represent the target population in equal
+proportions, for example when deaths were oversampled, or in a survey
+design: each patient is then weighted by the inverse of their probability of
+being sampled. The net benefit is computed from weighted proportions, and the
+value-of-information functions resample the patients with these weights
+(the Bayesian bootstrap). For example, a sample that keeps every death but
+only about a quarter of the survivors, with the survivors weighted 4,
+estimates the net benefit of the whole validation sample (up to sampling
+variation); without the weights, it is far too high, because deaths are
+overrepresented:
 
 ```{r weights}
-n  <- nrow(df_val_binary)
 z4 <- c(0.02, 0.05, 0.10, 0.20)
 set.seed(2)
-w_boot <- tabulate(sample(n, replace = TRUE), nbins = n)    # ordinary bootstrap
-w_bb   <- rexp(n); w_bb <- n * w_bb / sum(w_bb)             # Bayesian bootstrap
+keep <- df_val_binary$day30 == 1 | runif(nrow(df_val_binary)) < 0.25
+df_sub <- df_val_binary[keep, ]
+w_sub <- ifelse(df_sub$day30 == 1, 1, 4)   # 1 / probability of being sampled
 
-res_original <- nb_val(data = df_val_binary, predicted_risk = "p_glm", outcome = "day30",
-                       thresholds = z4)
-res_boot     <- nb_val(data = df_val_binary, predicted_risk = "p_glm", outcome = "day30",
-                       thresholds = z4, weights = w_boot)
-res_bb       <- nb_val(data = df_val_binary, predicted_risk = "p_glm", outcome = "day30",
-                       thresholds = z4, weights = w_bb)
+res_whole <- nb_val(data = df_val_binary, predicted_risk = "p_glm",
+                    outcome = "day30", thresholds = z4)
+res_sub <- nb_val(data = df_sub, predicted_risk = "p_glm",
+                  outcome = "day30", thresholds = z4)
+res_sub_w <- nb_val(data = df_sub, predicted_risk = "p_glm",
+                    outcome = "day30", thresholds = z4, weights = w_sub)
 
-draws <- rbind(original  = res_original$estimates$NB_model,
-               bootstrap = res_boot$estimates$NB_model,
-               bayesian  = res_bb$estimates$NB_model)
-colnames(draws) <- paste("z =", z4)
-round(draws, 4)
+nb <- rbind(`whole sample` = res_whole$estimates$NB_model,
+            `subsample, no weights` = res_sub$estimates$NB_model,
+            `subsample, weighted` = res_sub_w$estimates$NB_model)
+colnames(nb) <- paste("z =", z4)
+round(nb, 4)
 ```
 
 ## The prior
@@ -390,6 +460,40 @@ samples. Results with different priors are different estimates, so `plot()`
 does not draw them together. Case weights can only be used with the default
 prior, and survival and competing-risks outcomes use only the default
 prior.
+
+**When to depart from the default.** Prior information is worth considering
+when the effective sample size is small, for example when most predicted
+risks are on one side of a threshold, so that few patients are treated (or
+untreated) there (Cruz and Korthauer, 2025). There the data say little, and
+estimates, including the value-of-information measures, can be unstable.
+Prior information that is genuinely available, such as the prevalence in
+earlier studies of the same population, can be added with `nb_beta()`;
+reporting the results with and without it shows how much it matters.
+
+## Why a Bayesian framework, and what it asks of you
+
+Prediction researchers are often not used to Bayesian methods, so the usual
+concerns are answered here.
+
+- **"Bayesian analysis is complicated."** With the default prior, `nb_val()`
+  gives exactly the usual net benefit (shown above), and nothing else is
+  needed. The Bayesian framework is used by the value-of-information
+  functions to represent the uncertainty of the net benefit.
+- **"Choosing a prior is complicated."** You do not have to: the default uses
+  no prior information. Priors are an option for small effective sample
+  sizes (see above).
+- **"I will have to monitor convergence."** No: there is no MCMC. For a binary
+  outcome the posterior is known in closed form (Beta distributions, the
+  conjugate model of bayesDCA) and is sampled directly; for survival
+  outcomes, the draws are the Bayesian bootstrap (Rubin, 1981), which only
+  reweights the patients.
+- **"The prior will make my results subjective."** With the default prior the
+  estimates are those of standard decision curve analysis, and the
+  uncertainty is that of resampling the patients: for a binary outcome the
+  posterior draws have exactly the distribution of the Bayesian bootstrap,
+  the approach used by Sadatsafavi et al. (2023). An informative prior only
+  matters when the data are scarce, and its influence can be shown by
+  reporting the results with and without it.
 
 ## Checks
 
@@ -527,8 +631,13 @@ nb_val(data = df_val_binary, predicted_risk = c("p_glm", "p_rf"), outcome = "day
 
 ## Data
 
-The Rotterdam breast cancer data (from the survival package). The outcome
-is death, with time in years; we evaluate the risk of death by 5 years.
+The Rotterdam breast cancer data (`rotterdam`, from the survival package)
+describe 2982 women with primary breast cancer from the Rotterdam tumour
+bank, used by Royston and Altman (2013) to illustrate the validation of
+survival models. The outcome is death (`death`, with the time `dtime` in days,
+here in years); we evaluate the risk of death by 5 years. As in Part 1, for
+illustration only, we split the data at random: 1500 women for development
+and the remaining 1482 for validation.
 
 ```{r surv-data}
 rott <- rotterdam
@@ -541,8 +650,11 @@ df_val_survival <- rott[j[1501:nrow(rott)], ]
 
 ## Net benefit of one model
 
-The predicted risks must be the risks of the event by the horizon. The
-outcome is given with `Surv()` and the `horizon` is required:
+We fit a Cox model for death on the development sample (age, tumour size,
+number of positive lymph nodes, grade, hormonal therapy and chemotherapy) and
+predict each validation patient's risk of death by 5 years. The predicted
+risks must be the risks of the event by the horizon. The outcome is given
+with `Surv()` and the `horizon` is required:
 
 ```{r cox}
 fit_cox <- coxph(Surv(years, death) ~ age + size + nodes + grade + hormon + chemo,
@@ -689,7 +801,14 @@ none of the treated patients is followed up to the horizon, the net benefit
 cannot be estimated: it is `NA`, with a warning.
 
 **Censoring: cIPCW (`cipcw`).** Conditional inverse probability of censoring
-weighting allows censoring to depend on covariates. Give the covariates that
+weighting allows censoring to depend on covariates. Use it when censoring
+may depend on patient characteristics that are also related to the outcome:
+for example when older or sicker patients are more often lost to follow-up,
+or when the length of follow-up changes with calendar time while the case
+mix changes too. Kaplan-Meier then assumes something false (that censored
+patients are like those still followed), and its net benefit can be biased.
+When censoring is purely administrative (the end of the study) and unrelated
+to the patients, Kaplan-Meier is fine. Give the covariates that
 censoring may depend on, as a formula: voipred fits a Cox model of the
 censoring times of the validation data on them (censoring as the event),
 computes the censoring weights from it, truncating the probabilities of
@@ -876,3 +995,67 @@ per patient, in [0, 1], and not only 0s and 1s. With a model, voipred also
 stops or warns if the model's own outcome does not match `outcome` (e.g. a binary
 model with a survival outcome), and warns if `horizon` is beyond the
 model's follow-up.
+
+# Results computed separately
+
+The models compared in this guide were given to one call of `nb_val()`.
+Results computed separately, for example by different people or at
+different times, can still be compared, as long as they come from the same
+data, outcome, thresholds and prior (and horizon and censoring): combine them
+with `c()`, or give them all to `plot()`, which combines them in the same
+way. The value-of-information functions take them in the same way, e.g.
+`evpi(res_a, res_b)` (see the value-of-information guide). The result is the
+same as one call with all the models:
+
+```{r separate}
+res_logistic <- nb_val(data = df_val_binary, predicted_risk = "p_glm",
+                       outcome = "day30", thresholds = seq(0, 0.30, by = 0.01),
+                       label = "Logistic")
+res_forest <- nb_val(data = df_val_binary, predicted_risk = "p_rf",
+                     outcome = "day30", thresholds = seq(0, 0.30, by = 0.01),
+                     label = "Random forest")
+res_two <- c(res_logistic, res_forest)
+res_two
+all.equal(res_two$estimates,
+          nb_val(data = df_val_binary,
+                 predicted_risk = list(Logistic = "p_glm", `Random forest` = "p_rf"),
+                 outcome = "day30",
+                 thresholds = seq(0, 0.30, by = 0.01))$estimates)
+plot(res_logistic, res_forest)
+```
+
+voipred.dev checks that separate results can be compared, and stops if not
+(here, different thresholds):
+
+```{r separate-check, error = TRUE}
+res_other <- nb_val(data = df_val_binary, predicted_risk = "p_rf",
+                    outcome = "day30", thresholds = c(0.05, 0.1), label = "Forest")
+c(res_logistic, res_other)
+```
+
+# References
+
+- Cruz GNF, Korthauer K. Bayesian decision curve analysis with bayesDCA.
+  *Statistics in Medicine* 2025.
+- The GUSTO investigators. An international randomized trial comparing four
+  thrombolytic strategies for acute myocardial infarction. *New England
+  Journal of Medicine* 1993; 329: 673-682.
+- Royston P, Altman DG. External validation of a Cox prognostic model:
+  principles and methods. *BMC Medical Research Methodology* 2013; 13: 33.
+- Rubin DB. The Bayesian bootstrap. *Annals of Statistics* 1981; 9(1):
+  130-134.
+- Sadatsafavi M, Lee TY, Wynants L, Vickers AJ, Gustafson P.
+  Value-of-information analysis for external validation of risk prediction
+  models. *Medical Decision Making* 2023; 43(5): 564-575.
+- Vickers AJ, Elkin EB. Decision curve analysis: a novel method for
+  evaluating prediction models. *Medical Decision Making* 2006; 26: 565-574.
+- Vickers AJ, Cronin AM, Elkin EB, Gonen M. Extensions to decision curve
+  analysis, a novel method for evaluating diagnostic tests, prediction models
+  and molecular markers. *BMC Medical Informatics and Decision Making* 2008;
+  8: 53.
+- Vickers AJ, Van Calster B, Steyerberg EW. A simple, step-by-step guide to
+  interpreting decision curve analysis. *Diagnostic and Prognostic Research*
+  2019; 3: 18.
+- Wynants L, Riley RD, Timmerman D, Van Calster B. Random-effects
+  meta-analysis of the clinical utility of tests and prediction models.
+  *Statistics in Medicine* 2018; 37: 2034-2052.
