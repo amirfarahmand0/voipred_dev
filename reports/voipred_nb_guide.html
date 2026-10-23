@@ -894,8 +894,11 @@ change the net benefit itself. Only with the default prior.</td>
 <td><code>prior</code></td>
 <td>Default <code>nb_improper()</code>: no prior information, the data
 only, which gives the usual net benefit. Prior information can be added
-with <code>nb_uniform()</code>, <code>nb_jeffreys()</code> or your own
-Beta priors with <code>nb_beta()</code> (see below).</td>
+with <code>nb_uniform()</code>, <code>nb_jeffreys()</code>, your own
+Beta priors with <code>nb_beta()</code>, or
+<code>nb_informative()</code>, the informative prior of bayesDCA, whose
+priors on the sensitivity and specificity change with the threshold, for
+small effective sample sizes (see below).</td>
 </tr>
 <tr class="odd">
 <td><code>predict_function</code></td>
@@ -992,10 +995,12 @@ res_glm_u
 #&gt;       0.08 Logistic  0.02721 -0.01155  0.0000  0.02721
 #&gt;       0.09 Logistic  0.02553 -0.02267  0.0000  0.02553
 #&gt; # 21 more thresholds; use summary() or as.data.frame()</code></pre>
-<p>Other priors are <code>nb_jeffreys()</code> (Beta(0.5, 0.5)) or your
+<p>Other priors are <code>nb_jeffreys()</code> (Beta(0.5, 0.5)), your
 own Beta priors with <code>nb_beta()</code>, e.g. prior information on
-the prevalence from earlier studies. The parts of <code>nb_beta()</code>
-you do not give are Beta(0, 0), with no prior information:</p>
+the prevalence from earlier studies, and <code>nb_informative()</code>,
+the informative prior of bayesDCA (see “When to depart from the default”
+below). The parts of <code>nb_beta()</code> you do not give are Beta(0,
+0), with no prior information:</p>
 <pre class="r"><code>nb_val(data = df_val_binary,
        predicted_risk = df_val_binary$p_glm,
        outcome = &quot;day30&quot;,

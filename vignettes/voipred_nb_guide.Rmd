@@ -365,7 +365,7 @@ Results computed separately can still be combined; see the last section,
 | `outcome` | The binary outcome: a column name (`"day30"`), a vector, or a formula (`~ day30`); 0/1, logical, or a two-level factor. |
 | `thresholds` | Risk thresholds in [0, 1). Default `seq(0, 0.99, by = 0.01)`. A patient is treated when the risk is at or above the threshold. |
 | `weights` | Optional case weights, one per patient, e.g. sampling weights when patients were sampled with different probabilities (see below). They change the net benefit itself. Only with the default prior. |
-| `prior` | Default `nb_improper()`: no prior information, the data only, which gives the usual net benefit. Prior information can be added with `nb_uniform()`, `nb_jeffreys()` or your own Beta priors with `nb_beta()` (see below). |
+| `prior` | Default `nb_improper()`: no prior information, the data only, which gives the usual net benefit. Prior information can be added with `nb_uniform()`, `nb_jeffreys()`, your own Beta priors with `nb_beta()`, or `nb_informative()`, the informative prior of bayesDCA, whose priors on the sensitivity and specificity change with the threshold, for small effective sample sizes (see below). |
 | `predict_function` | Optional, for fitted models given as `predicted_risk`: your own function to predict from them (see "The model instead of the risks" below). |
 | `label` | Name of the model in printed output and plots. Default: the name of the risks (e.g. `p_glm`); with several models, their names, and `label` gives one per model. |
 
@@ -439,9 +439,10 @@ res_glm_u <- nb_val(data = df_val_binary,
 res_glm_u
 ```
 
-Other priors are `nb_jeffreys()` (Beta(0.5, 0.5)) or your own Beta priors
-with `nb_beta()`, e.g. prior information on the prevalence from earlier
-studies. The parts of `nb_beta()` you do not give are Beta(0, 0), with no
+Other priors are `nb_jeffreys()` (Beta(0.5, 0.5)), your own Beta priors with
+`nb_beta()`, e.g. prior information on the prevalence from earlier studies,
+and `nb_informative()`, the informative prior of bayesDCA (see "When to
+depart from the default" below). The parts of `nb_beta()` you do not give are Beta(0, 0), with no
 prior information:
 
 ```{r prior-other}

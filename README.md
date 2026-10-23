@@ -54,9 +54,10 @@ several together.
 - **Prior information (optional)**: `nb_val()` works in a Bayesian framework.
   By default (`nb_improper()`, Beta(0, 0)) it uses the data only, with no
   prior information, and gives the usual net benefit. For a binary outcome,
-  prior information can be added with `nb_uniform()`, `nb_jeffreys()` or
+  prior information can be added with `nb_uniform()`, `nb_jeffreys()`,
   your own Beta priors with `nb_beta()` (the conjugate Beta model of
-  bayesDCA).
+  bayesDCA), or `nb_informative()`, the informative prior of bayesDCA, whose
+  priors on the sensitivity and specificity change with the threshold.
 
 **Value of information** for validation (Sadatsafavi et al. 2023, 2025), from
 the same `nb_val()` results, for every outcome type and any number of models:
