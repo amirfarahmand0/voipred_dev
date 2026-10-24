@@ -10,6 +10,7 @@
   type = c("evpi", "relative", "p_useful", "p_best"),
   labels = NULL,
   colors = NULL,
+  per = getOption("voipred.per", 1),
   interactive = FALSE
 )
 }
@@ -33,6 +34,11 @@ Default: \code{"EVPI"} for one result, the argument names (or \code{"EVPI 1"},
 named by curve label, or unnamed, one per curve in order (with
 \code{type = "p_useful"} or \code{"p_best"}, as in \code{\link[=plot.voipred_p_useful]{plot.voipred_p_useful()}} and
 \code{\link[=plot.voipred_p_best]{plot.voipred_p_best()}}).}
+
+\item{per}{Scale of EVPI (\code{type = "evpi"}): the number of patients it is
+expressed per. Default 1 (per patient); e.g. \code{per = 100000}, and the y
+axis says "(per 100,000 patients)". Relative EVPI, P(useful) and P(best)
+have no unit. The default can be set with \code{options(voipred.per = )}.}
 
 \item{interactive}{\code{TRUE} for an interactive plot (needs the plotly
 package). Default \code{FALSE}.}

@@ -219,6 +219,32 @@ res_glm$outcome$prevalence
 head(res_glm$counts, 3)
 ```
 
+**Net benefit per 100,000 patients (`per`).** The net benefit is per
+patient, so its values are small: 0.03 means 3 net true positives per 100
+patients. `print()`, `summary()`, `as.data.frame()` and `plot()` take `per`,
+the number of patients to express it per (default 1, per patient), e.g.
+`per = 100000` for the net number of true positives per 100,000 patients.
+Only the net benefit columns (`NB_model`, `NB_all`, `NB_none`, `delta_NB`)
+change; the header (and in plots the y axis) says the scale, and the
+sensitivity and specificity have no unit. `as.data.frame()` keeps the
+per-patient columns and adds the scaled ones, named `<column>_per_<per>`. The
+result itself (`res_glm$estimates`) is always per patient:
+
+```{r per-glm}
+print(res_glm, n = 3, per = 100000)
+summary(res_glm, thresholds = c(0.05, 0.1, 0.2), per = 100000)
+head(as.data.frame(res_glm, per = 100000), 3)
+```
+
+To use one scale everywhere, set the default once; a `per` given in a call
+still overrides it:
+
+```{r per-option}
+options(voipred.per = 100000)
+summary(res_glm, thresholds = 0.1)
+options(voipred.per = NULL)            # back to the default, per patient
+```
+
 ## All the ways to give the risks and the binary outcome
 
 **`predicted_risk =`** takes, for one model,
@@ -559,6 +585,7 @@ nb_val(data = df_val_binary, predicted_risk = df_val_binary$p_glm[-1], outcome =
 | `type` | `"nb"`: decision curve with Treat All and Treat None (default). `"delta"`: $\Delta NB$ of each model, with a dashed line at 0. |
 | `labels` | Names of the curves, one per model. Default: the models' labels. |
 | `colors` | Optional colours of the curves: named by label (e.g. `c(Logistic = "darkred", "Treat All" = "grey50")`; the others keep theirs), or unnamed, one per model in order. By default a model has the same colour in every plot. |
+| `per` | Scale of the net benefit: the number of patients it is expressed per (default 1; e.g. `100000`). The y axis says "(per 100,000 patients)". |
 | `interactive` | `TRUE` for an interactive plot (needs the plotly package). |
 
 See `?plot.voipred_nb` for details. The plot is a ggplot object, so it can be
@@ -568,6 +595,7 @@ changed with `+` or saved with `ggplot2::ggsave()`:
 p <- plot(res_3, labels = c("Logistic regression", "Forest", "Bayesian"),
           colors = c("Logistic regression" = "darkred", "Treat All" = "grey50"))
 p + ggplot2::coord_cartesian(xlim = c(0, 0.2), ylim = c(-0.005, 0.07))
+plot(res_3, per = 100000)              # net benefit per 100,000 patients
 ```
 
 ## The model instead of the risks (optional)

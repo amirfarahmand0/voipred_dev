@@ -6,14 +6,30 @@
 \alias{as.data.frame.voipred_nb}
 \title{Summarise the net benefit of a model}
 \usage{
-\method{print}{voipred_nb}(x, n = 10, ...)
+\method{print}{voipred_nb}(x, n = 10, per = getOption("voipred.per", 1), ...)
 
-\method{summary}{voipred_nb}(object, thresholds = NULL, ...)
+\method{summary}{voipred_nb}(object, thresholds = NULL, per = getOption("voipred.per", 1), ...)
 
-\method{as.data.frame}{voipred_nb}(x, row.names = NULL, optional = FALSE, ...)
+\method{as.data.frame}{voipred_nb}(
+  x,
+  row.names = NULL,
+  optional = FALSE,
+  per = getOption("voipred.per", 1),
+  ...
+)
 }
 \arguments{
 \item{n}{Number of thresholds printed. Default 10.}
+
+\item{per}{Scale of the net benefit: the number of patients it is
+expressed per. Default 1 (per patient, the usual scale); e.g.
+\code{per = 100000} gives the net number of true positives per 100,000
+patients. \code{print()} and \code{summary()} show \code{NB_model}, \code{NB_all}, \code{NB_none}
+and \code{delta_NB} on that scale (the header says so); \code{as.data.frame()}
+keeps the per-patient columns and adds the scaled ones, named
+\verb{<column>_per_<per>} (e.g. \code{NB_model_per_100000}). The result itself is
+always per patient. The
+default can be set once with \code{options(voipred.per = 100000)}.}
 
 \item{...}{Not used.}
 

@@ -22,6 +22,10 @@
 #'   named by curve label, or unnamed, one per curve in order (with
 #'   `type = "p_useful"` or `"p_best"`, as in [plot.voipred_p_useful()] and
 #'   [plot.voipred_p_best()]).
+#' @param per Scale of EVPI (`type = "evpi"`): the number of patients it is
+#'   expressed per. Default 1 (per patient); e.g. `per = 100000`, and the y
+#'   axis says "(per 100,000 patients)". Relative EVPI, P(useful) and P(best)
+#'   have no unit. The default can be set with `options(voipred.per = )`.
 #' @param interactive `TRUE` for an interactive plot (needs the plotly
 #'   package). Default `FALSE`.
 #' @return A ggplot object, or a plotly widget with `interactive = TRUE`.
@@ -44,9 +48,11 @@
 #' plot(e, type = "p_best")
 #' @export
 plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "p_best"),
-                              labels = NULL, colors = NULL, interactive = FALSE) {
+                              labels = NULL, colors = NULL,
+                              per = getOption("voipred.per", 1), interactive = FALSE) {
   type <- match.arg(type)
   check_interactive(interactive)
+  per <- check_per(per)
   if (type %in% c("p_useful", "p_best")) {
     # P(useful) or P(best) from the draws of evpi()
     if (length(list(...)))
@@ -62,7 +68,7 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
            else plot(obj, colors = colors, interactive = interactive))
   }
   res <- collect_results(x, list(...), labels, "voipred_evpi", "evpi()", "plot()",
-                         "`type`, `labels`, `colors` and `interactive`", "EVPI")
+                         "`type`, `labels`, `colors`, `per` and `interactive`", "EVPI")
   col <- if (type == "evpi") "EVPI" else "rEVPI"
   d <- do.call(rbind, Map(function(r, l) curve_data(r$estimates$threshold, l,
                                                      r$estimates[[col]]),
@@ -72,6 +78,8 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
                  "Threshold Probability",
                  if (type == "evpi") "EVPI" else "Relative EVPI",
                  hline = if (type == "relative") 1, fmt = if (type == "evpi") ".5f" else ".3f")
+  # EVPI per `per` patients; relative EVPI has no unit
+  if (type == "evpi") sp <- scale_spec(sp, per, "EVPI")
   render_plot(recolor(list(sp), colors, names(res), "result"), interactive)
 }
 
@@ -90,6 +98,10 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
 #' @param colors Optional colours of the curves (one per threshold), instead
 #'   of the defaults: named by curve label (e.g. `"Threshold 10%"`), or
 #'   unnamed, one per curve in order.
+#' @param per Scale of EVSI and EVPI: the number of patients they are
+#'   expressed per. Default 1 (per patient); e.g. `per = 100000`, and the y
+#'   axis says "(per 100,000 patients)". The default can be set with
+#'   `options(voipred.per = )`.
 #' @param interactive `TRUE` for an interactive plot (needs the plotly
 #'   package). Default `FALSE`.
 #' @return A ggplot object, or a plotly widget with `interactive = TRUE`.
@@ -109,9 +121,11 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
 #' plot(o)
 #' plot(o, thresholds = 0.05)
 #' @export
-plot.voipred_evsi <- function(x, ..., thresholds = NULL, colors = NULL, interactive = FALSE) {
+plot.voipred_evsi <- function(x, ..., thresholds = NULL, colors = NULL,
+                              per = getOption("voipred.per", 1), interactive = FALSE) {
   check_interactive(interactive)
-  check_no_dots(list(...), "plot()", "`thresholds`, `colors` and `interactive`")
+  per <- check_per(per)
+  check_no_dots(list(...), "plot()", "`thresholds`, `colors`, `per` and `interactive`")
   o <- x$estimates
   zs <- pick_thresholds(x, thresholds, n_default = 4, max_all = 5)
   lev <- paste0("Threshold ", format(100 * zs, trim = TRUE), "%")
@@ -129,7 +143,7 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, colors = NULL, interact
   ref$label <- factor(ref$label, levels = lev)
   sp <- new_spec(d, stats::setNames(series_colors(length(lev)), lev),
                  "Future sample size", "EVSI", ref = ref, percent = FALSE, fmt = ".5f")
-  render_plot(recolor(list(sp), colors, lev, "threshold"), interactive)
+  render_plot(recolor(list(scale_spec(sp, per, "EVSI")), colors, lev, "threshold"), interactive)
 }
 
 #' Plot the probability that a model is useful

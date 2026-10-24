@@ -12,6 +12,7 @@
   evpi = NULL,
   evsi = NULL,
   colors = NULL,
+  per = getOption("voipred.per", 1),
   interactive = FALSE
 )
 }
@@ -36,6 +37,12 @@ curve, including Treat All, Treat None and, with \code{evpi}/\code{evsi}, the EV
 and EVSI curves; the others keep their colours), or unnamed, one per
 model in order. Colour names or hex codes. By default, a model has the
 same colour in every plot of voipred.}
+
+\item{per}{Scale of the net benefit (and of EVPI and EVSI in the panel
+below): the number of patients it is expressed per. Default 1 (per
+patient); e.g. \code{per = 100000} draws the net number of true positives per
+100,000 patients, and the y axes say "(per 100,000 patients)". The
+default can be set with \code{options(voipred.per = )}.}
 
 \item{interactive}{\code{TRUE} for an interactive plot (needs the plotly
 package). Default \code{FALSE}.}

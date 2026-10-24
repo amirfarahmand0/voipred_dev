@@ -253,6 +253,10 @@ The arguments of `evpi()` and `evsi()`:
 | `n_sim` | Number of draws. Default 1000. |
 | `labels` | Names of the models, one per model, in order. Default: their labels. |
 
+EVPI and EVSI are in net benefit units, per patient; `print()`, `summary()`,
+`as.data.frame()` and `plot()` of their results take `per` to express them
+per more patients (see "EVPI per 100,000 patients" below).
+
 # EVPI, P(useful) and P(best)
 
 `evpi()` draws the net benefit of every strategy once and computes, from
@@ -397,6 +401,20 @@ plot(e)
 plot(e, type = "relative")
 ```
 
+**EVPI per 100,000 patients (`per`).** EVPI is per patient, so its values are
+small (0.002 is 2 net true positives per 1,000 patients). `print()`,
+`summary()`, `as.data.frame()` and `plot()` take `per`, the number of patients
+to express it per (default 1), e.g. `per = 100000` for the expected gain in
+net true positives per 100,000 patients with perfect information. The header
+and the y axis say the scale; relative EVPI, P(useful) and P(best) have no
+unit and do not change. The default can be set once with
+`options(voipred.per = 100000)`:
+
+```{r evpi-per}
+summary(e, thresholds = c(0.02, 0.05, 0.1, 0.2), per = 100000)
+plot(e, per = 100000)
+```
+
 `plot(e, type = "p_useful")` and `plot(e, type = "p_best")` draw P(useful)
 and P(best) from the result of `evpi()`, the same as `plot(e$p_useful)` and
 `plot(e$p_best)`:
@@ -528,6 +546,14 @@ plot(o)
 plot(o, thresholds = c(0.02, 0.05, 0.1, 0.2))
 ```
 
+EVSI, like EVPI, can be expressed per more patients with `per` (in
+`print()`, `summary()`, `as.data.frame()` and `plot()`):
+
+```{r evsi-per}
+summary(o, thresholds = c(0.05, 0.1), per = 100000)
+plot(o, thresholds = c(0.02, 0.05, 0.1, 0.2), per = 100000)
+```
+
 Small negative values of EVSI where EVPI is close to 0 are Monte Carlo error:
 EVSI is about 0 there.
 
@@ -566,6 +592,15 @@ head(d_best, 4)
 
 Thresholds made with `seq()` are not exact decimals (0.1 is stored as
 0.1000000000000000055), so select a threshold with `round()`:
+
+With `per`, `as.data.frame()` keeps these columns and adds the scaled net
+benefit, EVPI or EVSI, named `<column>_per_<per>` (probabilities are not
+scaled):
+
+```{r df-per}
+head(as.data.frame(e, per = 100000), 3)
+head(as.data.frame(o, per = 100000), 3)
+```
 
 ```{r df-select}
 d_useful[round(d_useful$threshold, 2) == 0.1, ]                 # P(useful) at 0.1
@@ -621,6 +656,12 @@ of the `evsi()` result):
 plot(res_bin, evpi = e, evsi = o)
 plot(res_bin, type = "delta", evpi = e)
 plot(res_surv, evsi = o_s)
+```
+
+With `per`, both panels are on the same scale, and both y axes say it:
+
+```{r dca-voi-per, fig.height = 6.5}
+plot(res_bin, evpi = e, evsi = o, per = 100000)
 ```
 
 # Interactive plots

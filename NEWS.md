@@ -58,6 +58,13 @@
 * Fix: the automatic refit of a `flexsurvreg` censoring model in the
   value-of-information functions starts from the original estimates (it could
   fail with the extreme weights of some draws).
+* `per`: `print()`, `summary()`, `as.data.frame()` and `plot()` of the results
+  of `nb_val()`, `evpi()` and `evsi()` can express the net benefit, EVPI and
+  EVSI per `per` patients (default 1, per patient; e.g. `per = 100000`). The
+  headers and the y axes say the scale; `as.data.frame()` keeps the
+  per-patient columns and adds the scaled ones (`<column>_per_<per>`); the
+  results themselves stay per patient. The default can be set with
+  `options(voipred.per = )`.
 * Plots take optional colours, by label or in order: `colors =`.
 * Clear messages when plotly (interactive plots) or patchwork (stacked
   panels) is not installed, with how to install them.

@@ -16,13 +16,13 @@
 \alias{as.data.frame.voipred_p_best}
 \title{Summarise value-of-information results}
 \usage{
-\method{print}{voipred_evpi}(x, n = 10, ...)
+\method{print}{voipred_evpi}(x, n = 10, per = getOption("voipred.per", 1), ...)
 
-\method{summary}{voipred_evpi}(object, thresholds = NULL, ...)
+\method{summary}{voipred_evpi}(object, thresholds = NULL, per = getOption("voipred.per", 1), ...)
 
-\method{print}{voipred_evsi}(x, n = 10, ...)
+\method{print}{voipred_evsi}(x, n = 10, per = getOption("voipred.per", 1), ...)
 
-\method{summary}{voipred_evsi}(object, thresholds = NULL, ...)
+\method{summary}{voipred_evsi}(object, thresholds = NULL, per = getOption("voipred.per", 1), ...)
 
 \method{print}{voipred_p_useful}(x, n = 10, ...)
 
@@ -32,9 +32,21 @@
 
 \method{summary}{voipred_p_best}(object, thresholds = NULL, ...)
 
-\method{as.data.frame}{voipred_evpi}(x, row.names = NULL, optional = FALSE, ...)
+\method{as.data.frame}{voipred_evpi}(
+  x,
+  row.names = NULL,
+  optional = FALSE,
+  per = getOption("voipred.per", 1),
+  ...
+)
 
-\method{as.data.frame}{voipred_evsi}(x, row.names = NULL, optional = FALSE, ...)
+\method{as.data.frame}{voipred_evsi}(
+  x,
+  row.names = NULL,
+  optional = FALSE,
+  per = getOption("voipred.per", 1),
+  ...
+)
 
 \method{as.data.frame}{voipred_p_useful}(x, row.names = NULL, optional = FALSE, ...)
 
@@ -42,6 +54,16 @@
 }
 \arguments{
 \item{n}{Number of thresholds printed. Default 10.}
+
+\item{per}{Scale of EVPI and EVSI: the number of patients they are
+expressed per. Default 1 (per patient); e.g. \code{per = 100000} gives the
+expected gain in net true positives per 100,000 patients. \code{print()} and
+\code{summary()} show \code{EVPI} (and \code{EVSI}) on that scale, and the header says
+so; \code{as.data.frame()} keeps the per-patient columns and adds the scaled
+ones, named \verb{<column>_per_<per>} (e.g. \code{EVPI_per_100000}). Relative EVPI
+and the probabilities (P(useful), P(best), EVSI / EVPI) have no unit and
+are never scaled. The result itself is always per patient. The default
+can be set once with \code{options(voipred.per = 100000)}.}
 
 \item{...}{Not used.}
 

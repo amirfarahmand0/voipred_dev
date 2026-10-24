@@ -54,6 +54,11 @@
 #'   and EVSI curves; the others keep their colours), or unnamed, one per
 #'   model in order. Colour names or hex codes. By default, a model has the
 #'   same colour in every plot of voipred.
+#' @param per Scale of the net benefit (and of EVPI and EVSI in the panel
+#'   below): the number of patients it is expressed per. Default 1 (per
+#'   patient); e.g. `per = 100000` draws the net number of true positives per
+#'   100,000 patients, and the y axes say "(per 100,000 patients)". The
+#'   default can be set with `options(voipred.per = )`.
 #' @param interactive `TRUE` for an interactive plot (needs the plotly
 #'   package). Default `FALSE`.
 #' @return A ggplot object, a patchwork object (with `evpi` or `evsi`), or a
@@ -90,13 +95,19 @@
 #' }
 #' @export
 plot.voipred_nb <- function(x, ..., type = c("nb", "delta"), labels = NULL, evpi = NULL,
-                            evsi = NULL, colors = NULL, interactive = FALSE) {
+                            evsi = NULL, colors = NULL, per = getOption("voipred.per", 1),
+                            interactive = FALSE) {
   type <- match.arg(type)
   check_interactive(interactive)
+  per <- check_per(per)
   res <- collect_nb(x, list(...), labels, fun = "plot()",
-                    args = "`type`, `labels`, `evpi`, `evsi`, `colors` and `interactive`")
-  specs <- list(dca_spec(res, type))
-  if (!is.null(evpi) || !is.null(evsi)) specs[[2]] <- voi_panel_spec(evpi, evsi)
+                    args = "`type`, `labels`, `evpi`, `evsi`, `colors`, `per` and `interactive`")
+  specs <- list(scale_spec(dca_spec(res, type), per,
+                           if (type == "nb") "Net Benefit" else "\u0394NB"))
+  if (!is.null(evpi) || !is.null(evsi)) {
+    bottom <- voi_panel_spec(evpi, evsi)
+    specs[[2]] <- scale_spec(bottom, per, bottom$ylab_text)
+  }
   specs <- recolor(specs, colors, res$models, "model")
   render_plot(specs, interactive, heights = if (length(specs) > 1) c(0.62, 0.38))
 }
@@ -144,6 +155,19 @@ dca_spec <- function(x, type) {
              ylab_text = "&#916;NB (NB<sub>model</sub> &#8722; max(NB<sub>treat all</sub>, NB<sub>treat none</sub>))",
              hline = 0)
   }
+}
+
+# A plot spec with its values (curves, reference lines, limits) in net
+# benefit per `per` patients, and the scale in the axis label `label`.
+scale_spec <- function(sp, per, label) {
+  if (per == 1) return(sp)
+  sp$data$value <- sp$data$value * per
+  if (!is.null(sp$ref)) sp$ref$value <- sp$ref$value * per
+  if (!is.null(sp$ylim)) sp$ylim <- sp$ylim * per
+  if (!is.null(sp$hline)) sp$hline <- sp$hline * per
+  sp$ylab <- sp$ylab_text <- paste0(label, " (", per_text(per), ")")
+  sp$fmt <- ".4~r"                                  # 4 significant digits in the hover
+  sp
 }
 
 # EVPI and EVSI (for each future sample size) against the threshold.
