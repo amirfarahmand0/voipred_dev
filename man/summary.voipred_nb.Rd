@@ -62,6 +62,11 @@ columns \code{NB_model}, \code{NB_all}, \code{NB_none} and \code{delta_NB} (\cod
 that the models are side by side; \code{as.data.frame()} keeps the order of the
 estimates (by model, then threshold).
 
+With credible intervals (\code{nb_val(interval = )}), \code{print()} and \code{summary()}
+show the interval of \code{NB_model} and of \code{delta_NB} after each of them, e.g.
+\verb{95\% CrI (0.0208, 0.0596)}, the header says how they were computed, and
+\code{as.data.frame()} has the bounds (\code{NB_model_lower}, \code{NB_model_upper}, ...).
+
 The best strategy at a threshold is the model with the largest
 \code{delta_NB} if it is positive, otherwise treat all if its net benefit is
 positive, otherwise treat none. For a binary outcome, sensitivity and

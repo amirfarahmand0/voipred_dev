@@ -58,6 +58,12 @@
 * Fix: the automatic refit of a `flexsurvreg` censoring model in the
   value-of-information functions starts from the original estimates (it could
   fail with the extreme weights of some draws).
+* Credible intervals: `nb_val(..., interval = 0.95)` keeps 95% credible
+  intervals of `NB_model`, `NB_all` and `delta_NB` at each threshold (default
+  `NULL`: none), from `n_sim` draws: the posterior for a binary outcome, the
+  Bayesian bootstrap for survival and competing-risks outcomes. `print()` and
+  `summary()` show them, `as.data.frame()` has the bounds, and `plot()` draws
+  them as shaded bands (`bands = FALSE` to hide them).
 * `per`: `print()`, `summary()`, `as.data.frame()` and `plot()` of the results
   of `nb_val()`, `evpi()` and `evsi()` can express the net benefit, EVPI and
   EVSI per `per` patients (default 1, per patient; e.g. `per = 100000`). The

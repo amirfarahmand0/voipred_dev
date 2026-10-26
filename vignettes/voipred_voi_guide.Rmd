@@ -212,6 +212,9 @@ competing-risks outcomes there is no closed-form posterior of the net benefit
 with censored data, so only the default prior is available, and the draws
 are the Bayesian bootstrap.
 
+The same draws give the credible intervals of the net benefit, with
+`nb_val(..., interval = 0.95)` (see the net benefit guide).
+
 When models are compared, all of them are evaluated on the same patients
 within each draw, so their correlation is preserved. With cIPCW the censoring
 model is refitted in every draw. `evpi()` computes EVPI, P(useful) and

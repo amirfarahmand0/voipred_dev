@@ -15,7 +15,9 @@ nb_val(
   weights = NULL,
   prior = nb_improper(),
   predict_function = NULL,
-  label = NULL
+  label = NULL,
+  interval = NULL,
+  n_sim = 1000
 )
 }
 \arguments{
@@ -129,6 +131,24 @@ models.}
 
 \item{label}{Optional names of the models in printed output and plots: a
 single string, or one per model, in order. Default: see "Labels".}
+
+\item{interval}{Optional credible intervals: their level, a number between
+0 and 1, e.g. \code{0.95} for 95\% intervals. Default \code{NULL}: none (and no
+draws, so \code{nb_val()} is fast). With a level, \code{nb_val()} draws the net
+benefit \code{n_sim} times and keeps, at each threshold, the
+\eqn{(1 - level)/2} and \eqn{(1 + level)/2} quantiles of the draws of
+\code{NB_model}, \code{NB_all} and \code{delta_NB} (equal-tailed intervals). The draws
+are those of the value-of-information functions: for a binary outcome,
+the posterior (with the prior, e.g. \code{\link[=nb_informative]{nb_informative()}}); for survival and
+competing-risks outcomes, and with case weights, the Bayesian bootstrap
+(with cIPCW, refitting the censoring model in every draw, which takes
+longer). \code{delta_NB} is computed within each draw, so its interval
+follows the correlation of the model and treat all on the same patients.
+\code{print()}, \code{summary()}, \code{as.data.frame()} and \code{plot()} (as bands) then
+show them. The draws are random: call \code{\link[=set.seed]{set.seed()}} first to reproduce
+them.}
+
+\item{n_sim}{Number of draws for \code{interval}. Default 1000.}
 }
 \value{
 An object of class \code{voipred_nb}, a list with:
@@ -140,7 +160,11 @@ estimated, see Details), \code{NB_all} (treat everyone), \code{NB_none} (treat n
 one, always 0) and \code{delta_NB}, the difference in net benefit between the
 model and the best default strategy,
 \eqn{NB_{model} - \max(NB_{all}, NB_{none})}: positive where the model
-is useful;
+is useful; with \code{interval}, also the bounds \code{NB_model_lower},
+\code{NB_model_upper}, \code{NB_all_lower}, \code{NB_all_upper}, \code{delta_NB_lower} and
+\code{delta_NB_upper};
+\item \code{interval} (with \code{interval}): the level, \code{n_sim} and the kind of draws
+(\code{"posterior"} or \code{"Bayesian bootstrap"});
 \item \code{models} (the labels of the models), \code{call} and \code{prior};
 \item \code{prior_shapes} (binary outcome): the shapes \eqn{(a, b)} of the Beta
 priors used at each threshold, for the sensitivity and specificity

@@ -18,6 +18,11 @@
 #' that the models are side by side; `as.data.frame()` keeps the order of the
 #' estimates (by model, then threshold).
 #'
+#' With credible intervals (`nb_val(interval = )`), `print()` and `summary()`
+#' show the interval of `NB_model` and of `delta_NB` after each of them, e.g.
+#' `95% CrI (0.0208, 0.0596)`, the header says how they were computed, and
+#' `as.data.frame()` has the bounds (`NB_model_lower`, `NB_model_upper`, ...).
+#'
 #' @param object,x A result of [nb_val()].
 #' @param thresholds Optional thresholds to show in the table (among those of
 #'   the result); default: all, of which the first 10 are printed.
@@ -73,9 +78,38 @@ NULL
 print.voipred_nb <- function(x, n = 10, per = getOption("voipred.per", 1), ...) {
   per <- check_per(per)
   cat(with_per(nb_header(x), per), "\n\n", sep = "")
-  print_rows(scale_cols(by_threshold(x$estimates, "model", x$models), nb_cols, per), n,
-             "use summary() or as.data.frame()", per_threshold = TRUE)
+  e <- scale_cols(by_threshold(x$estimates, "model", x$models), nb_cols, per)
+  tab <- e[, c("threshold", "model", "NB_model", "NB_all", "NB_none", "delta_NB")]
+  print_rows(with_ci(tab, e, x$interval), n, "use summary() or as.data.frame()",
+             per_threshold = TRUE)
   invisible(x)
+}
+
+# A table with the credible interval of NB_model and of delta_NB (from e, the
+# estimates of the same rows) after each of them, as text, e.g. "(0.0208,
+# 0.0596)", with the decimals of the column.
+with_ci <- function(tab, e, interval) {
+  if (is.null(interval)) return(tab)
+  name <- paste0(format(100 * interval$level, trim = TRUE), "% CrI")
+  out <- tab
+  for (k in c("NB_model", "delta_NB")) {
+    i <- match(k, names(out))
+    txt <- ci_text(e[[paste0(k, "_lower")]], e[[paste0(k, "_upper")]], e[[k]])
+    out <- cbind(out[seq_len(i)], stats::setNames(data.frame(txt), name),
+                 out[-seq_len(i)])
+  }
+  names(out) <- make.unique(names(out), sep = " ")
+  names(out)[names(out) == paste(name, "1")] <- name
+  out
+}
+
+ci_text <- function(lo, hi, ref) {
+  m <- suppressWarnings(max(abs(c(ref, lo, hi)[is.finite(c(ref, lo, hi))])))
+  dec <- if (!is.finite(m) || m == 0) 4 else min(10, max(0, 4 - floor(log10(m)) - 1))
+  out <- paste0("(", formatC(lo, format = "f", digits = dec), ", ",
+                formatC(hi, format = "f", digits = dec), ")")
+  out[is.na(lo) | is.na(hi)] <- "NA"
+  out
 }
 
 #' @rdname summary.voipred_nb
@@ -93,6 +127,7 @@ summary.voipred_nb <- function(object, thresholds = NULL,
   tab <- data.frame(threshold = e$threshold, model = e$model, Se = ss$Se, Sp = ss$Sp,
                     NB_model = e$NB_model, NB_all = e$NB_all, NB_none = e$NB_none,
                     delta_NB = e$delta_NB)
+  es <- scale_cols(e, nb_cols, per)
   best <- best_strategy(object)
   o <- order(z)
   largest <- vapply(object$models, function(m) {
@@ -111,7 +146,8 @@ summary.voipred_nb <- function(object, thresholds = NULL,
   structure(list(header = with_per(nb_header(object), per),
                  best = paste("Best strategy:", segments_text(z[o], best[o])),
                  largest = largest,
-                 table = scale_cols(tab[rows, , drop = FALSE], nb_cols, per),
+                 table = with_ci(scale_cols(tab[rows, , drop = FALSE], nb_cols, per),
+                                 es[rows, , drop = FALSE], object$interval),
                  all_rows = is.null(thresholds)),
             class = "summary.voipred_nb")
 }
@@ -383,7 +419,8 @@ check_per <- function(per) {
   as.numeric(per)
 }
 
-nb_cols <- c("NB_model", "NB_all", "NB_none", "delta_NB")
+nb_cols <- c("NB_model", "NB_model_lower", "NB_model_upper", "NB_all", "NB_all_lower",
+             "NB_all_upper", "NB_none", "delta_NB", "delta_NB_lower", "delta_NB_upper")
 
 per_text <- function(per)
   paste0("per ", format(per, big.mark = ",", scientific = FALSE, trim = TRUE),
@@ -403,7 +440,7 @@ scale_cols <- function(d, cols, per) {
 add_per_cols <- function(d, cols, per) {
   if (per == 1) return(d)
   tag <- format(per, scientific = FALSE, trim = TRUE)
-  for (k in cols) d[[paste0(k, "_per_", tag)]] <- d[[k]] * per
+  for (k in intersect(cols, names(d))) d[[paste0(k, "_per_", tag)]] <- d[[k]] * per
   d
 }
 
@@ -418,7 +455,10 @@ nb_header <- function(x) {
            else sprintf(", weighted prevalence %s", fmt_pct(o$prevalence))
          } else sprintf(", risk by horizon %s, censoring %s", fmt_pct(o$prevalence),
                         censoring_text(x)),
-         ", prior ", prior_text(x$prior))
+         ", prior ", prior_text(x$prior),
+         if (!is.null(x$interval))
+           paste0("; ", format(100 * x$interval$level, trim = TRUE), "% credible intervals ",
+                  "from ", x$interval$n_sim, " ", x$interval$draws, " draws"))
 }
 
 outcome_text <- function(o, weights = NULL) {

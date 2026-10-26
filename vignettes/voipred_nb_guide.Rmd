@@ -184,9 +184,10 @@ In the header, "prior improper Beta(0, 0)" means the default prior,
 data alone, and the net benefit is the usual one of decision curve analysis.
 Prior information is optional; it is explained in "The prior" below.
 
-These are point estimates. How uncertain they are, and whether more data
-would change the decision, is the subject of the value-of-information guide
-(`evpi()`, with P(useful) and P(best), and `evsi()`).
+These are point estimates. Credible intervals can be added with `interval`
+(see "Credible intervals" below); whether more data would change the
+decision is the subject of the value-of-information guide (`evpi()`, with
+P(useful) and P(best), and `evsi()`).
 
 **`summary()`** gives the best strategy along the thresholds and the
 largest gain of each model, and adds to the table the model's sensitivity
@@ -243,6 +244,49 @@ still overrides it:
 options(voipred.per = 100000)
 summary(res_glm, thresholds = 0.1)
 options(voipred.per = NULL)            # back to the default, per patient
+```
+
+**Credible intervals (`interval`).** `nb_val()` gives point estimates by
+default. With `interval = 0.95`, it also computes 95% credible intervals of
+`NB_model`, `NB_all` and `delta_NB` at each threshold, from `n_sim` draws
+(default 1000) of the posterior of the net benefit: here, a binary outcome,
+the conjugate posterior (with the prior of `nb_val()`); for survival and
+competing-risks outcomes, the Bayesian bootstrap (see Part 2). These are the
+draws of the value-of-information functions, and they are random, so set a
+seed first. `delta_NB` is computed within each draw, so its interval takes
+into account that the model and treat all are evaluated on the same
+patients, and is usually much narrower than that of `NB_model`. `print()`
+and `summary()` then show each interval after its estimate, and the header
+says how they were computed; `as.data.frame()` has the bounds
+(`NB_model_lower`, `NB_model_upper`, ...); `plot()` draws them as shaded
+bands, which `bands = FALSE` hides:
+
+```{r interval-glm}
+set.seed(1)
+res_glm_ci <- nb_val(data = df_val_binary,
+                     predicted_risk = df_val_binary$p_glm,
+                     outcome = "day30",
+                     thresholds = seq(0, 0.30, by = 0.01),
+                     label = "Logistic",
+                     interval = 0.95)
+print(res_glm_ci, n = 3)
+summary(res_glm_ci, thresholds = c(0.05, 0.1, 0.2))
+head(as.data.frame(res_glm_ci), 2)
+plot(res_glm_ci)
+plot(res_glm_ci, type = "delta")
+```
+
+With several models, each model gets its own interval (and band), and the
+intervals scale with `per`:
+
+```{r interval-3, fig.width = 7}
+set.seed(1)
+res_3_ci <- nb_val(data = df_val_binary,
+                   predicted_risk = list(Logistic = "p_glm", `Random forest` = "p_rf"),
+                   outcome = "day30",
+                   thresholds = seq(0, 0.30, by = 0.01),
+                   interval = 0.95)
+plot(res_3_ci, type = "delta", per = 100000)
 ```
 
 ## All the ways to give the risks and the binary outcome
@@ -391,6 +435,8 @@ Results computed separately can still be combined; see the last section,
 | `outcome` | The binary outcome: a column name (`"day30"`), a vector, or a formula (`~ day30`); 0/1, logical, or a two-level factor. |
 | `thresholds` | Risk thresholds in [0, 1). Default `seq(0, 0.99, by = 0.01)`. A patient is treated when the risk is at or above the threshold. |
 | `weights` | Optional case weights, one per patient, e.g. sampling weights when patients were sampled with different probabilities (see below). They change the net benefit itself. Only with the default prior. |
+| `interval` | Optional credible intervals: their level, e.g. `0.95`. Default `NULL`: none (see "Credible intervals"). |
+| `n_sim` | Number of draws for `interval`. Default 1000. |
 | `prior` | Default `nb_improper()`: no prior information, the data only, which gives the usual net benefit. Prior information can be added with `nb_uniform()`, `nb_jeffreys()`, your own Beta priors with `nb_beta()`, or `nb_informative()`, the informative prior of bayesDCA, whose priors on the sensitivity and specificity change with the threshold, for small effective sample sizes (see below). |
 | `predict_function` | Optional, for fitted models given as `predicted_risk`: your own function to predict from them (see "The model instead of the risks" below). |
 | `label` | Name of the model in printed output and plots. Default: the name of the risks (e.g. `p_glm`); with several models, their names, and `label` gives one per model. |
@@ -586,6 +632,7 @@ nb_val(data = df_val_binary, predicted_risk = df_val_binary$p_glm[-1], outcome =
 | `labels` | Names of the curves, one per model. Default: the models' labels. |
 | `colors` | Optional colours of the curves: named by label (e.g. `c(Logistic = "darkred", "Treat All" = "grey50")`; the others keep theirs), or unnamed, one per model in order. By default a model has the same colour in every plot. |
 | `per` | Scale of the net benefit: the number of patients it is expressed per (default 1; e.g. `100000`). The y axis says "(per 100,000 patients)". |
+| `bands` | With credible intervals (`nb_val(interval = )`): `TRUE` (default) draws them as shaded bands, `FALSE` hides them. |
 | `interactive` | `TRUE` for an interactive plot (needs the plotly package). |
 
 See `?plot.voipred_nb` for details. The plot is a ggplot object, so it can be
@@ -827,6 +874,25 @@ plot(res_surv)
 plot(res_surv, type = "delta")
 ```
 
+**Credible intervals** work in the same way for survival and competing-risks
+outcomes, with `interval`. There is no closed-form posterior of the net
+benefit with censored data, so the draws are the Bayesian bootstrap: each
+draw gives the patients random Dirichlet(1, ..., 1) weights and recomputes the
+net benefit with the same estimator (Kaplan-Meier here; with cIPCW, the
+censoring model is also refitted in every draw, which takes longer):
+
+```{r interval-surv}
+set.seed(1)
+res_surv_ci <- nb_val(data = df_val_survival,
+                      predicted_risk = list(Cox = "p_cox", `Weibull AFT` = "p_aft"),
+                      outcome = ~ Surv(years, death),
+                      horizon = 5,
+                      thresholds = seq(0, 0.6, by = 0.01),
+                      interval = 0.95, n_sim = 500)
+summary(res_surv_ci, thresholds = c(0.1, 0.2, 0.3))
+plot(res_surv_ci)
+```
+
 ## Options of `nb_val()` for a survival outcome
 
 All the options of part 1 apply, except `prior` (below). In addition:
@@ -838,6 +904,7 @@ All the options of part 1 apply, except `prior` (below). In addition:
 | `horizon` | The time by which the risk is predicted and the event counted (required), in the units of the survival times. |
 | `cipcw` | How censoring is handled. Not given (default): Kaplan-Meier. The covariates of the censoring, e.g. `cipcw = ~ age + nodes`: cIPCW with a Cox censoring model fitted by voipred (see below). |
 | `cause` | Competing risks only: the event type of interest (default: the first event level). |
+| `interval`, `n_sim` | Optional credible intervals, from `n_sim` Bayesian bootstrap draws (see above). |
 | `prior` | Only the default, `nb_improper()`: the net benefit is calculated from the data only, with no prior information, which gives the usual Kaplan-Meier, Aalen-Johansen or cIPCW net benefit. Other priors are for binary outcomes. It can be left out. |
 
 See `?nb_val` for the details of each argument.

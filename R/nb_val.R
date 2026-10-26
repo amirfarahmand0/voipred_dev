@@ -245,6 +245,22 @@
 #'   models.
 #' @param label Optional names of the models in printed output and plots: a
 #'   single string, or one per model, in order. Default: see "Labels".
+#' @param interval Optional credible intervals: their level, a number between
+#'   0 and 1, e.g. `0.95` for 95% intervals. Default `NULL`: none (and no
+#'   draws, so `nb_val()` is fast). With a level, `nb_val()` draws the net
+#'   benefit `n_sim` times and keeps, at each threshold, the
+#'   \eqn{(1 - level)/2} and \eqn{(1 + level)/2} quantiles of the draws of
+#'   `NB_model`, `NB_all` and `delta_NB` (equal-tailed intervals). The draws
+#'   are those of the value-of-information functions: for a binary outcome,
+#'   the posterior (with the prior, e.g. [nb_informative()]); for survival and
+#'   competing-risks outcomes, and with case weights, the Bayesian bootstrap
+#'   (with cIPCW, refitting the censoring model in every draw, which takes
+#'   longer). `delta_NB` is computed within each draw, so its interval
+#'   follows the correlation of the model and treat all on the same patients.
+#'   `print()`, `summary()`, `as.data.frame()` and `plot()` (as bands) then
+#'   show them. The draws are random: call [set.seed()] first to reproduce
+#'   them.
+#' @param n_sim Number of draws for `interval`. Default 1000.
 #' @return An object of class `voipred_nb`, a list with:
 #'   * `estimates`: a data frame with one row per model and threshold (by
 #'     model, then threshold) and columns `threshold`, `model` (its label),
@@ -253,7 +269,11 @@
 #'     one, always 0) and `delta_NB`, the difference in net benefit between the
 #'     model and the best default strategy,
 #'     \eqn{NB_{model} - \max(NB_{all}, NB_{none})}: positive where the model
-#'     is useful;
+#'     is useful; with `interval`, also the bounds `NB_model_lower`,
+#'     `NB_model_upper`, `NB_all_lower`, `NB_all_upper`, `delta_NB_lower` and
+#'     `delta_NB_upper`;
+#'   * `interval` (with `interval`): the level, `n_sim` and the kind of draws
+#'     (`"posterior"` or `"Bayesian bootstrap"`);
 #'   * `models` (the labels of the models), `call` and `prior`;
 #'   * `prior_shapes` (binary outcome): the shapes \eqn{(a, b)} of the Beta
 #'     priors used at each threshold, for the sensitivity and specificity
@@ -409,7 +429,7 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
                    thresholds = seq(0, 0.99, by = 0.01), horizon = NULL, cause = NULL,
                    cipcw = NULL, weights = NULL,
                    prior = nb_improper(), predict_function = NULL,
-                   label = NULL) {
+                   label = NULL, interval = NULL, n_sim = 1000) {
   call <- match.call()
   if (!is.data.frame(data)) {
     if (is.data.frame(predicted_risk))
@@ -417,6 +437,7 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
            "nb_val(data, predicted_risk, outcome, ...).", call. = FALSE)
     stop("`data` must be a data frame.", call. = FALSE)
   }
+  check_interval(interval, n_sim)
   # the models: predicted risks or fitted models, one or several
   inputs <- model_inputs(predicted_risk, substitute(predicted_risk), data)
   labels <- model_labels(inputs, label)
@@ -495,12 +516,76 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
                NB_all = res$NB_all, NB_none = 0)))
   est$delta_NB <- est$NB_model - pmax(est$NB_all, 0)
   rownames(est) <- NULL
-  structure(list(call = call, models = labels, estimates = est, prior = prior,
-                 prior_shapes = if (info$type == "binary") prior_shapes(prior, thresholds),
-                 outcome = outcome_info, risk = P, observed = observed, weights = w,
-                 counts = counts, cipcw = cw),
-            class = "voipred_nb")
+  out <- structure(list(call = call, models = labels, estimates = est, prior = prior,
+                        prior_shapes = if (info$type == "binary") prior_shapes(prior, thresholds),
+                        outcome = outcome_info, risk = P, observed = observed, weights = w,
+                        counts = counts, cipcw = cw),
+                   class = "voipred_nb")
+  if (!is.null(interval)) out <- add_intervals(out, interval, n_sim)
+  out
 }
+
+# `interval` (NULL, or the level of the credible intervals) and `n_sim`.
+check_interval <- function(interval, n_sim) {
+  if (is.null(interval)) return(invisible())
+  if (!is.numeric(interval) || length(interval) != 1 || is.na(interval) ||
+      interval <= 0 || interval >= 1)
+    stop("`interval` must be the level of the credible intervals, a number between 0 ",
+         "and 1 (e.g. 0.95), or NULL for none.", call. = FALSE)
+  check_n_sim(n_sim)
+}
+
+# Credible intervals of NB_model, NB_all and delta_NB at each threshold: the
+# (1 - level) / 2 and (1 + level) / 2 quantiles of n_sim draws (the posterior
+# for a binary outcome without case weights, otherwise the Bayesian
+# bootstrap), the draws of the value-of-information functions. delta_NB is
+# computed within each draw (the model against the best default strategy of
+# that draw). NA where some draws have no net benefit.
+add_intervals <- function(x, level, n_sim) {
+  d <- suppressWarnings(nb_draws(x, n_sim))
+  M <- length(x$models)
+  a <- (1 - level) / 2
+  q <- function(m) {
+    lo <- hi <- rep(NA_real_, ncol(m))
+    ok <- !apply(m, 2, anyNA)
+    if (any(ok)) {
+      qq <- apply(m[, ok, drop = FALSE], 2, stats::quantile, probs = c(a, 1 - a), names = FALSE)
+      lo[ok] <- qq[1, ]
+      hi[ok] <- qq[2, ]
+    }
+    list(lo = lo, hi = hi)
+  }
+  draws_of <- function(k) matrix(d$nb[, , k], nrow = dim(d$nb)[1])
+  nb_all <- draws_of(M + 1)
+  qa <- q(nb_all)
+  e <- x$estimates
+  for (m in seq_len(M)) {
+    rows <- e$model == x$models[m]        # in the order of the thresholds of the draws
+    nb_m <- draws_of(m)
+    qm <- q(nb_m)
+    qd <- q(nb_m - pmax(nb_all, 0))
+    e$NB_model_lower[rows] <- qm$lo
+    e$NB_model_upper[rows] <- qm$hi
+    e$NB_all_lower[rows] <- qa$lo
+    e$NB_all_upper[rows] <- qa$hi
+    e$delta_NB_lower[rows] <- qd$lo
+    e$delta_NB_upper[rows] <- qd$hi
+  }
+  bad <- is.na(e$NB_model_lower) & !is.na(e$NB_model)
+  if (any(bad))
+    warning("The credible interval could not be computed at ",
+            if (length(unique(e$threshold[bad])) == 1) "threshold " else "thresholds ",
+            format_thresholds(unique(e$threshold[bad])), " (in some draws no treated ",
+            "patient was followed up to the horizon); it is NA there.", call. = FALSE)
+  x$estimates <- e[, interval_cols]
+  x$interval <- list(level = level, n_sim = n_sim, draws = d$draws)
+  x
+}
+
+# The columns of the estimates with credible intervals.
+interval_cols <- c("threshold", "model", "NB_model", "NB_model_lower", "NB_model_upper",
+                   "NB_all", "NB_all_lower", "NB_all_upper", "NB_none",
+                   "delta_NB", "delta_NB_lower", "delta_NB_upper")
 
 # Counts (weighted with case weights) of treated and untreated patients with
 # and without the event at each threshold, for the model `label`.

@@ -48,6 +48,11 @@
 #' @param evpi,evsi Optional results of [evpi()] and [evsi()], drawn in a panel
 #'   below the decision curve: EVPI, and EVSI for each future sample size,
 #'   against the threshold. The static version needs the patchwork package.
+#' @param bands If the results have credible intervals (`nb_val(interval = )`),
+#'   `TRUE` (default) draws them as shaded bands around each model's curve
+#'   (and Treat All in the decision curve), in the curves' colours; `FALSE`
+#'   draws the curves only. Interactive plots show the interval when
+#'   hovering.
 #' @param colors Optional colours of the curves, instead of the defaults:
 #'   named by label, e.g. `c(Full = "darkred", "Treat All" = "grey50")` (any
 #'   curve, including Treat All, Treat None and, with `evpi`/`evsi`, the EVPI
@@ -96,13 +101,15 @@
 #' @export
 plot.voipred_nb <- function(x, ..., type = c("nb", "delta"), labels = NULL, evpi = NULL,
                             evsi = NULL, colors = NULL, per = getOption("voipred.per", 1),
-                            interactive = FALSE) {
+                            bands = TRUE, interactive = FALSE) {
   type <- match.arg(type)
   check_interactive(interactive)
   per <- check_per(per)
+  if (!is.logical(bands) || length(bands) != 1 || is.na(bands))
+    stop("`bands` must be TRUE or FALSE.", call. = FALSE)
   res <- collect_nb(x, list(...), labels, fun = "plot()",
-                    args = "`type`, `labels`, `evpi`, `evsi`, `colors`, `per` and `interactive`")
-  specs <- list(scale_spec(dca_spec(res, type), per,
+                    args = "`type`, `labels`, `evpi`, `evsi`, `colors`, `per`, `bands` and `interactive`")
+  specs <- list(scale_spec(dca_spec(res, type, bands), per,
                            if (type == "nb") "Net Benefit" else "\u0394NB"))
   if (!is.null(evpi) || !is.null(evsi)) {
     bottom <- voi_panel_spec(evpi, evsi)
@@ -120,17 +127,37 @@ plot.voipred_nb <- function(x, ..., type = c("nb", "delta"), labels = NULL, evpi
 # with ggplot2 (stacked with patchwork when there are several) or plotly.
 
 new_spec <- function(data, colors, xlab, ylab, ylab_text = ylab, ylim = NULL,
-                     hline = NULL, ref = NULL, percent = TRUE, fmt = ".4f") {
+                     hline = NULL, ref = NULL, percent = TRUE, fmt = ".4f", band = NULL) {
   data <- data[is.finite(data$value), , drop = FALSE]
   if (!is.null(ref)) ref <- ref[is.finite(ref$value), , drop = FALSE]
+  if (!is.null(band)) {
+    band <- band[is.finite(band$lower) & is.finite(band$upper), , drop = FALSE]
+    band$label <- factor(band$label, levels = levels(data$label))
+  }
   list(data = data, colors = colors, xlab = xlab, ylab = ylab, ylab_text = ylab_text,
-       ylim = ylim, hline = hline, ref = ref, percent = percent, fmt = fmt)
+       ylim = ylim, hline = hline, ref = ref, percent = percent, fmt = fmt, band = band)
 }
 
-dca_spec <- function(x, type) {
+dca_spec <- function(x, type, bands = TRUE) {
   e <- x$estimates
   lab <- x$models
   z <- nb_thresholds(x)
+  # credible intervals (if computed): a band around each model's curve, and
+  # around Treat All in the decision curve
+  band <- NULL
+  if (bands && !is.null(x$interval)) {
+    k <- if (type == "nb") "NB_model" else "delta_NB"
+    band <- do.call(rbind, lapply(lab, function(l) {
+      d <- e[e$model == l, ]
+      data.frame(x = d$threshold, label = l, lower = d[[paste0(k, "_lower")]],
+                 upper = d[[paste0(k, "_upper")]])
+    }))
+    if (type == "nb") {
+      d <- e[e$model == lab[1], ]
+      band <- rbind(data.frame(x = d$threshold, label = "Treat All", lower = d$NB_all_lower,
+                               upper = d$NB_all_upper), band)
+    }
+  }
   # ggplot2's default colours for Treat All, Treat None and the models, so a
   # model has the same colour in both types of plot
   cols <- default_hues(length(lab) + 2)
@@ -145,7 +172,7 @@ dca_spec <- function(x, type) {
     d$label <- factor(d$label, levels = c("Treat All", "Treat None", lab))
     prev <- x$outcome$prevalence
     new_spec(d, stats::setNames(cols, levels(d$label)), "Threshold Probability",
-             "Net Benefit", ylim = c(-0.1 * prev, prev))
+             "Net Benefit", ylim = c(-0.1 * prev, prev), band = band)
   } else {
     d <- models
     d$label <- factor(d$label, levels = lab)
@@ -153,7 +180,7 @@ dca_spec <- function(x, type) {
              quote(Delta * NB ~ "(" * NB[model] - "max(" * NB[treat ~ all] * "," ~
                      NB[treat ~ none] * "))"),
              ylab_text = "&#916;NB (NB<sub>model</sub> &#8722; max(NB<sub>treat all</sub>, NB<sub>treat none</sub>))",
-             hline = 0)
+             hline = 0, band = band)
   }
 }
 
@@ -165,6 +192,10 @@ scale_spec <- function(sp, per, label) {
   if (!is.null(sp$ref)) sp$ref$value <- sp$ref$value * per
   if (!is.null(sp$ylim)) sp$ylim <- sp$ylim * per
   if (!is.null(sp$hline)) sp$hline <- sp$hline * per
+  if (!is.null(sp$band)) {
+    sp$band$lower <- sp$band$lower * per
+    sp$band$upper <- sp$band$upper * per
+  }
   sp$ylab <- sp$ylab_text <- paste0(label, " (", per_text(per), ")")
   sp$fmt <- ".4~r"                                  # 4 significant digits in the hover
   sp
@@ -234,6 +265,12 @@ render_gg <- function(sp, xlim = NULL) {
                         linewidth = 0.4)
   if (!is.null(sp$ref) && nrow(sp$ref))
     p <- p + geom_line(data = sp$ref, linetype = "dashed", linewidth = 0.6)
+  # credible intervals: shaded bands in the colours of the curves
+  if (!is.null(sp$band) && nrow(sp$band))
+    p <- p + geom_ribbon(data = sp$band, aes(x = .data$x, ymin = .data$lower,
+                                             ymax = .data$upper, fill = .data$label),
+                         inherit.aes = FALSE, alpha = 0.15, show.legend = FALSE) +
+      scale_fill_manual(values = sp$colors, guide = "none")
   p <- p + geom_line(linewidth = 0.75) +
     scale_color_manual(values = sp$colors) +
     labs(x = sp$xlab, y = sp$ylab, color = NULL)
@@ -289,6 +326,9 @@ render_plotly <- function(specs, heights = NULL) {
 
 legend_id <- function(i) if (i == 1) "legend" else paste0("legend", i)
 
+# A bound of a credible interval in the hover: 4 significant digits.
+fmt_hover <- function(v) trimws(formatC(v, format = "fg", digits = 4))
+
 plotly_panel <- function(sp, i, legend = NULL) {
   p <- plotly::plot_ly()
   # the legend this panel's curves go to (several panels), or the default one
@@ -303,9 +343,25 @@ plotly_panel <- function(sp, i, legend = NULL) {
   for (l in levels(sp$data$label)) {
     d <- sp$data[sp$data$label == l, ]
     if (!nrow(d)) next
+    b <- if (!is.null(sp$band)) sp$band[sp$band$label == l, ]
+    tmpl <- hover
+    txt <- NULL
+    if (!is.null(b) && nrow(b)) {
+      # the band, behind the curve, and the interval in the hover
+      rgb <- grDevices::col2rgb(sp$colors[l])
+      fill <- sprintf("rgba(%d, %d, %d, 0.15)", rgb[1], rgb[2], rgb[3])
+      p <- plotly::add_ribbons(p, x = b$x, ymin = b$lower, ymax = b$upper,
+                               fillcolor = fill, line = list(width = 0),
+                               legendgroup = paste0(i, l), showlegend = FALSE,
+                               hoverinfo = "skip", name = paste(l, "interval"))
+      j <- match(d$x, b$x)
+      txt <- ifelse(is.na(j), "", sprintf(" (%s to %s)", fmt_hover(b$lower[j]),
+                                          fmt_hover(b$upper[j])))
+      tmpl <- paste0(hover, "%{text}")
+    }
     p <- add(p, x = d$x, y = d$value, name = l, legendgroup = paste0(i, l),
                            line = list(color = unname(sp$colors[l])),
-                           hovertemplate = hover)
+                           text = txt, hovertemplate = tmpl)
     if (!is.null(sp$ref)) {
       r <- sp$ref[sp$ref$label == l, ]
       if (nrow(r))
@@ -468,6 +524,18 @@ merge_nb <- function(res, labels = NULL) {
   check_model_labels(lab, "give each a different one with `labels` or nb_val(label = )")
   for (i in seq_along(res)[-1])
     check_comparable(res[[1]], res[[i]], groups[[1]], groups[[i]])
+  # credible intervals are kept only if every result has the same ones
+  ints <- lapply(res, function(r) r$interval)
+  if (!all(vapply(ints, identical, logical(1), ints[[1]]))) {
+    warning("The results do not have the same credible intervals (`interval` and ",
+            "`n_sim` of nb_val()), so the combined result has none.", call. = FALSE)
+    res <- lapply(res, function(r) {
+      r$estimates <- r$estimates[, c("threshold", "model", "NB_model", "NB_all", "NB_none",
+                                     "delta_NB")]
+      r$interval <- NULL
+      r
+    })
+  }
   relabel <- function(df, r, new) {
     if (is.null(df)) return(NULL)
     df$model <- new[match(df$model, r$models)]

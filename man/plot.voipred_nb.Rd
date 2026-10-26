@@ -13,6 +13,7 @@
   evsi = NULL,
   colors = NULL,
   per = getOption("voipred.per", 1),
+  bands = TRUE,
   interactive = FALSE
 )
 }
@@ -43,6 +44,12 @@ below): the number of patients it is expressed per. Default 1 (per
 patient); e.g. \code{per = 100000} draws the net number of true positives per
 100,000 patients, and the y axes say "(per 100,000 patients)". The
 default can be set with \code{options(voipred.per = )}.}
+
+\item{bands}{If the results have credible intervals (\code{nb_val(interval = )}),
+\code{TRUE} (default) draws them as shaded bands around each model's curve
+(and Treat All in the decision curve), in the curves' colours; \code{FALSE}
+draws the curves only. Interactive plots show the interval when
+hovering.}
 
 \item{interactive}{\code{TRUE} for an interactive plot (needs the plotly
 package). Default \code{FALSE}.}
