@@ -276,17 +276,11 @@ plot(res_glm_ci)
 plot(res_glm_ci, type = "delta")
 ```
 
-With several models, each model gets its own interval (and band), and the
-intervals scale with `per`:
+With several models, each model gets its own interval and band (see the
+survival example in Part 2), and the intervals scale with `per`:
 
-```{r interval-3, fig.width = 7}
-set.seed(1)
-res_3_ci <- nb_val(data = df_val_binary,
-                   predicted_risk = list(Logistic = "p_glm", `Random forest` = "p_rf"),
-                   outcome = "day30",
-                   thresholds = seq(0, 0.30, by = 0.01),
-                   interval = 0.95)
-plot(res_3_ci, type = "delta", per = 100000)
+```{r interval-per}
+plot(res_glm_ci, type = "delta", per = 100000)
 ```
 
 ## All the ways to give the risks and the binary outcome
