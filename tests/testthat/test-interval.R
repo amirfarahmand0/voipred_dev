@@ -10,8 +10,9 @@ ci_case <- function(interval = 0.95, n_sim = 400, prior = nb_improper()) {
   v$p1 <- unname(predict(f1, v, type = "response"))
   v$p2 <- unname(predict(f2, v, type = "response"))
   set.seed(7)
-  res <- nb_val(v, list(Full = "p1", Age = "p2"), "day30", thresholds = seq(0.01, 0.3, by = 0.01),
-                interval = interval, n_sim = n_sim, prior = prior)
+  res <- suppressWarnings(nb_val(v, list(Full = "p1", Age = "p2"), "day30",
+                                 thresholds = seq(0.01, 0.3, by = 0.01),
+                                 interval = interval, n_sim = n_sim, prior = prior))
   list(res = res, v = v)
 }
 
@@ -59,15 +60,16 @@ test_that("survival: the Bayesian bootstrap (Kaplan-Meier and cIPCW)", {
   v$p <- pmin(0.9, 0.1 + v$nodes / 40)
   z <- c(0.1, 0.3)
   set.seed(3)
-  km <- nb_val(v, "p", surv_outcome, horizon = 5, thresholds = z, interval = 0.9, n_sim = 50)
+  km <- suppressWarnings(nb_val(v, "p", surv_outcome, horizon = 5, thresholds = z,
+                                interval = 0.9, n_sim = 50))
   expect_equal(km$interval$draws, "Bayesian bootstrap")
   expect_true(all(km$estimates$NB_model_lower <= km$estimates$NB_model &
                     km$estimates$NB_model <= km$estimates$NB_model_upper))
   set.seed(3)
-  ci <- nb_val(v, "p", surv_outcome, horizon = 5, thresholds = z, cipcw = ~ age + nodes,
-               interval = 0.9, n_sim = 20)
+  ci <- suppressWarnings(nb_val(v, "p", surv_outcome, horizon = 5, thresholds = z,
+                                cipcw = ~ age + nodes, interval = 0.9, n_sim = 20))
   expect_equal(ci$interval$n_sim, 20)
-  expect_output(print(ci), "90% credible intervals from 20 Bayesian bootstrap draws")
+  expect_output(suppressWarnings(print(ci)), "90% credible intervals from 20 Bayesian bootstrap draws")
 })
 
 test_that("print(), summary() and as.data.frame() show the intervals", {
@@ -118,9 +120,11 @@ test_that("c() keeps the intervals only if all results have the same", {
   v <- cs$v
   z <- seq(0.01, 0.3, by = 0.01)
   set.seed(1)
-  a <- nb_val(v, "p1", "day30", thresholds = z, label = "A", interval = 0.95, n_sim = 100)
+  a <- suppressWarnings(nb_val(v, "p1", "day30", thresholds = z, label = "A", interval = 0.95,
+                               n_sim = 100))
   set.seed(2)
-  b <- nb_val(v, "p2", "day30", thresholds = z, label = "B", interval = 0.95, n_sim = 100)
+  b <- suppressWarnings(nb_val(v, "p2", "day30", thresholds = z, label = "B", interval = 0.95,
+                               n_sim = 100))
   ab <- c(a, b)
   expect_equal(ab$interval$level, 0.95)
   expect_true("NB_model_lower" %in% names(ab$estimates))
@@ -139,4 +143,27 @@ test_that("interval and n_sim are checked", {
   expect_error(nb_val(v, "p", "day30", interval = 0), msg)
   expect_error(nb_val(v, "p", "day30", interval = c(0.9, 0.95)), msg)
   expect_error(nb_val(v, "p", "day30", interval = 0.95, n_sim = 1), "at least 2")
+})
+
+test_that("every use of credible intervals warns and recommends value of information", {
+  res <- ci_case()$res
+  msg <- "not a good measure of the uncertainty that matters for choosing a strategy.*evpi\\(\\)"
+  g <- gusto_split()
+  v <- g$val[1:200, ]
+  v$p <- 0.05 + 0.3 * (v$age - min(v$age)) / diff(range(v$age))
+  expect_warning(nb_val(v, "p", "day30", thresholds = c(0.05, 0.1), interval = 0.95, n_sim = 20),
+                 msg)
+  expect_warning(capture.output(print(res)), msg)
+  expect_warning(summary(res), msg)
+  expect_warning(as.data.frame(res), msg)
+  expect_warning(plot(res), msg)
+  expect_warning(plot(res, type = "delta"), msg)
+  # no intervals shown, no warning
+  expect_no_warning(plot(res, bands = FALSE))
+  r0 <- ci_case(interval = NULL)$res
+  expect_no_warning(capture.output(print(r0)))
+  expect_no_warning(summary(r0))
+  expect_no_warning(as.data.frame(r0))
+  expect_no_warning(plot(r0))
+  expect_no_warning(nb_val(v, "p", "day30", thresholds = c(0.05, 0.1)))
 })

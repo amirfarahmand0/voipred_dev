@@ -259,7 +259,11 @@
 #'   follows the correlation of the model and treat all on the same patients.
 #'   `print()`, `summary()`, `as.data.frame()` and `plot()` (as bands) then
 #'   show them. The draws are random: call [set.seed()] first to reproduce
-#'   them.
+#'   them. Credible intervals show the uncertainty of each net benefit on its
+#'   own, which is not a good measure of the uncertainty that matters for
+#'   choosing a strategy, so `nb_val()` and every method that shows them warn
+#'   and recommend value-of-information analysis ([evpi()], with P(useful)
+#'   and P(best)) instead.
 #' @param n_sim Number of draws for `interval`. Default 1000.
 #' @return An object of class `voipred_nb`, a list with:
 #'   * `estimates`: a data frame with one row per model and threshold (by
@@ -521,9 +525,21 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
                         outcome = outcome_info, risk = P, observed = observed, weights = w,
                         counts = counts, cipcw = cw),
                    class = "voipred_nb")
-  if (!is.null(interval)) out <- add_intervals(out, interval, n_sim)
+  if (!is.null(interval)) {
+    out <- add_intervals(out, interval, n_sim)
+    interval_warning()
+  }
   out
 }
+
+# Every use of credible intervals (nb_val(interval = ), and print(),
+# summary(), as.data.frame() and plot() of a result with them) recommends
+# value-of-information analysis instead.
+interval_warning <- function()
+  warning("Credible intervals show the uncertainty of each net benefit on its own, ",
+          "which is not a good measure of the uncertainty that matters for choosing a ",
+          "strategy. We suggest value-of-information analysis: evpi() gives EVPI, ",
+          "P(useful) and P(best).", call. = FALSE)
 
 # `interval` (NULL, or the level of the credible intervals) and `n_sim`.
 check_interval <- function(interval, n_sim) {

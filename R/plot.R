@@ -109,6 +109,7 @@ plot.voipred_nb <- function(x, ..., type = c("nb", "delta"), labels = NULL, evpi
     stop("`bands` must be TRUE or FALSE.", call. = FALSE)
   res <- collect_nb(x, list(...), labels, fun = "plot()",
                     args = "`type`, `labels`, `evpi`, `evsi`, `colors`, `per`, `bands` and `interactive`")
+  if (bands && !is.null(res$interval)) interval_warning()
   specs <- list(scale_spec(dca_spec(res, type, bands), per,
                            if (type == "nb") "Net Benefit" else "\u0394NB"))
   if (!is.null(evpi) || !is.null(evsi)) {

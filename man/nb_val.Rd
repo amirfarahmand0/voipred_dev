@@ -146,7 +146,11 @@ longer). \code{delta_NB} is computed within each draw, so its interval
 follows the correlation of the model and treat all on the same patients.
 \code{print()}, \code{summary()}, \code{as.data.frame()} and \code{plot()} (as bands) then
 show them. The draws are random: call \code{\link[=set.seed]{set.seed()}} first to reproduce
-them.}
+them. Credible intervals show the uncertainty of each net benefit on its
+own, which is not a good measure of the uncertainty that matters for
+choosing a strategy, so \code{nb_val()} and every method that shows them warn
+and recommend value-of-information analysis (\code{\link[=evpi]{evpi()}}, with P(useful)
+and P(best)) instead.}
 
 \item{n_sim}{Number of draws for \code{interval}. Default 1000.}
 }

@@ -77,6 +77,7 @@ NULL
 #' @export
 print.voipred_nb <- function(x, n = 10, per = getOption("voipred.per", 1), ...) {
   per <- check_per(per)
+  if (!is.null(x$interval)) interval_warning()
   cat(with_per(nb_header(x), per), "\n\n", sep = "")
   e <- scale_cols(by_threshold(x$estimates, "model", x$models), nb_cols, per)
   tab <- e[, c("threshold", "model", "NB_model", "NB_all", "NB_none", "delta_NB")]
@@ -117,6 +118,7 @@ ci_text <- function(lo, hi, ref) {
 summary.voipred_nb <- function(object, thresholds = NULL,
                                per = getOption("voipred.per", 1), ...) {
   per <- check_per(per)
+  if (!is.null(object$interval)) interval_warning()
   e <- object$estimates
   M <- length(object$models)
   z <- nb_thresholds(object)
@@ -163,8 +165,11 @@ print.summary.voipred_nb <- function(x, n = 10, ...) {
 #' @rdname summary.voipred_nb
 #' @export
 as.data.frame.voipred_nb <- function(x, row.names = NULL, optional = FALSE,
-                                     per = getOption("voipred.per", 1), ...)
-  add_per_cols(x$estimates, nb_cols, check_per(per))
+                                     per = getOption("voipred.per", 1), ...) {
+  per <- check_per(per)
+  if (!is.null(x$interval)) interval_warning()
+  add_per_cols(x$estimates, nb_cols, per)
+}
 
 # ---- value of information ----------------------------------------------------
 

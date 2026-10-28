@@ -1,7 +1,7 @@
 ---
 title: "Net benefit and decision curves in a validation sample"
 author: "Amirhosein Farahmand Piruz"
-date: "October 14, 2026"
+date: "October 28, 2026"
 output:
   html_document:
     toc: yes
@@ -184,10 +184,11 @@ In the header, "prior improper Beta(0, 0)" means the default prior,
 data alone, and the net benefit is the usual one of decision curve analysis.
 Prior information is optional; it is explained in "The prior" below.
 
-These are point estimates. Credible intervals can be added with `interval`
-(see "Credible intervals" below); whether more data would change the
-decision is the subject of the value-of-information guide (`evpi()`, with
-P(useful) and P(best), and `evsi()`).
+These are point estimates. How uncertain they are, and whether more data
+would change the decision, is the subject of the value-of-information guide
+(`evpi()`, with P(useful) and P(best), and `evsi()`); credible intervals can
+also be added, though we recommend value of information instead (see
+"Credible intervals" below).
 
 **`summary()`** gives the best strategy along the thresholds and the
 largest gain of each model, and adds to the table the model's sensitivity
@@ -246,20 +247,37 @@ summary(res_glm, thresholds = 0.1)
 options(voipred.per = NULL)            # back to the default, per patient
 ```
 
-**Credible intervals (`interval`).** `nb_val()` gives point estimates by
-default. With `interval = 0.95`, it also computes 95% credible intervals of
-`NB_model`, `NB_all` and `delta_NB` at each threshold, from `n_sim` draws
-(default 1000) of the posterior of the net benefit: here, a binary outcome,
-the conjugate posterior (with the prior of `nb_val()`); for survival and
-competing-risks outcomes, the Bayesian bootstrap (see Part 2). These are the
-draws of the value-of-information functions, and they are random, so set a
-seed first. `delta_NB` is computed within each draw, so its interval takes
-into account that the model and treat all are evaluated on the same
-patients, and is usually much narrower than that of `NB_model`. `print()`
-and `summary()` then show each interval after its estimate, and the header
-says how they were computed; `as.data.frame()` has the bounds
-(`NB_model_lower`, `NB_model_upper`, ...); `plot()` draws them as shaded
-bands, which `bands = FALSE` hides:
+## Credible intervals
+
+`nb_val()` gives point estimates by default. It can also give credible
+intervals of the net benefit, but **we do not recommend them for deciding
+whether to use a model**: an interval shows the uncertainty of each net
+benefit on its own, while the decision depends on which strategy is best,
+and on whether more data could change that choice. Value-of-information
+analysis measures exactly this (the value-of-information guide): `evpi()`
+gives the expected value of perfect information, the probability that each
+model is useful, P(useful), and the probability that each strategy is the
+best, P(best). For this reason, `nb_val()` and every method that shows the
+intervals give a warning that says so.
+
+**Computing them: `nb_val(interval = , n_sim = )`.** With `interval = 0.95`,
+`nb_val()` draws the net benefit `n_sim` times (default 1000) and keeps, at
+each threshold, the 2.5% and 97.5% quantiles of the draws of `NB_model`,
+`NB_all` and `delta_NB`: 95% credible intervals (any level between 0 and 1
+works, e.g. `0.9`). The draws are those of the value-of-information
+functions:
+
+- for a binary outcome, the conjugate posterior of the net benefit (with the
+  prior of `nb_val()`, e.g. `nb_informative()`);
+- for survival and competing-risks outcomes (and with case weights), the
+  Bayesian bootstrap (see Part 2).
+
+The draws are random, so set a seed first. `delta_NB` is computed within each
+draw (the model against the best default strategy of that draw), so its
+interval takes into account that the model and treat all are evaluated on
+the same patients, and is usually much narrower than that of `NB_model`.
+Without `interval` (the default, `NULL`) nothing is drawn, and nothing below
+changes.
 
 ```{r interval-glm}
 set.seed(1)
@@ -269,19 +287,57 @@ res_glm_ci <- nb_val(data = df_val_binary,
                      thresholds = seq(0, 0.30, by = 0.01),
                      label = "Logistic",
                      interval = 0.95)
+```
+
+The intervals are then shown by every method (each one warns, as above; the
+warnings are not repeated below):
+
+**`print()`** shows each interval after its estimate, as `95% CrI`, and the
+header says how they were computed:
+
+```{r interval-print, warning = FALSE}
 print(res_glm_ci, n = 3)
+```
+
+**`summary()`** shows them in the same way, at all thresholds or those in
+`thresholds`:
+
+```{r interval-summary, warning = FALSE}
 summary(res_glm_ci, thresholds = c(0.05, 0.1, 0.2))
-head(as.data.frame(res_glm_ci), 2)
+```
+
+**`as.data.frame()`** has the bounds as numbers, after each estimate:
+`NB_model_lower`, `NB_model_upper`, `NB_all_lower`, `NB_all_upper`,
+`delta_NB_lower` and `delta_NB_upper`; they are also in
+`res_glm_ci$estimates`:
+
+```{r interval-df, warning = FALSE}
+head(as.data.frame(res_glm_ci), 3)
+```
+
+**`plot()`** draws them as shaded bands around each model's curve (and around
+Treat All in the decision curve), in the curves' colours; interactive plots
+show the interval when hovering. `bands = FALSE` draws the curves only (and
+gives no warning):
+
+```{r interval-plot, warning = FALSE}
 plot(res_glm_ci)
 plot(res_glm_ci, type = "delta")
+plot(res_glm_ci, bands = FALSE)
 ```
 
-With several models, each model gets its own interval and band (see the
-survival example in Part 2), and the intervals scale with `per`:
+**With `per`**, the intervals are on the same scale as the estimates, in
+every method:
 
-```{r interval-per}
+```{r interval-per, warning = FALSE}
+summary(res_glm_ci, thresholds = c(0.05, 0.1), per = 100000)
 plot(res_glm_ci, type = "delta", per = 100000)
 ```
+
+**Several models.** Each model has its own interval (and band). Results
+computed separately keep their intervals when combined with `c()` if all
+have the same (`interval` and `n_sim`); otherwise the combined result has
+none, with a warning. Part 2 shows intervals for two survival models.
 
 ## All the ways to give the risks and the binary outcome
 
@@ -868,14 +924,15 @@ plot(res_surv)
 plot(res_surv, type = "delta")
 ```
 
-**Credible intervals** work in the same way for survival and competing-risks
-outcomes, with `interval`. There is no closed-form posterior of the net
+**Credible intervals** (see "Credible intervals" in Part 1, including why
+we recommend value of information instead) work in the same way for survival
+and competing-risks outcomes, with `interval`. There is no closed-form posterior of the net
 benefit with censored data, so the draws are the Bayesian bootstrap: each
 draw gives the patients random Dirichlet(1, ..., 1) weights and recomputes the
 net benefit with the same estimator (Kaplan-Meier here; with cIPCW, the
 censoring model is also refitted in every draw, which takes longer):
 
-```{r interval-surv}
+```{r interval-surv, warning = FALSE}
 set.seed(1)
 res_surv_ci <- nb_val(data = df_val_survival,
                       predicted_risk = list(Cox = "p_cox", `Weibull AFT` = "p_aft"),
