@@ -464,37 +464,66 @@ packages used in this vignette are on CRAN (survival and ggplot2 come
 with voipred.dev). voipred.dev has compiled (C++) code, so installing it
 needs a C++ compiler: Rtools on Windows, the Xcode command line tools on
 macOS (<code>xcode-select --install</code>); Linux has one already.</p>
-<p>The code below installs what is missing (or too old) and nothing
-else, and asks nothing in the console: it sets the CRAN mirror, installs
-into your personal library, uses binary packages where they exist (no
-“install from sources?” question), and does not offer to update packages
-you already have. voipred.dev is always reinstalled, to get its latest
-version:</p>
-<pre class="r"><code>options(repos = c(CRAN = &quot;https://cloud.r-project.org&quot;),
-        install.packages.compile.from.source = &quot;never&quot;)
-lib &lt;- Sys.getenv(&quot;R_LIBS_USER&quot;)
-dir.create(lib, recursive = TRUE, showWarnings = FALSE)
-.libPaths(c(lib, .libPaths()))
-
-# CRAN packages, with the minimum versions voipred.dev needs
-pkgs &lt;- c(remotes = &quot;0&quot;, ranger = &quot;0&quot;, e1071 = &quot;0&quot;, prodlim = &quot;0&quot;, insight = &quot;0&quot;,
-          Rcpp = &quot;0&quot;, ggplot2 = &quot;3.4.0&quot;, riskRegression = &quot;2026.3.11&quot;)
-missing_or_old &lt;- function(p)
-  !requireNamespace(p, quietly = TRUE) || utils::packageVersion(p) &lt; pkgs[[p]]
-new &lt;- names(pkgs)[vapply(names(pkgs), missing_or_old, logical(1))]
-if (length(new)) install.packages(new, lib = lib)
-
-if (!requireNamespace(&quot;bayespred&quot;, quietly = TRUE))
-  remotes::install_github(&quot;resplab/bayespred&quot;, upgrade = &quot;never&quot;, lib = lib)
-remotes::install_github(&quot;amirfarahmand0/voipred_dev&quot;, force = TRUE,   # voipred.dev
-                        upgrade = &quot;never&quot;, lib = lib)</code></pre>
+<p><strong>Installation and updates are automatic.</strong> When the
+guide is knitted, its first chunk (below) installs the packages it uses
+that are missing or too old, and installs voipred.dev from GitHub, or
+updates it when GitHub has a newer version (otherwise it only checks,
+which takes a second or two). It runs before anything is loaded, which
+is what R needs to replace a package: RStudio’s Knit button runs the
+guide in a new R session. If you run the chunks one by one instead,
+restart R first (Session &gt; Restart R), so that voipred.dev can be
+updated; if it is already loaded, the chunk says so and uses the
+installed version. Without internet access, the guide uses the installed
+versions.</p>
+<pre class="r"><code># Installs what is missing, and voipred.dev (or its newer version) from GitHub,
+# before anything is loaded. Nothing is done during R CMD check.
+if (!nzchar(Sys.getenv(&quot;_R_CHECK_PACKAGE_NAME_&quot;))) {
+  if (is.null(getOption(&quot;repos&quot;)[[&quot;CRAN&quot;]]) || getOption(&quot;repos&quot;)[[&quot;CRAN&quot;]] == &quot;@CRAN@&quot;)
+    options(repos = c(CRAN = &quot;https://cloud.r-project.org&quot;))
+  options(install.packages.compile.from.source = &quot;never&quot;)
+  lib &lt;- Sys.getenv(&quot;R_LIBS_USER&quot;)
+  dir.create(lib, recursive = TRUE, showWarnings = FALSE)
+  .libPaths(c(lib, .libPaths()))
+  # packages this guide uses, with minimum versions; checked without loading them
+  pkgs &lt;- c(remotes = &quot;0&quot;, ranger = &quot;0&quot;, e1071 = &quot;0&quot;, prodlim = &quot;0&quot;, insight = &quot;0&quot;,
+            Rcpp = &quot;0&quot;, ggplot2 = &quot;3.4.0&quot;, riskRegression = &quot;2026.3.11&quot;)
+  installed &lt;- function(p) nzchar(system.file(package = p))
+  old &lt;- function(p) !installed(p) || utils::packageVersion(p) &lt; pkgs[[p]]
+  new &lt;- names(pkgs)[vapply(names(pkgs), old, logical(1))]
+  if (length(new)) install.packages(new, lib = lib)
+  if (!nzchar(system.file(package = &quot;bayespred&quot;)))
+    remotes::install_github(&quot;resplab/bayespred&quot;, upgrade = &quot;never&quot;, lib = lib)
+  # voipred.dev: installed, or updated when GitHub has a newer version
+  if (&quot;voipred.dev&quot; %in% loadedNamespaces()) {
+    message(&quot;voipred.dev is already loaded in this R session, so it is not updated: &quot;,
+            &quot;knit the guide, or restart R (Session &gt; Restart R) first.&quot;)
+  } else {
+    tryCatch(remotes::install_github(&quot;amirfarahmand0/voipred_dev&quot;, upgrade = &quot;never&quot;,
+                                     lib = lib),
+             error = function(e) message(&quot;voipred.dev could not be updated (&quot;,
+                                         conditionMessage(e), &quot;); the installed version is used.&quot;))
+  }
+  sha &lt;- utils::packageDescription(&quot;voipred.dev&quot;)$RemoteSha
+  cat(&quot;voipred.dev&quot;, format(utils::packageVersion(&quot;voipred.dev&quot;)),
+      if (!is.null(sha)) paste(&quot;- GitHub commit&quot;, substr(sha, 1, 7)), &quot;\n&quot;)
+}
+#&gt; -- R CMD build -----------------------------------------------------------------
+#&gt; * checking for file &#39;/tmp/RtmpkzZDAq/remotes30e5156fda6/amirfarahmand0-voipred_dev-2ca2af9/DESCRIPTION&#39; ... OK
+#&gt; * preparing &#39;voipred.dev&#39;:
+#&gt; * checking DESCRIPTION meta-information ... OK
+#&gt; * cleaning src
+#&gt; * checking for LF line-endings in source and make files and shell scripts
+#&gt; * checking for empty or unneeded directories
+#&gt; * building &#39;voipred.dev_0.0.2.9000.tar.gz&#39;
+#&gt; 
+#&gt; voipred.dev 0.0.2.9000 - GitHub commit 2ca2af9</code></pre>
 <p>Every package this guide uses is checked and loaded here, so that a
 missing one is reported at the start rather than halfway through:</p>
 <pre class="r"><code>pkgs &lt;- c(&quot;voipred.dev&quot;, &quot;survival&quot;, &quot;ggplot2&quot;, &quot;riskRegression&quot;, &quot;prodlim&quot;,
           &quot;ranger&quot;, &quot;e1071&quot;, &quot;bayespred&quot;)
 missing &lt;- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
 if (length(missing))
-  stop(&quot;Install these packages first (see the code above): &quot;,
+  stop(&quot;These packages are missing (the first chunk installs them): &quot;,
        paste(missing, collapse = &quot;, &quot;))
 library(voipred.dev)
 library(survival)
