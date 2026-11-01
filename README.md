@@ -14,9 +14,23 @@ library(voipred.dev)
 `upgrade = "never"` installs only the missing dependencies and does not stop
 to offer updates of packages you already have. voipred.dev needs
 riskRegression 2026.3.11 or later: if yours is older, update it first with
-`install.packages("riskRegression")`. The
-[guide](vignettes/voipred_nb_guide.Rmd) has an installation script that
-also installs the packages its examples use.
+`install.packages("riskRegression")`.
+
+Run this in a fresh R session (RStudio: Session > Restart R): R cannot
+replace a package that is loaded, which gives the warning "package
+'voipred.dev' is in use and will not be installed". Running it again updates
+voipred.dev when GitHub has a newer version.
+
+**The guides install and update automatically.** When a guide
+([net benefit](vignettes/voipred_nb_guide.Rmd),
+[value of information](vignettes/voipred_voi_guide.Rmd)) is knitted, its
+first chunk installs the packages it uses that are missing, and installs or
+updates voipred.dev from GitHub, before anything is loaded (RStudio's Knit
+button runs it in a new R session). `install_github()` asks GitHub for the
+latest version, which GitHub allows 60 times an hour per internet address
+without a login; on a shared network, a GitHub token raises this
+(`usethis::create_github_token()`, then `gitcreds::gitcreds_set()`). If
+GitHub cannot be reached, the guides use the installed version.
 
 ## Current scope
 

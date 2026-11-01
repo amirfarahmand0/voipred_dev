@@ -68,31 +68,50 @@ voipred.dev has compiled (C++) code, so installing it needs a C++ compiler:
 Rtools on Windows, the Xcode command line tools on macOS
 (`xcode-select --install`); Linux has one already.
 
-The code below installs what is missing (or too old) and nothing else, and
-asks nothing in the console: it sets the CRAN mirror, installs into your
-personal library, uses binary packages where they exist (no "install from
-sources?" question), and does not offer to update packages you already have.
-voipred.dev is always reinstalled, to get its latest version:
+**Installation and updates are automatic.** When the guide is knitted, its
+first chunk (below) installs the packages it uses that are missing or too
+old, and installs voipred.dev from GitHub, or updates it when GitHub has a
+newer version (otherwise it only checks, which takes a second or two). It
+runs before anything is loaded, which is what R needs to replace a package:
+RStudio's Knit button runs the guide in a new R session. If you run the
+chunks one by one instead, restart R first (Session > Restart R), so that
+voipred.dev can be updated; if it is already loaded, the chunk says so and
+uses the installed version. Without internet access, the guide uses the
+installed versions.
 
-```{r install, eval = FALSE}
-options(repos = c(CRAN = "https://cloud.r-project.org"),
-        install.packages.compile.from.source = "never")
-lib <- Sys.getenv("R_LIBS_USER")
-dir.create(lib, recursive = TRUE, showWarnings = FALSE)
-.libPaths(c(lib, .libPaths()))
-
-# CRAN packages, with the minimum versions voipred.dev needs
-pkgs <- c(remotes = "0", ranger = "0", e1071 = "0", prodlim = "0", insight = "0",
-          Rcpp = "0", ggplot2 = "3.4.0", riskRegression = "2026.3.11")
-missing_or_old <- function(p)
-  !requireNamespace(p, quietly = TRUE) || utils::packageVersion(p) < pkgs[[p]]
-new <- names(pkgs)[vapply(names(pkgs), missing_or_old, logical(1))]
-if (length(new)) install.packages(new, lib = lib)
-
-if (!requireNamespace("bayespred", quietly = TRUE))
-  remotes::install_github("resplab/bayespred", upgrade = "never", lib = lib)
-remotes::install_github("amirfarahmand0/voipred_dev", force = TRUE,   # voipred.dev
-                        upgrade = "never", lib = lib)
+```{r install, message = FALSE}
+# Installs what is missing, and voipred.dev (or its newer version) from GitHub,
+# before anything is loaded. Nothing is done during R CMD check.
+if (!nzchar(Sys.getenv("_R_CHECK_PACKAGE_NAME_"))) {
+  if (is.null(getOption("repos")[["CRAN"]]) || getOption("repos")[["CRAN"]] == "@CRAN@")
+    options(repos = c(CRAN = "https://cloud.r-project.org"))
+  options(install.packages.compile.from.source = "never")
+  lib <- Sys.getenv("R_LIBS_USER")
+  dir.create(lib, recursive = TRUE, showWarnings = FALSE)
+  .libPaths(c(lib, .libPaths()))
+  # packages this guide uses, with minimum versions; checked without loading them
+  pkgs <- c(remotes = "0", ranger = "0", e1071 = "0", prodlim = "0", insight = "0",
+            Rcpp = "0", ggplot2 = "3.4.0", riskRegression = "2026.3.11")
+  installed <- function(p) nzchar(system.file(package = p))
+  old <- function(p) !installed(p) || utils::packageVersion(p) < pkgs[[p]]
+  new <- names(pkgs)[vapply(names(pkgs), old, logical(1))]
+  if (length(new)) install.packages(new, lib = lib)
+  if (!nzchar(system.file(package = "bayespred")))
+    remotes::install_github("resplab/bayespred", upgrade = "never", lib = lib)
+  # voipred.dev: installed, or updated when GitHub has a newer version
+  if ("voipred.dev" %in% loadedNamespaces()) {
+    message("voipred.dev is already loaded in this R session, so it is not updated: ",
+            "knit the guide, or restart R (Session > Restart R) first.")
+  } else {
+    tryCatch(remotes::install_github("amirfarahmand0/voipred_dev", upgrade = "never",
+                                     lib = lib),
+             error = function(e) message("voipred.dev could not be updated (",
+                                         conditionMessage(e), "); the installed version is used."))
+  }
+  sha <- utils::packageDescription("voipred.dev")$RemoteSha
+  cat("voipred.dev", format(utils::packageVersion("voipred.dev")),
+      if (!is.null(sha)) paste("- GitHub commit", substr(sha, 1, 7)), "\n")
+}
 ```
 
 Every package this guide uses is checked and loaded here, so that a missing
@@ -103,7 +122,7 @@ pkgs <- c("voipred.dev", "survival", "ggplot2", "riskRegression", "prodlim",
           "ranger", "e1071", "bayespred")
 missing <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
 if (length(missing))
-  stop("Install these packages first (see the code above): ",
+  stop("These packages are missing (the first chunk installs them): ",
        paste(missing, collapse = ", "))
 library(voipred.dev)
 library(survival)
