@@ -21,7 +21,8 @@
 #' With credible intervals (`nb_val(interval = )`), `print()` and `summary()`
 #' show the interval of `NB_model` and of `delta_NB` after each of them, e.g.
 #' `95% CrI (0.0208, 0.0596)`, the header says how they were computed, and
-#' `as.data.frame()` has the bounds (`NB_model_lower`, `NB_model_upper`, ...).
+#' `as.data.frame()` has the bounds (`NB_model_lower`, `NB_model_upper`, ...);
+#' `plot(bands = TRUE)` draws them as bands.
 #'
 #' @param object,x A result of [nb_val()].
 #' @param thresholds Optional thresholds to show in the table (among those of

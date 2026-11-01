@@ -289,8 +289,9 @@ res_glm_ci <- nb_val(data = df_val_binary,
                      interval = 0.95)
 ```
 
-The intervals are then shown by every method (each one warns, as above; the
-warnings are not repeated below):
+The intervals are then shown by `print()`, `summary()` and `as.data.frame()`,
+and drawn by `plot(bands = TRUE)` (each warns, as above; the warnings are not
+repeated below):
 
 **`print()`** shows each interval after its estimate, as `95% CrI`, and the
 header says how they were computed:
@@ -315,15 +316,15 @@ summary(res_glm_ci, thresholds = c(0.05, 0.1, 0.2))
 head(as.data.frame(res_glm_ci), 3)
 ```
 
-**`plot()`** draws them as shaded bands around each model's curve (and around
-Treat All in the decision curve), in the curves' colours; interactive plots
-show the interval when hovering. `bands = FALSE` draws the curves only (and
-gives no warning):
+**`plot()`** draws the curves only by default, with or without intervals.
+With `bands = TRUE`, it also draws the intervals as shaded bands around each
+model's curve (and around Treat All in the decision curve), in the curves'
+colours; interactive plots then show the interval when hovering:
 
 ```{r interval-plot, warning = FALSE}
-plot(res_glm_ci)
-plot(res_glm_ci, type = "delta")
-plot(res_glm_ci, bands = FALSE)
+plot(res_glm_ci)                       # the default: no bands
+plot(res_glm_ci, bands = TRUE)
+plot(res_glm_ci, type = "delta", bands = TRUE)
 ```
 
 **With `per`**, the intervals are on the same scale as the estimates, in
@@ -331,7 +332,7 @@ every method:
 
 ```{r interval-per, warning = FALSE}
 summary(res_glm_ci, thresholds = c(0.05, 0.1), per = 100000)
-plot(res_glm_ci, type = "delta", per = 100000)
+plot(res_glm_ci, type = "delta", bands = TRUE, per = 100000)
 ```
 
 **Several models.** Each model has its own interval (and band). Results
@@ -682,7 +683,7 @@ nb_val(data = df_val_binary, predicted_risk = df_val_binary$p_glm[-1], outcome =
 | `labels` | Names of the curves, one per model. Default: the models' labels. |
 | `colors` | Optional colours of the curves: named by label (e.g. `c(Logistic = "darkred", "Treat All" = "grey50")`; the others keep theirs), or unnamed, one per model in order. By default a model has the same colour in every plot. |
 | `per` | Scale of the net benefit: the number of patients it is expressed per (default 1; e.g. `100000`). The y axis says "(per 100,000 patients)". |
-| `bands` | With credible intervals (`nb_val(interval = )`): `TRUE` (default) draws them as shaded bands, `FALSE` hides them. |
+| `bands` | `FALSE` (default): the curves only. `TRUE`: also the credible intervals (computed with `nb_val(interval = )`) as shaded bands. |
 | `interactive` | `TRUE` for an interactive plot (needs the plotly package). |
 
 See `?plot.voipred_nb` for details. The plot is a ggplot object, so it can be
@@ -941,7 +942,7 @@ res_surv_ci <- nb_val(data = df_val_survival,
                       thresholds = seq(0, 0.6, by = 0.01),
                       interval = 0.95, n_sim = 500)
 summary(res_surv_ci, thresholds = c(0.1, 0.2, 0.3))
-plot(res_surv_ci)
+plot(res_surv_ci, bands = TRUE)
 ```
 
 ## Options of `nb_val()` for a survival outcome

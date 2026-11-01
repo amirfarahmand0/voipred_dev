@@ -144,8 +144,8 @@ competing-risks outcomes, and with case weights, the Bayesian bootstrap
 (with cIPCW, refitting the censoring model in every draw, which takes
 longer). \code{delta_NB} is computed within each draw, so its interval
 follows the correlation of the model and treat all on the same patients.
-\code{print()}, \code{summary()}, \code{as.data.frame()} and \code{plot()} (as bands) then
-show them. The draws are random: call \code{\link[=set.seed]{set.seed()}} first to reproduce
+\code{print()}, \code{summary()} and \code{as.data.frame()} then show them, and
+\code{plot(bands = TRUE)} draws them as bands. The draws are random: call \code{\link[=set.seed]{set.seed()}} first to reproduce
 them. Credible intervals show the uncertainty of each net benefit on its
 own, which is not a good measure of the uncertainty that matters for
 choosing a strategy, so \code{nb_val()} and every method that shows them warn

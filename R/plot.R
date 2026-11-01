@@ -48,11 +48,12 @@
 #' @param evpi,evsi Optional results of [evpi()] and [evsi()], drawn in a panel
 #'   below the decision curve: EVPI, and EVSI for each future sample size,
 #'   against the threshold. The static version needs the patchwork package.
-#' @param bands If the results have credible intervals (`nb_val(interval = )`),
-#'   `TRUE` (default) draws them as shaded bands around each model's curve
-#'   (and Treat All in the decision curve), in the curves' colours; `FALSE`
-#'   draws the curves only. Interactive plots show the interval when
-#'   hovering.
+#' @param bands `FALSE` (default): the curves only. `TRUE`: also the credible
+#'   intervals of the results (computed with `nb_val(interval = )`), as shaded
+#'   bands around each model's curve (and Treat All in the decision curve), in
+#'   the curves' colours; interactive plots then show the interval when
+#'   hovering. Like every use of credible intervals, `bands = TRUE` warns and
+#'   recommends value-of-information analysis.
 #' @param colors Optional colours of the curves, instead of the defaults:
 #'   named by label, e.g. `c(Full = "darkred", "Treat All" = "grey50")` (any
 #'   curve, including Treat All, Treat None and, with `evpi`/`evsi`, the EVPI
@@ -101,7 +102,7 @@
 #' @export
 plot.voipred_nb <- function(x, ..., type = c("nb", "delta"), labels = NULL, evpi = NULL,
                             evsi = NULL, colors = NULL, per = getOption("voipred.per", 1),
-                            bands = TRUE, interactive = FALSE) {
+                            bands = FALSE, interactive = FALSE) {
   type <- match.arg(type)
   check_interactive(interactive)
   per <- check_per(per)
@@ -109,7 +110,12 @@ plot.voipred_nb <- function(x, ..., type = c("nb", "delta"), labels = NULL, evpi
     stop("`bands` must be TRUE or FALSE.", call. = FALSE)
   res <- collect_nb(x, list(...), labels, fun = "plot()",
                     args = "`type`, `labels`, `evpi`, `evsi`, `colors`, `per`, `bands` and `interactive`")
-  if (bands && !is.null(res$interval)) interval_warning()
+  if (bands) {
+    if (is.null(res$interval))
+      stop("`bands = TRUE` needs credible intervals: compute them with ",
+           "nb_val(interval = 0.95).", call. = FALSE)
+    interval_warning()
+  }
   specs <- list(scale_spec(dca_spec(res, type, bands), per,
                            if (type == "nb") "Net Benefit" else "\u0394NB"))
   if (!is.null(evpi) || !is.null(evsi)) {

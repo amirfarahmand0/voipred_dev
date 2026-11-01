@@ -97,17 +97,20 @@ test_that("print(), summary() and as.data.frame() show the intervals", {
 test_that("plot(): bands, bands = FALSE, per, and interactive hover", {
   res <- ci_case()$res
   layers <- function(p) vapply(p$layers, function(l) class(l$geom)[1], "")
-  expect_true("GeomRibbon" %in% layers(plot(res)))
-  expect_true("GeomRibbon" %in% layers(plot(res, type = "delta")))
-  expect_false("GeomRibbon" %in% layers(plot(res, bands = FALSE)))
-  expect_false("GeomRibbon" %in% layers(plot(ci_case(interval = NULL)$res)))
+  # bands only when asked for (default: none)
+  expect_false("GeomRibbon" %in% layers(plot(res)))
+  expect_true("GeomRibbon" %in% layers(suppressWarnings(plot(res, bands = TRUE))))
+  expect_true("GeomRibbon" %in% layers(suppressWarnings(plot(res, type = "delta", bands = TRUE))))
+  expect_error(plot(ci_case(interval = NULL)$res, bands = TRUE),
+               "`bands = TRUE` needs credible intervals")
   rib <- function(p) p$layers[[which(layers(p) == "GeomRibbon")]]$data
-  b1 <- rib(plot(res))
+  b1 <- rib(suppressWarnings(plot(res, bands = TRUE)))
   expect_setequal(unique(as.character(b1$label)), c("Treat All", "Full", "Age"))
-  expect_equal(range(rib(plot(res, per = 1e5))$upper), range(b1$upper) * 1e5)
+  expect_equal(range(rib(suppressWarnings(plot(res, bands = TRUE, per = 1e5)))$upper),
+               range(b1$upper) * 1e5)
   expect_error(plot(res, bands = "yes"), "`bands` must be TRUE or FALSE")
   skip_if_not_installed("plotly")
-  b <- plotly::plotly_build(plot(res, interactive = TRUE))
+  b <- plotly::plotly_build(suppressWarnings(plot(res, bands = TRUE, interactive = TRUE)))
   fills <- vapply(b$x$data, function(t) identical(t$fill, "toself") || identical(t$fill, "tonexty"),
                   logical(1))
   expect_true(any(fills))
@@ -156,10 +159,10 @@ test_that("every use of credible intervals warns and recommends value of informa
   expect_warning(capture.output(print(res)), msg)
   expect_warning(summary(res), msg)
   expect_warning(as.data.frame(res), msg)
-  expect_warning(plot(res), msg)
-  expect_warning(plot(res, type = "delta"), msg)
-  # no intervals shown, no warning
-  expect_no_warning(plot(res, bands = FALSE))
+  expect_warning(plot(res, bands = TRUE), msg)
+  expect_warning(plot(res, type = "delta", bands = TRUE), msg)
+  # no intervals shown (the default plot), no warning
+  expect_no_warning(plot(res))
   r0 <- ci_case(interval = NULL)$res
   expect_no_warning(capture.output(print(r0)))
   expect_no_warning(summary(r0))

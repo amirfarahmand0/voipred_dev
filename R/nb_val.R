@@ -257,8 +257,8 @@
 #'   (with cIPCW, refitting the censoring model in every draw, which takes
 #'   longer). `delta_NB` is computed within each draw, so its interval
 #'   follows the correlation of the model and treat all on the same patients.
-#'   `print()`, `summary()`, `as.data.frame()` and `plot()` (as bands) then
-#'   show them. The draws are random: call [set.seed()] first to reproduce
+#'   `print()`, `summary()` and `as.data.frame()` then show them, and
+#'   `plot(bands = TRUE)` draws them as bands. The draws are random: call [set.seed()] first to reproduce
 #'   them. Credible intervals show the uncertainty of each net benefit on its
 #'   own, which is not a good measure of the uncertainty that matters for
 #'   choosing a strategy, so `nb_val()` and every method that shows them warn
