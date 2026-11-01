@@ -319,7 +319,11 @@ head(as.data.frame(res_glm_ci), 3)
 **`plot()`** draws the curves only by default, with or without intervals.
 With `bands = TRUE`, it also draws the intervals as shaded bands around each
 model's curve (and around Treat All in the decision curve), in the curves'
-colours; interactive plots then show the interval when hovering:
+colours; interactive plots then show the interval when hovering. The
+intervals must have been computed by `nb_val()`: for a result made without
+`interval`, `plot(bands = TRUE)` stops with the error "`bands = TRUE` needs
+credible intervals: compute them with nb_val(interval = 0.95)", rather than
+drawing a plot without bands.
 
 ```{r interval-plot, warning = FALSE}
 plot(res_glm_ci)                       # the default: no bands
@@ -683,7 +687,7 @@ nb_val(data = df_val_binary, predicted_risk = df_val_binary$p_glm[-1], outcome =
 | `labels` | Names of the curves, one per model. Default: the models' labels. |
 | `colors` | Optional colours of the curves: named by label (e.g. `c(Logistic = "darkred", "Treat All" = "grey50")`; the others keep theirs), or unnamed, one per model in order. By default a model has the same colour in every plot. |
 | `per` | Scale of the net benefit: the number of patients it is expressed per (default 1; e.g. `100000`). The y axis says "(per 100,000 patients)". |
-| `bands` | `FALSE` (default): the curves only. `TRUE`: also the credible intervals (computed with `nb_val(interval = )`) as shaded bands. |
+| `bands` | `FALSE` (default): the curves only. `TRUE`: also the credible intervals (computed with `nb_val(interval = )`) as shaded bands; for a result without them, an error says to compute them with `nb_val(interval = 0.95)`. |
 | `interactive` | `TRUE` for an interactive plot (needs the plotly package). |
 
 See `?plot.voipred_nb` for details. The plot is a ggplot object, so it can be
