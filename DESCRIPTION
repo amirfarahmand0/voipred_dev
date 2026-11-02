@@ -4,13 +4,12 @@ Version: 0.0.2.9000
 Authors@R: c(
     person(given = "Amirhosein",
            family = "Farahmand Piruz",
-           role = "aut",
+           role = c("aut", "cre"),
            email = "amirhosein.farahmand.piruz@gmail.com"),
     person(given = "Mohsen",
            family = "Sadatsafavi",
-           role = c("aut", "cre"),
-           email = "mohsen.sadatsafavi@ubc.ca",
-           comment = c(ORCID = "0000-0002-0419-7862")),
+           role = "aut",
+           email = "mohsen.sadatsafavi@ubc.ca"),
     person(given = "Laure",
            family = "Wynants",
            role = "aut"))
