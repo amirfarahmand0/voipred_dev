@@ -1,0 +1,286 @@
+---
+title: "Subgroup utility heterogeneity in decision curve analysis with voipred.dev"
+date: "November 2, 2026"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4.5)
+```
+
+This guide shows how voipred.dev implements the framework of Wang, Wang, Van
+Calster, van Geloven, Steyerberg and Wynants, *Population-level decision curve
+analysis may mislead the evaluation of prediction model usefulness under
+subgroup utility heterogeneity*. It is meant for collaborators: it reproduces
+the two examples of the paper, applies the framework to the GUSTO-I data, and
+goes through the options. Only the methods of the paper are implemented.
+
+# Installation
+
+**Installation and updates are automatic.** When the guide is knitted, its
+first chunk installs the packages it uses that are missing or too old, and
+installs voipred.dev from GitHub, or updates it when GitHub has a newer
+version. If you run the chunks one by one instead, restart R first
+(Session > Restart R), so that voipred.dev can be updated.
+
+```{r install, message = FALSE}
+# Installs what is missing, and voipred.dev (or its newer version) from GitHub,
+# before anything is loaded. Nothing is done during R CMD check.
+if (!nzchar(Sys.getenv("_R_CHECK_PACKAGE_NAME_"))) {
+  if (is.null(getOption("repos")[["CRAN"]]) || getOption("repos")[["CRAN"]] == "@CRAN@")
+    options(repos = c(CRAN = "https://cloud.r-project.org"))
+  options(install.packages.compile.from.source = "never")
+  lib <- Sys.getenv("R_LIBS_USER")
+  dir.create(lib, recursive = TRUE, showWarnings = FALSE)
+  .libPaths(c(lib, .libPaths()))
+  # packages this guide uses, with minimum versions; checked without loading them
+  pkgs <- c(remotes = "0", insight = "0", Rcpp = "0", ggplot2 = "3.4.0",
+            riskRegression = "2026.3.11")
+  installed <- function(p) nzchar(system.file(package = p))
+  old <- function(p) !installed(p) || utils::packageVersion(p) < pkgs[[p]]
+  new <- names(pkgs)[vapply(names(pkgs), old, logical(1))]
+  if (length(new)) install.packages(new, lib = lib)
+  # voipred.dev: installed, or updated when GitHub has a newer version
+  if ("voipred.dev" %in% loadedNamespaces()) {
+    message("voipred.dev is already loaded in this R session, so it is not updated: ",
+            "knit the guide, or restart R (Session > Restart R) first.")
+  } else {
+    tryCatch(remotes::install_github("amirfarahmand0/voipred_dev", upgrade = "never",
+                                     lib = lib),
+             error = function(e) message("voipred.dev could not be updated (",
+                                         conditionMessage(e), "); the installed version is used."))
+  }
+  sha <- utils::packageDescription("voipred.dev")$RemoteSha
+  cat("voipred.dev", format(utils::packageVersion("voipred.dev")),
+      if (!is.null(sha)) paste("- GitHub commit", substr(sha, 1, 7)), "\n")
+}
+```
+
+```{r library}
+library(voipred.dev)
+library(survival)
+```
+
+# The idea
+
+Net benefit is expressed in units of $a - c$, the incremental utility of a
+true positive relative to a false negative (written $k$). Within a homogeneous
+population, the difference in utility between two strategies is
+$\Delta U = k \, \Delta NB$, so net benefit and utility always favour the
+same strategy. With subgroups $i = 1, \dots, m$ of sizes $n_i$, the population
+difference in net benefit is the size-weighted sum of the subgroup differences,
+whereas the population difference in utility also weights each subgroup by its
+$k_i$:
+$$\Delta NB \propto \sum_i n_i \, \Delta NB_i, \qquad
+  \Delta U \propto \sum_i n_i \, k_i \, \Delta NB_i .$$
+When the $k_i$ differ, the two can have opposite signs: population net benefit
+then favours one strategy and population utility the other. This is possible
+only when the subgroup $\Delta NB_i$ do not all have the same sign. For two
+subgroups, the combinations $(\Delta NB_1, \Delta NB_2)$ for which this
+happens form the **inconsistency region**, between the lines
+$y = -(n_1/n_2)\,x$ and $y = -(n_1 k_1)/(n_2 k_2)\,x$, and the **K-value**
+$$K = -\frac{n_2 \, \Delta NB_2}{n_1 \, \Delta NB_1}$$
+is the critical ratio $k_1/k_2$: when $k_1 > k_2$, population net benefit and
+utility favour different strategies if $k_1/k_2 > K$ (and if $k_1/k_2 < K$ when
+$k_1 < k_2$).
+
+**The framework of the paper, and where it is in voipred.dev:**
+
+| Step | In the paper | In voipred.dev |
+|---|---|---|
+| 1 | Decision curve analysis within subgroups | `nb_val(..., subgroup = )` |
+| 2 | Do the subgroup $\Delta NB$ have the same sign? If so, differences in $k$ cannot change the population conclusion | `summary(res)`: column `signs` |
+| 3 | If not: is $(\Delta NB_1, \Delta NB_2)$ in the inconsistency region (with external evidence on $k$, e.g. the relative risk reductions of the treatment for a prognostic model), or what is the K-value? With more than two subgroups: values or ranges of the $k_i$ | `summary(res, k = )`: columns `K`, `delta_U` and `consistent`; `plot(res, type = "region")` |
+| | The K-value from published results | `k_value()` |
+
+# The motivating example of the paper
+
+Two subgroups of equal size, each with a prevalence of 50%, at a threshold of
+0.0625 (Tables 1 and 2 of the paper; here 100 patients per subgroup, which
+gives the same proportions). The model has a specificity of 98% in both and a
+sensitivity of 90% in group 1 and 98% in group 2. The utilities give
+$a_1 - c_1 = 60$ and $a_2 - c_2 = 45$.
+
+```{r motivating}
+make_group <- function(tp, fp, fn, tn, group)
+  data.frame(y = c(rep(1, tp), rep(0, fp), rep(1, fn), rep(0, tn)),
+             p = c(rep(0.9, tp + fp), rep(0.01, fn + tn)),
+             group = group)
+d <- rbind(make_group(45, 1, 5, 49, "Group 1"),
+           make_group(49, 1, 1, 49, "Group 2"))
+res_m <- nb_val(data = d,
+                predicted_risk = "p",
+                outcome = "y",
+                thresholds = 0.0625,
+                label = "Model",
+                subgroup = "group")
+res_m
+```
+
+The population net benefit of the model (0.4693) is higher than that of treat
+all (0.4667), as in the paper. `summary()` adds the checks of the framework,
+here with the $k$ of the two groups:
+
+```{r motivating-summary}
+summary(res_m, k = c(`Group 1` = 60, `Group 2` = 45))
+```
+
+The subgroup $\Delta NB$ against treat all have opposite signs (Step 2), the
+K-value is 1.308, and with $k_1 / k_2 = 60/45 = 1.333 > K$, population net
+benefit and population utility favour different strategies (`consistent` is
+`FALSE`): the utility-weighted difference `delta_U` is negative (treat all is
+better on the utility scale, as the population utilities of 183 and 182.98 in
+the paper show). The region plot shows the observed point inside the
+inconsistency region:
+
+```{r motivating-region}
+plot(res_m, type = "region", threshold = 0.0625, k = c(`Group 1` = 60, `Group 2` = 45))
+```
+
+# The case study of the paper: SCORE2, from published results
+
+The paper took the net benefit of SCORE2 at a 3% threshold in men and women
+from a published validation study, assuming equal proportions of men and
+women: $\Delta NB$ against treat all was $-0.00160$ in men and $0.00345$ in
+women. Without patient data, `k_value()` does the calculation; the relative
+risk reductions of LDL-lowering therapy (0.28 in men, 0.15 in women) give the
+ratio of $k$:
+
+```{r score2}
+k_value(c(Men = -0.0016, Women = 0.00345))
+k_value(c(Men = -0.0016, Women = 0.00345), k = c(Men = 0.28, Women = 0.15))
+k_value(c(Men = -0.0016, Women = 0.00345), k = c(Men = 0.28, Women = 0.12))
+```
+
+As in the paper: K = 2.156; the evidence-based ratio 1.867 is below it (the
+same strategy is favoured), and the hypothetical ratio 2.333 (a relative risk
+reduction of 0.12 in women) is above it.
+
+# Application: GUSTO-I by age group
+
+We fit a logistic model for 30-day mortality on a random development sample of
+5,000 patients of the GUSTO-I trial and validate it on 5,000 other patients,
+with two subgroups: patients younger than 65 years, and those 65 and over.
+
+```{r gusto}
+set.seed(2023)
+i <- sample(nrow(gusto))
+dev <- gusto[i[1:5000], ]
+val <- gusto[i[5001:10000], ]
+fit <- glm(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
+           family = binomial, data = dev)
+val$p_full <- predict(fit, newdata = val, type = "response")
+val$age_group <- factor(val$age >= 65, labels = c("under 65", "65 and over"))
+res_g <- nb_val(data = val,
+                predicted_risk = "p_full",
+                outcome = "day30",
+                thresholds = seq(0.01, 0.30, by = 0.01),
+                label = "Full",
+                subgroup = "age_group")
+res_g
+```
+
+**Step 1 and 2.** `summary()` gives the subgroup $\Delta NB$ against treat all,
+their share-weighted sum (the population $\Delta NB$), and whether they have
+the same sign; `plot(type = "subgroups")` draws them:
+
+```{r gusto-summary}
+summary(res_g, thresholds = c(0.02, 0.03, 0.04, 0.05, 0.06, 0.10))
+plot(res_g, type = "subgroups")
+```
+
+```{r gusto-numbers, include = FALSE}
+tg <- summary(res_g)$subgroups$table
+opp <- tg[tg$signs == "opposite" & !is.na(tg$signs), ]
+z_opp <- opp$threshold[which.min(abs(opp$K - 1))]
+```
+
+At `r paste0(round(100 * min(opp$threshold)), "%")` to
+`r paste0(round(100 * max(opp$threshold)), "%")`, the model is better than treat
+all in one age group and worse in the other: the signs are opposite, so Step 3
+is needed there. At the other thresholds the signs agree, and differences in
+$a - c$ between the age groups cannot change the conclusion.
+
+**Step 3.** The K-values at these thresholds say how different $k$ would have to
+be between the age groups for population net benefit and utility to disagree.
+Here they range from `r signif(min(opp$K), 2)` to `r signif(max(opp$K), 2)`:
+the conclusion would change only if $k$ in patients 65 and over were
+`r round(1 / max(opp$K))` to `r round(1 / min(opp$K))` times that in younger
+patients, so the population conclusion is robust to plausible differences in
+$a - c$ between the age groups.
+If external evidence on the treatment effect by age is available, give it as
+`k`; the values below are hypothetical, for illustration only:
+
+```{r gusto-k}
+summary(res_g, thresholds = opp$threshold,
+        k = c(`under 65` = 0.30, `65 and over` = 0.20))
+plot(res_g, type = "region", threshold = z_opp,
+     k = c(`under 65` = 0.30, `65 and over` = 0.20))
+```
+
+# Options
+
+**The comparator.** By default, the subgroup $\Delta NB$ are against treat all
+(as in the case study of the paper). `comparator` can be `"Treat None"`,
+`"best default"` (treat all or treat none, whichever is better in the whole
+sample at the threshold, the same for every subgroup) or another model:
+
+```{r comparator}
+summary(res_g, thresholds = c(0.05, 0.2), comparator = "best default")
+```
+
+**Subgroup sizes.** By default the shares of the subgroups in the validation
+sample. If the target population differs (the paper assumed equal proportions
+of men and women for SCORE2), give `shares`:
+
+```{r shares}
+summary(res_g, thresholds = opp$threshold,
+        shares = c(`under 65` = 0.5, `65 and over` = 0.5))
+```
+
+**More than two subgroups.** Step 2 is the same. There is no K-value (the
+paper notes that it does not generalise to a single ratio); instead, give
+plausible values or ranges of the $k_i$, and `summary()` checks whether the
+utility-weighted sum changes sign relative to the size-weighted sum
+(`delta_U_lower`, `delta_U_upper` and `consistent` with ranges):
+
+```{r multiple}
+res_l <- nb_val(data = val,
+                predicted_risk = "p_full",
+                outcome = "day30",
+                thresholds = seq(0.01, 0.30, by = 0.01),
+                label = "Full",
+                subgroup = "miloc")
+summary(res_l, thresholds = c(0.01, 0.02, 0.05),
+        k = list(Inferior = c(0.2, 0.3), Anterior = c(0.2, 0.3), Other = c(0.1, 0.3)))
+```
+
+**Giving the subgroups.** `subgroup` takes a column name, several column names
+(their combinations, e.g. `subgroup = c("sex", "age_group")`), or a factor or
+vector with one subgroup per patient (e.g. `subgroup = val$age >= 65`). Every
+patient needs a subgroup, and numeric variables with many values must be cut
+into categories first. `as.data.frame()` has the net benefit of the whole
+sample (`"All"`) and of each subgroup:
+
+```{r df}
+head(as.data.frame(res_g), 3)
+```
+
+**Survival and competing-risk outcomes.** The net benefit of each subgroup uses
+the same estimator as `nb_val()` (Kaplan-Meier, or cIPCW with the censoring
+weights of the whole sample). For these estimators, the population net benefit
+is not exactly the size-weighted sum of the subgroup net benefits, which the
+framework assumes; the checks use the size-weighted sum.
+
+**Not available with subgroups.** Credible intervals (`interval`), and
+combining results with `c()`: give all the models to one call of `nb_val()`.
+
+# Reference
+
+Wang J, Wang KZ, Van Calster B, van Geloven N, Steyerberg E, Wynants L.
+Population-level decision curve analysis may mislead the evaluation of
+prediction model usefulness under subgroup utility heterogeneity.
