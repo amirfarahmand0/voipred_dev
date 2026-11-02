@@ -42,7 +42,17 @@
 #' @param x A result of [nb_val()], for one model or several.
 #' @param ... More results of [nb_val()] to draw on the same plot. A result with
 #'   one model given here with a name is labelled with its name.
-#' @param type `"nb"` (decision curve, default) or `"delta"` (\eqn{\Delta NB}).
+#' @param type `"nb"` (decision curve, default) or `"delta"` (\eqn{\Delta NB});
+#'   for a result with subgroups (`nb_val(subgroup = )`), also `"subgroups"`
+#'   (the difference in net benefit against `comparator` in each subgroup and in
+#'   the population, across thresholds) and `"region"` (two subgroups: the
+#'   inconsistency region of Wang et al. at one `threshold`, with the boundary
+#'   line from the subgroup sizes, the one from `k` if given, and the observed
+#'   point; its line gives the K-value).
+#' @param threshold,model For `type = "region"`: the threshold (one of the
+#'   result's), and the model (default: the first).
+#' @param comparator,k,shares For `type = "subgroups"` and `"region"`: as in
+#'   [summary.voipred_nb()].
 #' @param labels Optional names of the curves, one per model, in order;
 #'   default: the models' labels.
 #' @param evpi,evsi Optional results of [evpi()] and [evsi()], drawn in a panel
@@ -100,16 +110,34 @@
 #' if (requireNamespace("plotly", quietly = TRUE)) plot(res1, evpi = e, interactive = TRUE)
 #' }
 #' @export
-plot.voipred_nb <- function(x, ..., type = c("nb", "delta"), labels = NULL, evpi = NULL,
-                            evsi = NULL, colors = NULL, per = getOption("voipred.per", 1),
-                            bands = FALSE, interactive = FALSE) {
+plot.voipred_nb <- function(x, ..., type = c("nb", "delta", "subgroups", "region"),
+                            labels = NULL, evpi = NULL, evsi = NULL, colors = NULL,
+                            per = getOption("voipred.per", 1), bands = FALSE,
+                            threshold = NULL, model = NULL, comparator = "Treat All",
+                            k = NULL, shares = NULL, interactive = FALSE) {
   type <- match.arg(type)
   check_interactive(interactive)
   per <- check_per(per)
   if (!is.logical(bands) || length(bands) != 1 || is.na(bands))
     stop("`bands` must be TRUE or FALSE.", call. = FALSE)
   res <- collect_nb(x, list(...), labels, fun = "plot()",
-                    args = "`type`, `labels`, `evpi`, `evsi`, `colors`, `per`, `bands` and `interactive`")
+                    args = paste("`type`, `labels`, `evpi`, `evsi`, `colors`, `per`, `bands`,",
+                                 "`threshold`, `model`, `comparator`, `k`, `shares` and",
+                                 "`interactive`"))
+  if (type %in% c("subgroups", "region")) {
+    if (is.null(res$subgroups))
+      stop("type = \"", type, "\" needs subgroups: compute the result with ",
+           "nb_val(subgroup = ).", call. = FALSE)
+    if (type == "region") {
+      if (interactive)
+        stop("The region plot is not available as an interactive plot.", call. = FALSE)
+      return(subgroup_region_plot(res, threshold, model, comparator, k, shares))
+    }
+    sp <- scale_spec(subgroup_curve_spec(res, comparator, shares), per,
+                     paste0("\u0394NB against ", comparator))
+    sp <- recolor(list(sp), colors, levels(sp$data$label), "curve")
+    return(render_plot(sp, interactive))
+  }
   if (bands) {
     if (is.null(res$interval))
       stop("`bands = TRUE` needs credible intervals: compute them with ",
@@ -531,6 +559,9 @@ merge_nb <- function(res, labels = NULL) {
   check_model_labels(lab, "give each a different one with `labels` or nb_val(label = )")
   for (i in seq_along(res)[-1])
     check_comparable(res[[1]], res[[i]], groups[[1]], groups[[i]])
+  if (length(res) > 1 && any(vapply(res, function(r) !is.null(r$subgroups), logical(1))))
+    stop("Results with subgroups cannot be combined: give all the models to one call ",
+         "of nb_val() with `subgroup`.", call. = FALSE)
   # credible intervals are kept only if every result has the same ones
   ints <- lapply(res, function(r) r$interval)
   if (!all(vapply(ints, identical, logical(1), ints[[1]]))) {

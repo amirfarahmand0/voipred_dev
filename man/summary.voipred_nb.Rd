@@ -8,7 +8,15 @@
 \usage{
 \method{print}{voipred_nb}(x, n = 10, per = getOption("voipred.per", 1), ...)
 
-\method{summary}{voipred_nb}(object, thresholds = NULL, per = getOption("voipred.per", 1), ...)
+\method{summary}{voipred_nb}(
+  object,
+  thresholds = NULL,
+  per = getOption("voipred.per", 1),
+  comparator = "Treat All",
+  k = NULL,
+  shares = NULL,
+  ...
+)
 
 \method{as.data.frame}{voipred_nb}(
   x,
@@ -37,6 +45,21 @@ default can be set once with \code{options(voipred.per = 100000)}.}
 
 \item{thresholds}{Optional thresholds to show in the table (among those of
 the result); default: all, of which the first 10 are printed.}
+
+\item{comparator, k, shares}{For a result with subgroups (\code{nb_val(subgroup = )}, see "Subgroups" in \code{\link[=nb_val]{nb_val()}}): the comparator of the subgroup
+differences in net benefit, \code{"Treat All"} (default), \code{"Treat None"},
+\code{"best default"} (treat all or treat none, whichever is better in the whole
+sample at the threshold) or another model; \code{k}, the incremental utility of a
+true positive relative to a false negative (\eqn{a - c}) in each subgroup,
+e.g. the relative risk reduction of the treatment: values named by
+subgroup, e.g. \code{c(male = 0.28, female = 0.15)}, or (any number of
+subgroups) ranges, e.g. \code{list(male = c(0.2, 0.3), ...)}; \code{shares}, the
+relative sizes of the subgroups in the target population (default: in the
+sample). \code{summary()} then adds the checks of Wang et al.: the subgroup
+differences, their share-weighted sum (the population difference), whether
+they have the same sign, the K-value (two subgroups) and, with \code{k}, the
+utility-weighted difference (\code{delta_U}) and whether population net benefit
+and population utility favour the same strategy (\code{consistent}).}
 
 \item{row.names, optional}{Not used (as in \code{\link[=as.data.frame]{as.data.frame()}}).}
 }

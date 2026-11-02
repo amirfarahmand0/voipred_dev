@@ -7,13 +7,18 @@
 \method{plot}{voipred_nb}(
   x,
   ...,
-  type = c("nb", "delta"),
+  type = c("nb", "delta", "subgroups", "region"),
   labels = NULL,
   evpi = NULL,
   evsi = NULL,
   colors = NULL,
   per = getOption("voipred.per", 1),
   bands = FALSE,
+  threshold = NULL,
+  model = NULL,
+  comparator = "Treat All",
+  k = NULL,
+  shares = NULL,
   interactive = FALSE
 )
 }
@@ -23,7 +28,13 @@
 \item{...}{More results of \code{\link[=nb_val]{nb_val()}} to draw on the same plot. A result with
 one model given here with a name is labelled with its name.}
 
-\item{type}{\code{"nb"} (decision curve, default) or \code{"delta"} (\eqn{\Delta NB}).}
+\item{type}{\code{"nb"} (decision curve, default) or \code{"delta"} (\eqn{\Delta NB});
+for a result with subgroups (\code{nb_val(subgroup = )}), also \code{"subgroups"}
+(the difference in net benefit against \code{comparator} in each subgroup and in
+the population, across thresholds) and \code{"region"} (two subgroups: the
+inconsistency region of Wang et al. at one \code{threshold}, with the boundary
+line from the subgroup sizes, the one from \code{k} if given, and the observed
+point; its line gives the K-value).}
 
 \item{labels}{Optional names of the curves, one per model, in order;
 default: the models' labels.}
@@ -51,6 +62,12 @@ bands around each model's curve (and Treat All in the decision curve), in
 the curves' colours; interactive plots then show the interval when
 hovering. Like every use of credible intervals, \code{bands = TRUE} warns and
 recommends value-of-information analysis.}
+
+\item{threshold, model}{For \code{type = "region"}: the threshold (one of the
+result's), and the model (default: the first).}
+
+\item{comparator, k, shares}{For \code{type = "subgroups"} and \code{"region"}: as in
+\code{\link[=summary.voipred_nb]{summary.voipred_nb()}}.}
 
 \item{interactive}{\code{TRUE} for an interactive plot (needs the plotly
 package). Default \code{FALSE}.}

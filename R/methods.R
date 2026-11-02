@@ -25,6 +25,21 @@
 #' `plot(bands = TRUE)` draws them as bands.
 #'
 #' @param object,x A result of [nb_val()].
+#' @param comparator,k,shares For a result with subgroups (`nb_val(subgroup =
+#'   )`, see "Subgroups" in [nb_val()]): the comparator of the subgroup
+#'   differences in net benefit, `"Treat All"` (default), `"Treat None"`,
+#'   `"best default"` (treat all or treat none, whichever is better in the whole
+#'   sample at the threshold) or another model; `k`, the incremental utility of a
+#'   true positive relative to a false negative (\eqn{a - c}) in each subgroup,
+#'   e.g. the relative risk reduction of the treatment: values named by
+#'   subgroup, e.g. `c(male = 0.28, female = 0.15)`, or (any number of
+#'   subgroups) ranges, e.g. `list(male = c(0.2, 0.3), ...)`; `shares`, the
+#'   relative sizes of the subgroups in the target population (default: in the
+#'   sample). `summary()` then adds the checks of Wang et al.: the subgroup
+#'   differences, their share-weighted sum (the population difference), whether
+#'   they have the same sign, the K-value (two subgroups) and, with `k`, the
+#'   utility-weighted difference (`delta_U`) and whether population net benefit
+#'   and population utility favour the same strategy (`consistent`).
 #' @param thresholds Optional thresholds to show in the table (among those of
 #'   the result); default: all, of which the first 10 are printed.
 #' @param n Number of thresholds printed. Default 10.
@@ -84,6 +99,10 @@ print.voipred_nb <- function(x, n = 10, per = getOption("voipred.per", 1), ...) 
   tab <- e[, c("threshold", "model", "NB_model", "NB_all", "NB_none", "delta_NB")]
   print_rows(with_ci(tab, e, x$interval), n, "use summary() or as.data.frame()",
              per_threshold = TRUE)
+  if (!is.null(x$subgroups))
+    cat("# Subgroups (", x$subgroups$variable, "): ",
+        paste(levels(x$subgroups$group), collapse = ", "),
+        "; summary() checks them\n", sep = "")
   invisible(x)
 }
 
@@ -117,8 +136,12 @@ ci_text <- function(lo, hi, ref) {
 #' @rdname summary.voipred_nb
 #' @export
 summary.voipred_nb <- function(object, thresholds = NULL,
-                               per = getOption("voipred.per", 1), ...) {
+                               per = getOption("voipred.per", 1),
+                               comparator = "Treat All", k = NULL, shares = NULL, ...) {
   per <- check_per(per)
+  if (is.null(object$subgroups) && (!missing(comparator) || !is.null(k) || !is.null(shares)))
+    stop("`comparator`, `k` and `shares` are for subgroups: compute the result with ",
+         "nb_val(subgroup = ).", call. = FALSE)
   if (!is.null(object$interval)) interval_warning()
   e <- object$estimates
   M <- length(object$models)
@@ -146,7 +169,17 @@ summary.voipred_nb <- function(object, thresholds = NULL,
   # by threshold, then model (the estimates are by model, then threshold)
   zrows <- select_rows(z, thresholds)
   rows <- as.vector(t(outer(zrows, (seq_len(M) - 1) * Z, `+`)))
-  structure(list(header = with_per(nb_header(object), per),
+  sub <- NULL
+  if (!is.null(object$subgroups)) {
+    chk <- subgroup_check(object, comparator = comparator, k = k, shares = shares)
+    st <- chk$table
+    st <- scale_cols(st, grep("^delta_NB_", names(st), value = TRUE), per)
+    zs <- unique(st$threshold)[select_rows(unique(st$threshold), thresholds)]
+    st <- st[vapply(st$threshold, function(t) any(abs(t - zs) < 1e-9), logical(1)), ,
+             drop = FALSE]
+    sub <- list(lines = subgroup_lines(chk), table = st, check = chk)
+  }
+  structure(list(header = with_per(nb_header(object), per), subgroups = sub,
                  best = paste("Best strategy:", segments_text(z[o], best[o])),
                  largest = largest,
                  table = with_ci(scale_cols(tab[rows, , drop = FALSE], nb_cols, per),
@@ -160,6 +193,11 @@ print.summary.voipred_nb <- function(x, n = 10, ...) {
   cat(x$header, "\n", x$best, "\n", x$largest, "\n\n", sep = "")
   print_rows(x$table, if (x$all_rows) n else Inf,
              "summary(x, thresholds = ) to choose", per_threshold = TRUE)
+  if (!is.null(x$subgroups)) {
+    cat("\n", paste(x$subgroups$lines, collapse = "\n"), "\n\n", sep = "")
+    print_rows(x$subgroups$table, if (x$all_rows) n else Inf,
+               "summary(x, thresholds = ) to choose", per_threshold = TRUE)
+  }
   invisible(x)
 }
 
@@ -169,7 +207,20 @@ as.data.frame.voipred_nb <- function(x, row.names = NULL, optional = FALSE,
                                      per = getOption("voipred.per", 1), ...) {
   per <- check_per(per)
   if (!is.null(x$interval)) interval_warning()
-  add_per_cols(x$estimates, nb_cols, per)
+  e <- x$estimates
+  if (!is.null(x$subgroups)) {
+    # the whole sample ("All") and each subgroup, with its own delta NB
+    s <- x$subgroups$estimates
+    s$delta_NB <- s$NB_model - pmax(s$NB_all, 0)
+    e$subgroup <- "All"
+    e$n <- if (is.null(x$weights)) x$outcome$n else sum(x$weights)
+    cols <- c("threshold", "model", "subgroup", "n", "NB_model", "NB_all", "NB_none",
+              "delta_NB")
+    e <- rbind(e[, cols], s[, cols])
+    e$subgroup <- factor(e$subgroup, levels = c("All", levels(x$subgroups$group)))
+    rownames(e) <- NULL
+  }
+  add_per_cols(e, nb_cols, per)
 }
 
 # ---- value of information ----------------------------------------------------

@@ -97,6 +97,27 @@
 #' `"Treat None"` (the default strategies); otherwise `nb_val()` stops and asks
 #' for names.
 #'
+#' **Subgroups.** With `subgroup`, `nb_val()` also computes the net benefit of
+#' each model, treat all and treat none within each subgroup (Step 1 of the
+#' framework of Wang et al.), with the same estimator (with cIPCW, the censoring
+#' weights of the whole sample). When the incremental utility of a true positive
+#' relative to a false negative (\eqn{a - c}, written \eqn{k}) differs between
+#' subgroups, population-level net benefit can favour a strategy that population
+#' utility does not favour. [summary()][summary.voipred_nb] checks this: whether
+#' the subgroup-specific differences in net benefit against a comparator have the
+#' same sign (Step 2: if they do, differences in \eqn{k} cannot change the
+#' population conclusion), the K-value for two subgroups (the critical ratio
+#' \eqn{k_1/k_2} at which the conclusion changes) and, with `k` (e.g. the relative
+#' risk reductions of the treatment in each subgroup, for a prognostic model),
+#' whether population net benefit and population utility favour different
+#' strategies (Step 3; for more than two subgroups, `k` can be ranges).
+#' `plot(type = "subgroups")` draws the subgroup differences in net benefit, and
+#' `plot(type = "region")` the inconsistency region of Wang et al. at one
+#' threshold. [k_value()] computes the K-value from published values. The
+#' result then has `subgroups` (the subgroups and their net benefit), and
+#' `as.data.frame()` has a `subgroup` column (`"All"` for the whole sample).
+#' Credible intervals are not available with subgroups.
+#'
 #' **Predicting the risks from a model (optional).** Instead of the risks,
 #' the fitted model can be given as `predicted_risk` (e.g.
 #' `nb_val(val, fit, "y")`, or as an element of a list). voipred then predicts the risks of the patients
@@ -245,6 +266,13 @@
 #'   models.
 #' @param label Optional names of the models in printed output and plots: a
 #'   single string, or one per model, in order. Default: see "Labels".
+#' @param subgroup Optional subgroups, for the framework of Wang et al. on
+#'   subgroup utility heterogeneity (see "Subgroups"): the name of a column of
+#'   `data`, several column names (their combinations, e.g. `c("sex",
+#'   "smoker")`), or a factor or vector with one subgroup per row of `data`
+#'   (factor levels keep their order; logical vectors give `FALSE` and
+#'   `TRUE`). Every patient needs a subgroup; numeric variables with many
+#'   values must be cut into categories first.
 #' @param interval Optional credible intervals: their level, a number between
 #'   0 and 1, e.g. `0.95` for 95% intervals. Default `NULL`: none (and no
 #'   draws, so `nb_val()` is fast). With a level, `nb_val()` draws the net
@@ -433,7 +461,7 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
                    thresholds = seq(0, 0.99, by = 0.01), horizon = NULL, cause = NULL,
                    cipcw = NULL, weights = NULL,
                    prior = nb_improper(), predict_function = NULL,
-                   label = NULL, interval = NULL, n_sim = 1000) {
+                   label = NULL, subgroup = NULL, interval = NULL, n_sim = 1000) {
   call <- match.call()
   if (!is.data.frame(data)) {
     if (is.data.frame(predicted_risk))
@@ -442,6 +470,10 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
     stop("`data` must be a data frame.", call. = FALSE)
   }
   check_interval(interval, n_sim)
+  if (!is.null(subgroup) && !is.null(interval))
+    stop("Credible intervals (`interval`) are not available with `subgroup`.",
+         call. = FALSE)
+  sgp <- if (!is.null(subgroup)) parse_subgroup(subgroup, data, substitute(subgroup))
   # the models: predicted risks or fitted models, one or several
   inputs <- model_inputs(predicted_risk, substitute(predicted_risk), data)
   labels <- model_labels(inputs, label)
@@ -470,6 +502,7 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
 
   # the net benefit of each model; that of treating all is the same for all
   outcome_info <- list(type = info$type, n = n)
+  cws <- NULL
   cw <- NULL
   counts <- NULL
   nb_model <- vector("list", M)
@@ -525,6 +558,10 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
                         outcome = outcome_info, risk = P, observed = observed, weights = w,
                         counts = counts, cipcw = cw),
                    class = "voipred_nb")
+  if (!is.null(sgp))
+    out$subgroups <- list(variable = sgp$variable, group = sgp$group,
+                          estimates = subgroup_nb(sgp$group, info, P, thresholds, prior, w,
+                                                  censoring, k, horizon, cws, labels))
   if (!is.null(interval)) {
     out <- add_intervals(out, interval, n_sim)
     interval_warning()

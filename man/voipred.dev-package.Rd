@@ -9,12 +9,13 @@
 Net benefit, decision curve and value of information (VoI) calculations for clinical prediction models, for model development and validation (including tutorials).
 }
 \author{
-\strong{Maintainer}: Mohsen Sadatsafavi \email{mohsen.sadatsafavi@ubc.ca} (\href{https://orcid.org/0000-0002-0419-7862}{ORCID})
+\strong{Maintainer}: Amirhosein Farahmand Piruz \email{amirhosein.farahmand.piruz@gmail.com}
 
 Authors:
 \itemize{
-  \item Mohsen Sadatsafavi \email{mohsen.sadatsafavi@ubc.ca} (\href{https://orcid.org/0000-0002-0419-7862}{ORCID})
   \item Amirhosein Farahmand Piruz \email{amirhosein.farahmand.piruz@gmail.com}
+  \item Mohsen Sadatsafavi \email{mohsen.sadatsafavi@ubc.ca}
+  \item Laure Wynants
 }
 
 }

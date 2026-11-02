@@ -16,6 +16,7 @@ nb_val(
   prior = nb_improper(),
   predict_function = NULL,
   label = NULL,
+  subgroup = NULL,
   interval = NULL,
   n_sim = 1000
 )
@@ -131,6 +132,13 @@ models.}
 
 \item{label}{Optional names of the models in printed output and plots: a
 single string, or one per model, in order. Default: see "Labels".}
+
+\item{subgroup}{Optional subgroups, for the framework of Wang et al. on
+subgroup utility heterogeneity (see "Subgroups"): the name of a column of
+\code{data}, several column names (their combinations, e.g. \code{c("sex", "smoker")}), or a factor or vector with one subgroup per row of \code{data}
+(factor levels keep their order; logical vectors give \code{FALSE} and
+\code{TRUE}). Every patient needs a subgroup; numeric variables with many
+values must be cut into categories first.}
 
 \item{interval}{Optional credible intervals: their level, a number between
 0 and 1, e.g. \code{0.95} for 95\% intervals. Default \code{NULL}: none (and no
@@ -299,6 +307,27 @@ position).
 The labels must be different, and cannot be \code{"Treat All"} or
 \code{"Treat None"} (the default strategies); otherwise \code{nb_val()} stops and asks
 for names.
+
+\strong{Subgroups.} With \code{subgroup}, \code{nb_val()} also computes the net benefit of
+each model, treat all and treat none within each subgroup (Step 1 of the
+framework of Wang et al.), with the same estimator (with cIPCW, the censoring
+weights of the whole sample). When the incremental utility of a true positive
+relative to a false negative (\eqn{a - c}, written \eqn{k}) differs between
+subgroups, population-level net benefit can favour a strategy that population
+utility does not favour. \link[=summary.voipred_nb]{summary()} checks this: whether
+the subgroup-specific differences in net benefit against a comparator have the
+same sign (Step 2: if they do, differences in \eqn{k} cannot change the
+population conclusion), the K-value for two subgroups (the critical ratio
+\eqn{k_1/k_2} at which the conclusion changes) and, with \code{k} (e.g. the relative
+risk reductions of the treatment in each subgroup, for a prognostic model),
+whether population net benefit and population utility favour different
+strategies (Step 3; for more than two subgroups, \code{k} can be ranges).
+\code{plot(type = "subgroups")} draws the subgroup differences in net benefit, and
+\code{plot(type = "region")} the inconsistency region of Wang et al. at one
+threshold. \code{\link[=k_value]{k_value()}} computes the K-value from published values. The
+result then has \code{subgroups} (the subgroups and their net benefit), and
+\code{as.data.frame()} has a \code{subgroup} column (\code{"All"} for the whole sample).
+Credible intervals are not available with subgroups.
 
 \strong{Predicting the risks from a model (optional).} Instead of the risks,
 the fitted model can be given as \code{predicted_risk} (e.g.
