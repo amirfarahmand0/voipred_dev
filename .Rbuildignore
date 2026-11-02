@@ -6,3 +6,5 @@
 ^reports$
 ^src/.*\.o$
 ^src/.*\.so$
+^pkgdown$
+^vignettes/articles$

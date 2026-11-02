@@ -1,0 +1,61 @@
+url: https://amirfarahmand0.github.io/voipred/
+
+template:
+  bootstrap: 5
+
+home:
+  title: "voipred: value of information for clinical prediction models"
+  sidebar:
+    structure: [source, license, authors, dev]
+    components:
+      source:
+        title: Links
+        text: |
+          [Source code on GitHub](https://github.com/amirfarahmand0/voipred_dev)
+
+          [Report a bug](https://github.com/amirfarahmand0/voipred_dev/issues)
+
+navbar:
+  structure:
+    left: [reference, articles, news]
+    right: [search, github]
+
+articles:
+- title: Articles
+  navbar: ~
+  contents:
+  - articles/voipred
+- title: internal
+  contents:
+  - voipred_nb_guide
+  - voipred_voi_guide
+
+reference:
+- title: Net benefit and decision curves
+  contents:
+  - nb_val
+  - summary.voipred_nb
+  - plot.voipred_nb
+  - c.voipred_nb
+- title: Value of information
+  contents:
+  - evpi
+  - evsi
+  - summary.voipred_voi
+  - plot.voipred_evpi
+  - plot.voipred_evsi
+  - plot.voipred_p_useful
+  - plot.voipred_p_best
+- title: Prior information
+  contents:
+  - nb_priors
+  - nb_informative
+- title: Censoring
+  contents:
+  - cipcw_control
+- title: Data
+  contents:
+  - gusto
+- title: Package
+  contents:
+  - voipred.dev-package

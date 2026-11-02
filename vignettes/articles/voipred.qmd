@@ -1,0 +1,700 @@
+---
+title: "Introduction to voipred"
+author: "Amirhosein Farahmand, Mohsen Sadatsafavi, Laure Wynants"
+number-sections: true
+bibliography: references.bib
+knitr:
+  opts_chunk:
+    collapse: true
+    comment: "#>"
+    fig.width: 7
+    fig.height: 4.5
+    dpi: 110
+---
+
+```{r setup}
+#| include: false
+library(voipred.dev)
+library(survival)
+fmt <- function(x, d = 3) formatC(x, format = "f", digits = d)
+pct <- function(x) paste0(round(100 * x), "%")
+```
+
+## Introduction
+
+voipred (the package voipred.dev) evaluates clinical prediction models in a
+validation sample by their **clinical utility**, and quantifies how much the
+remaining uncertainty matters for the decision of whether to use them. It
+implements decision curve analysis based on **net benefit**
+[@vickers2006; @vickers2019], for binary, survival and competing-risk
+outcomes [@vickers2008], in a Bayesian framework [@wynants2018; @cruz2025],
+and **value-of-information (VoI) analysis** for model validation
+[@sadatsafavi2023; @sadatsafavi2025].
+
+**Net benefit.** A prediction model is used to decide on treatment by
+treating the patients whose predicted risk is at or above a threshold $t$.
+Its net benefit is
+$$NB = \frac{TP}{n} - \frac{FP}{n} \cdot \frac{t}{1-t},$$
+the proportion of true positives minus the proportion of false positives,
+weighted by the odds of the threshold. The threshold expresses how the harm
+of an unnecessary treatment is weighed against the benefit of a necessary
+one: at $t = 10\%$, treating 9 patients unnecessarily is accepted to treat 1
+patient who needs it. Net benefit is in units of true positives: 0.03 means
+3 net true positives per 100 patients, i.e. 3 more patients correctly treated
+per 100, without more unnecessary treatments. A model is **useful** at a
+threshold where its net benefit is higher than that of both default
+strategies, treating everyone and treating no one; a decision curve shows
+this over a range of thresholds.
+
+**Value of information.** A validation sample is finite, so the estimated
+net benefit is uncertain, and the strategy that looks best (a model,
+treating everyone or treating no one) may not be the best in the
+population. VoI analysis asks how much this uncertainty matters for the
+decision: the expected value of perfect information (EVPI) is the expected
+loss in net benefit due to it, and the expected value of sample information
+(EVSI) is the expected gain from a further validation study of a given size.
+They are complemented by the probability that a model is useful, P(useful),
+and the probability that each strategy is the best, P(best).
+
+**Workflow.** The main function is `nb_val()`, which computes the net
+benefit of one or several models at a range of thresholds. Its result is
+used by the VoI functions:
+
+| Step | Function | Result |
+|---|---|---|
+| Net benefit and decision curves | `nb_val()` | net benefit of each model, of treating all and of treating none, at each threshold |
+| Uncertainty for the current decision | `evpi()` | EVPI; P(useful) (in `$p_useful`) and P(best) (in `$p_best`), from the same draws |
+| Value of a future validation study | `evsi()` | EVSI for each future sample size |
+
+Every result has `print()` (a short table), `summary()` (the main findings),
+`plot()` and `as.data.frame()` (the full results) methods.
+
+**What you need.** For each patient in the validation sample: the predicted
+risk of the event, from any model or software (or the fitted model itself),
+and the observed outcome: 0/1 for a binary outcome, or a time and a status
+for a survival or competing-risk outcome.
+
+## Installation
+
+voipred.dev is installed from GitHub:
+
+```{r install}
+#| eval: false
+# install.packages("remotes")
+remotes::install_github("amirfarahmand0/voipred_dev")
+library(voipred.dev)
+```
+
+It contains compiled (C++) code, so installing it needs a compiler (Rtools
+on Windows, the Xcode command line tools on macOS). Install or update it in
+a new R session: R cannot replace a package that is loaded.
+
+## Example data {#sec-data}
+
+GUSTO-I was an international randomized trial that compared four
+thrombolytic strategies in 40,830 patients with acute myocardial infarction
+[@gusto1993]. Its data are a standard example in prediction research, and are
+included in voipred.dev as `gusto`. The outcome is death within 30 days
+(`day30`, 0/1), which `r pct(mean(gusto$day30))` of the patients had.
+
+For illustration, we draw two random, non-overlapping samples: 5,000 patients
+to develop the models, and **only 500 patients to validate them**. The small
+validation sample makes the uncertainty, and so the value of information,
+visible; with thousands of patients it would be small. In practice, the
+validation data would come from another setting or period (external
+validation).
+
+```{r data}
+set.seed(2023)
+i <- sample(nrow(gusto))
+dev <- gusto[i[1:5000], ]
+val <- gusto[i[5001:5500], ]
+```
+
+We fit two logistic regression models for 30-day mortality on the
+development sample: a "full" model with age, Killip class (the severity of
+heart failure), systolic blood pressure, pulse, previous myocardial
+infarction (`pmi`), location of the infarction (`miloc`) and sex, and a
+simpler model with age only. We then predict the risks of the validation
+patients:
+
+```{r models}
+fit_full <- glm(day30 ~ age + Killip + sysbp + pulse + pmi + miloc + sex,
+                family = binomial, data = dev)
+fit_age <- glm(day30 ~ age, family = binomial, data = dev)
+val$p_full <- predict(fit_full, newdata = val, type = "response")
+val$p_age <- predict(fit_age, newdata = val, type = "response")
+head(val[, c("day30", "age", "Killip", "p_full", "p_age")])
+```
+
+## Net benefit and decision curves {#sec-nb}
+
+### Net benefit of one model
+
+`nb_val()` takes the validation data, the predicted risks (`predicted_risk`:
+a vector, or the name of the column that holds them), the outcome and the
+thresholds. The thresholds should cover the range that is clinically
+reasonable for the decision; here, risks of 30-day death from 1% to 30%.
+
+```{r nb-one}
+res_full <- nb_val(data = val,
+                   predicted_risk = "p_full",
+                   outcome = "day30",
+                   thresholds = seq(0.01, 0.30, by = 0.01),
+                   label = "Full")
+res_full
+```
+
+The header line shows what was evaluated. "prior improper Beta(0, 0)" is the
+default prior: no prior information is used, the estimates come from the data
+alone, and the net benefit is the usual one of decision curve analysis
+(priors are optional, see @sec-priors). The table has one row per threshold
+(and per model) with:
+
+- `NB_model`: the net benefit of treating the patients whose predicted risk is
+  at or above the threshold;
+- `NB_all` and `NB_none`: the net benefit of treating everyone, and of
+  treating no one (always 0);
+- `delta_NB`: $NB_{model} - \max(NB_{all}, NB_{none})$, the gain of the model
+  over the best default strategy; the model is useful where it is positive.
+
+`summary()` gives the main findings: the best strategy along the thresholds,
+the largest gain of the model, and its sensitivity and specificity, at all
+thresholds or at those chosen with `thresholds`:
+
+```{r nb-one-summary}
+summary(res_full, thresholds = c(0.02, 0.05, 0.1, 0.2))
+```
+
+`plot()` draws the decision curve, or with `type = "delta"`, the gain of the
+model over the best default strategy:
+
+```{r nb-one-plot}
+plot(res_full)
+plot(res_full, type = "delta")
+```
+
+```{r nb-one-numbers}
+#| include: false
+ef <- res_full$estimates
+j <- which.max(ef$delta_NB)
+full_useful <- ef$threshold[ef$delta_NB > 1e-12]
+useful_text <- if (length(full_useful) == nrow(ef)) {
+  paste("at every threshold from", pct(min(ef$threshold)), "to", pct(max(ef$threshold)))
+} else {
+  paste("at", length(full_useful), "of the", nrow(ef), "thresholds")
+}
+```
+
+The full model has a higher net benefit than both default strategies
+`r useful_text` (`delta_NB` > 0), so using it would be better than treating
+everyone or no one at any of these thresholds. Its largest gain is
+`r fmt(ef$delta_NB[j], 4)` at a threshold of `r pct(ef$threshold[j])`: about
+`r round(100 * ef$delta_NB[j], 1)` more net true positives per 100 patients than
+the best default strategy. At the lowest thresholds the gain is small, because
+treating everyone is almost as good when nearly all patients would be treated
+anyway.
+
+### Comparing models
+
+To compare models, give them to one call of `nb_val()` as a list, one element
+per model. Every other argument applies to all of them, and every result
+compares them:
+
+```{r nb-two}
+res <- nb_val(data = val,
+              predicted_risk = list(Full = "p_full", `Age only` = "p_age"),
+              outcome = "day30",
+              thresholds = seq(0.01, 0.30, by = 0.01))
+summary(res, thresholds = c(0.02, 0.05, 0.1, 0.2))
+plot(res)
+plot(res, type = "delta")
+```
+
+```{r nb-two-numbers}
+#| include: false
+e2 <- res$estimates
+d_age <- e2[e2$model == "Age only", ]
+age_useful <- d_age$threshold[d_age$delta_NB > 1e-12]
+```
+
+The age-only model is useful at `r length(age_useful)` of the
+`r nrow(d_age)` thresholds, from `r pct(min(age_useful))` to
+`r pct(max(age_useful))`, while the full model, which also uses the clinical
+predictors, is useful at all of them. Around 5%, the two models have almost
+the same net benefit, and the best strategy switches between them; with only
+500 patients, the data may not tell them apart there. Whether such
+differences are real is what the value-of-information analysis (@sec-voi)
+quantifies.
+
+**Giving the models.** `predicted_risk` takes, for one model, a vector of risks
+(`val$p_full`), the name of the column of `data` that holds them (`"p_full"`),
+or the fitted model (`fit_full`), from which voipred predicts the risks; for
+several models, a `list()` of these, mixed freely, e.g.
+`list(Full = fit_full, Age = "p_age")` (use `list()`, not `c()`, which joins
+vectors and takes fitted models apart). The common models (`glm`, `coxph`,
+`survreg`, random forests, ...) are predicted from automatically; for any
+other, give `predict_function` (see `?nb_val`). Each model is labelled by its
+name in the list, otherwise by the column name or the name in the call.
+Results computed separately, on the same data and thresholds, can be
+combined with `c()`.
+
+## Value-of-information analysis {#sec-voi}
+
+### How the uncertainty is represented
+
+The VoI functions take the result of `nb_val()` and draw the net benefit of
+every strategy `n_sim` times from its distribution given the validation data;
+all their results are computed from these draws. For a binary outcome, the
+draws come from the posterior of the prevalence, sensitivity and specificity,
+which is known in closed form (Beta distributions; a Dirichlet over the
+patterns of treatment when several models are compared), with the prior of
+`nb_val()`. For survival and competing-risk outcomes they are the Bayesian
+bootstrap [@rubin1981]: random weights on the patients, with the net benefit
+recomputed in each draw. There is no MCMC, so there is no convergence to
+monitor. When models are compared, all of them are evaluated on the same
+patients within each draw, so their correlation is preserved. The draws are
+random: set a seed to reproduce them.
+
+### EVPI, P(useful) and P(best)
+
+`evpi()` computes three measures at each threshold from one set of draws:
+
+```{r evpi}
+set.seed(10)
+e <- evpi(res, n_sim = 5000)
+e
+```
+
+**EVPI.** With $NB_s$ the net benefit of strategy $s$, choosing the strategy
+with the highest expected net benefit gives $\max_s E(NB_s)$; knowing the true
+net benefits, one would always choose the truly best strategy, which gives
+$E(\max_s NB_s)$. EVPI is the difference, the expected loss in net benefit
+due to uncertainty. It is 0 when the best strategy is certain. The relative
+EVPI (`rEVPI`) compares the gain from perfect information with the gain from
+using the model(s) over the best default strategy: 1.10 means that perfect
+information would add 10% to it.
+
+```{r evpi-summary}
+summary(e, thresholds = c(0.02, 0.05, 0.1, 0.2))
+plot(e)
+```
+
+```{r evpi-numbers}
+#| include: false
+ee <- e$estimates
+k <- which.max(ee$EVPI)
+pb <- e$p_best$estimates
+pb_k <- pb[abs(pb$threshold - ee$threshold[k]) < 1e-9, ]
+```
+
+EVPI is largest, `r signif(ee$EVPI[k], 3)`, at a threshold of
+`r pct(ee$threshold[k])`: about `r round(1e5 * ee$EVPI[k])` net true positives
+per 100,000 patients are expected to be lost because of the uncertainty in
+this validation sample of 500 patients. Whether this is worth a further study
+depends on the number of patients who would be affected by the decision, and
+on the cost of the study.
+
+**P(useful)** is the probability that each model has a higher net benefit than
+both default strategies, the share of draws in which it does. It compares each
+model only with the default strategies:
+
+```{r p-useful}
+e$p_useful
+summary(e$p_useful)
+plot(e, type = "p_useful")
+```
+
+`summary()` gives, for each model, the thresholds where P(useful) is above
+0.95, between 0.5 and 0.95, and below 0.5. A P(useful) near 0.5 means that the
+data give no evidence either way: the model's net benefit is about that of
+the best default strategy.
+
+**P(best)** is the probability that each strategy (each model, treat all,
+treat none) has the highest net benefit; the probabilities add up to 1 at each
+threshold. It compares the models with each other:
+
+```{r p-best}
+summary(e$p_best, thresholds = c(0.02, 0.05, 0.1))
+plot(e, type = "p_best")
+```
+
+At `r pct(ee$threshold[k])`, where EVPI is largest, the full model is the best
+in `r pct(pb_k$p_best[pb_k$strategy == "Full"])` of the draws and the age-only
+model in `r pct(pb_k$p_best[pb_k$strategy == "Age only"])`: the data cannot
+tell the two models apart, which is why perfect information has most value
+there.
+
+### EVSI: the value of a further validation study
+
+The expected gain in net benefit from a future validation study of $N$
+patients (`future_n`), added to the current sample, before choosing the
+strategy, is quantified by the expected value of sample information (EVSI).
+It is between 0 and EVPI, and approaches EVPI as $N$ grows:
+
+```{r evsi}
+set.seed(20)
+o <- evsi(res, future_n = c(250, 500, 1000, 2000, 4000), n_sim = 2000)
+summary(o)
+plot(o, thresholds = c(0.02, 0.05, 0.1, 0.2))
+```
+
+```{r evsi-numbers}
+#| include: false
+eo <- o$estimates
+kz <- eo$threshold[which.max(eo$EVPI)]
+at <- eo[abs(eo$threshold - kz) < 1e-9, ]
+share <- function(n) pct(at$EVSI[at$future_n == n] / at$EVPI[at$future_n == n])
+```
+
+The header states the information at the two moments that EVSI compares:
+before the future study, the prior updated with the validation data (as for
+EVPI), and after it, with the future study added. `summary()` gives the share
+of EVPI that a study of each size would recover. At `r pct(kz)`, a further
+study of 500 patients would recover about `r share(500)` of EVPI, and one of
+4,000 patients about `r share(4000)`: most of the value of perfect information
+can be obtained with a moderate study, with diminishing returns beyond it.
+Multiplied by the number of patients affected by the decision, EVSI can be
+compared with the cost of the study.
+
+### EVPI and EVSI below the decision curve
+
+`plot()` of the result of `nb_val()` draws EVPI and EVSI in a panel below the
+decision curve, so that the net benefit and the value of information can be
+read together:
+
+```{r dca-voi}
+#| fig.height: 6.5
+plot(res, evpi = e, evsi = o)
+```
+
+**Small effective sample sizes.** Where few patients are on one side of a
+threshold (typically at very low or very high thresholds), the data say
+little, and the VoI measures can behave unexpectedly; for example, EVPI may
+not decrease steadily as the sample size grows [@sadatsafavi2023]. Interpret
+them with care there; prior information (@sec-priors) can stabilise them.
+
+## Prior information {#sec-priors}
+
+voipred.dev computes the net benefit in a Bayesian framework. By default it
+uses no prior information, so the estimates are those of standard decision
+curve analysis, and the uncertainty is that of the data alone (for a binary
+outcome, the posterior draws then have exactly the distribution of the
+Bayesian bootstrap, the approach of @sadatsafavi2023). Prior information can
+be added for binary outcomes with the `prior` argument of `nb_val()`:
+
+| Prior | What it assumes |
+|---|---|
+| `nb_improper()` (default) | no prior information: Beta(0, 0) for prevalence, sensitivity and specificity |
+| `nb_uniform()`, `nb_jeffreys()` | Beta(1, 1) or Beta(0.5, 0.5) for all three |
+| `nb_beta()` | your own Beta priors, e.g. on the prevalence from earlier studies; the parts not given are Beta(0, 0) |
+| `nb_informative()` | the informative prior of bayesDCA [@cruz2025], whose priors on sensitivity and specificity change with the threshold |
+
+**When to use prior information.** It matters when the effective sample size
+is small, for example when most predicted risks are on one side of a
+threshold, so that few patients are treated (or untreated) there [@cruz2025].
+At other thresholds, and with reasonably large samples, priors change the
+results little.
+
+**The informative prior.** Every model treats everyone at a threshold of 0
+(sensitivity 1, specificity 0) and no one at a threshold above all predicted
+risks (sensitivity 0, specificity 1). Near the ends of the decision curve,
+where the data say little, `nb_informative()` states, with little weight
+(about 5 patients), that the model behaves like treat all at the lowest
+threshold and like treat none at the highest, and stays vague in between; the
+prevalence has a uniform prior. @cruz2025 found that it keeps EVPI decreasing
+with the sample size in small samples. It reproduces bayesDCA's construction
+and defaults, and is for binary outcomes only; the prior at a threshold
+depends on the range of thresholds given to `nb_val()`.
+
+```{r prior}
+res_inf <- nb_val(data = val,
+                  predicted_risk = list(Full = "p_full", `Age only` = "p_age"),
+                  outcome = "day30",
+                  thresholds = seq(0.01, 0.30, by = 0.01),
+                  prior = nb_informative())
+res_inf$prior_shapes[c(1, 5, 10, 20, 30), ]    # the prior at some thresholds
+set.seed(10)
+e_inf <- evpi(res_inf, n_sim = 5000)
+round(data.frame(threshold = ee$threshold,
+                 EVPI_default = ee$EVPI,
+                 EVPI_informative = e_inf$estimates$EVPI)[c(1, 2, 5, 10, 20, 30), ], 5)
+```
+
+With 500 patients, the two priors give similar EVPI, except near the ends of
+the range, where the informative prior expresses its assumptions. Reporting
+the results with and without the prior shows how much it matters.
+
+**Common concerns.**
+
+- *Is the Bayesian analysis complicated?* With the default prior,
+  `nb_val()` gives the usual net benefit; the Bayesian framework only
+  represents its uncertainty for the VoI functions.
+- *Do I have to choose a prior?* No; priors are an option for small effective
+  sample sizes.
+- *Do I have to monitor convergence?* No: the draws are exact (closed form, or
+  the Bayesian bootstrap), with no MCMC.
+- *Will the prior make the results subjective?* With the default prior, the
+  results are those of standard decision curve analysis. A prior matters only
+  where the data are scarce, and its influence can be shown by reporting the
+  results with and without it.
+
+## Survival and competing-risk outcomes {#sec-survival}
+
+### Net benefit by a time horizon
+
+For a survival outcome, the event is the event by a time horizon, and the
+predicted risks are the risks of the event by that horizon. We use the
+Rotterdam breast cancer data (`rotterdam`, from the survival package): 2,982
+women with primary breast cancer, used by @royston2013 to illustrate the
+validation of survival models. The outcome is death, and we evaluate the risk
+of death by 5 years. As before, the data are split at random, here into 1,500
+women to fit the models and 600 to validate them.
+
+```{r surv-data}
+rott <- rotterdam
+rott$years <- rott$dtime / 365.25
+set.seed(2023)
+j <- sample(nrow(rott))
+dev_s <- rott[j[1:1500], ]
+val_s <- rott[j[1501:2100], ]
+fit_cox <- coxph(Surv(years, death) ~ age + size + nodes + grade + hormon + chemo,
+                 data = dev_s)
+fit_wb <- survreg(Surv(years, death) ~ age + size + nodes + grade + hormon + chemo,
+                  data = dev_s, dist = "weibull")
+```
+
+The outcome is given with `Surv()`, and `horizon` is required. Here the fitted
+models are given, and voipred predicts each patient's risk by 5 years from
+them:
+
+```{r surv-nb}
+res_s <- nb_val(data = val_s,
+                predicted_risk = list(Cox = fit_cox, Weibull = fit_wb),
+                outcome = ~ Surv(years, death),
+                horizon = 5,
+                thresholds = seq(0.05, 0.60, by = 0.01))
+summary(res_s, thresholds = c(0.1, 0.2, 0.3, 0.4))
+plot(res_s)
+```
+
+```{r surv-numbers}
+#| include: false
+es <- res_s$estimates
+best_cox <- max(es$delta_NB[es$model == "Cox"])
+best_wb <- max(es$delta_NB[es$model == "Weibull"])
+ta <- es[es$model == "Cox", ]
+low_all <- ta$threshold[ta$delta_NB <= 1e-12 & ta$NB_all > 1e-12]
+```
+
+The two models perform very similarly: the best strategy switches between
+them from one threshold to the next, and their largest gains are
+`r fmt(best_cox, 3)` (Cox) and `r fmt(best_wb, 3)` (Weibull). Both are better
+than the default strategies above
+`r if (length(low_all)) pct(max(low_all)) else pct(min(ta$threshold))`;
+below it, with `r pct(res_s$outcome$prevalence)` of the women dying within 5
+years, treating everyone is as good.
+
+By default, censoring is handled with Kaplan-Meier estimates [@vickers2008]:
+the risk of the event by the horizon, overall and among the treated patients.
+This assumes that censoring is independent of the outcome.
+
+### Informative censoring: cIPCW
+
+When censoring may depend on patient characteristics that are also related to
+the outcome (for example when older or sicker patients are more often lost to
+follow-up, or when the length of follow-up changes with calendar time while
+the case mix changes too), Kaplan-Meier can give a biased net benefit.
+Conditional inverse probability of censoring weighting (cIPCW) allows censoring
+to depend on covariates [@farahmand2026]. Give the covariates that censoring
+may depend on: voipred fits a Cox model of the censoring times of the
+validation data on them, and weights the patients by the inverse of their
+probability of remaining uncensored (truncated at 0.02, i.e. weights of at
+most 50):
+
+```{r cipcw}
+res_ci <- nb_val(data = val_s,
+                 predicted_risk = list(Cox = fit_cox, Weibull = fit_wb),
+                 outcome = ~ Surv(years, death),
+                 horizon = 5,
+                 thresholds = seq(0.05, 0.60, by = 0.01),
+                 cipcw = ~ age + nodes + grade)
+summary(res_ci, thresholds = c(0.1, 0.2, 0.3, 0.4))
+```
+
+```{r cipcw-numbers}
+#| include: false
+diff_ci <- max(abs(res_ci$estimates$NB_model - res_s$estimates$NB_model))
+```
+
+Here the results with cIPCW are close to those with Kaplan-Meier (the net
+benefits differ by at most `r signif(diff_ci, 2)`), so censoring related to
+these covariates does not change the conclusions. When censoring is purely
+administrative (the end of the study), Kaplan-Meier is fine. The censoring model does not have to be a Cox model: any survival
+model fitted to the censoring times can be given (`cipcw = <model>`), e.g. a
+parametric model or a random survival forest; `cipcw_control()` sets the other
+options (truncation, given weights, how to refit the model). See
+`?cipcw_control`, which includes an example with a random survival forest.
+
+### Value of information for survival outcomes
+
+The VoI functions work in the same way. Their draws are the Bayesian
+bootstrap; with cIPCW, the censoring model is refitted in every draw, which
+takes longer.
+
+```{r surv-voi}
+#| fig.height: 6.5
+set.seed(30)
+e_s <- evpi(res_s, n_sim = 1000)
+summary(e_s, thresholds = c(0.1, 0.2, 0.3, 0.4))
+plot(res_s, evpi = e_s)
+```
+
+```{r surv-voi-numbers}
+#| include: false
+ees <- e_s$estimates
+ks <- which.max(ees$EVPI)
+```
+
+EVPI is positive over most thresholds, because the two models are so close
+that the data rarely show which one is best; it is largest,
+`r signif(ees$EVPI[ks], 3)`, at `r pct(ees$threshold[ks])` (about
+`r round(1e5 * ees$EVPI[ks])` net true positives per 100,000 patients), which is
+small compared with the gain of either model over the default strategies (up
+to `r fmt(best_cox, 3)`): the uncertainty is mostly about which of two almost
+equally good models to use.
+
+### Competing risks
+
+With competing events, the status is a factor whose first level is censoring,
+and `cause` names the event of interest; the net benefit is computed from the
+cumulative incidence of that cause (Aalen-Johansen, or cIPCW). Here, the risk
+of recurrence by 5 years, with death before recurrence as a competing event,
+from a cause-specific Cox model:
+
+```{r competing}
+crdat <- function(d) {
+  d$cr_time <- ifelse(d$recur == 1, d$rtime, d$dtime) / 365.25
+  d$cr_code <- ifelse(d$recur == 1, 1, ifelse(d$death == 1, 2, 0))
+  d$cr_status <- factor(d$cr_code, 0:2, c("censored", "recurrence", "death"))
+  d
+}
+dev_cr <- crdat(dev_s)
+val_cr <- crdat(val_s)
+fit_csc <- riskRegression::CSC(prodlim::Hist(cr_time, cr_code) ~ age + size + nodes + grade,
+                               data = dev_cr)
+res_cr <- nb_val(data = val_cr,
+                 predicted_risk = fit_csc,
+                 outcome = ~ Surv(cr_time, cr_status),
+                 horizon = 5,
+                 cause = "recurrence",
+                 thresholds = seq(0.05, 0.60, by = 0.01),
+                 label = "Cause-specific Cox")
+summary(res_cr, thresholds = c(0.2, 0.3, 0.4, 0.5))
+```
+
+```{r cr-numbers}
+#| include: false
+ec <- res_cr$estimates
+first_cr <- min(ec$threshold[ec$delta_NB > 1e-12])
+jc <- which.max(ec$delta_NB)
+```
+
+With `r pct(res_cr$outcome$prevalence)` of the women having a recurrence within
+5 years, treating everyone is best at low thresholds; the model is useful from
+`r pct(first_cr)`, with its largest gain, `r fmt(ec$delta_NB[jc], 3)`, at
+`r pct(ec$threshold[jc])`.
+
+## Reporting the results {#sec-reporting}
+
+### Net benefit per 100,000 patients
+
+Net benefit, EVPI and EVSI are per patient, so their values are small.
+`print()`, `summary()`, `plot()` and `as.data.frame()` take `per`, the number of
+patients to express them per (default 1), e.g. `per = 100000`; the headers and
+the y axes say the scale, and the results themselves stay per patient. The
+default can be set once with `options(voipred.per = 100000)`.
+
+```{r per}
+#| fig.height: 6.5
+summary(e, thresholds = c(0.02, 0.05, 0.1, 0.2), per = 100000)
+plot(res, evpi = e, evsi = o, per = 100000)
+```
+
+### Results as data frames
+
+`as.data.frame()` gives the full results, with fixed column names and one row
+per threshold (and per model, strategy or future sample size):
+
+| Data frame | Columns |
+|---|---|
+| `as.data.frame(res)` | `threshold`, `model`, `NB_model`, `NB_all`, `NB_none`, `delta_NB` |
+| `as.data.frame(e)` | `threshold`, `ENB_current`, `ENB_perfect`, `EVPI`, `rEVPI` |
+| `as.data.frame(e$p_useful)` | `threshold`, `model`, `p_useful` |
+| `as.data.frame(e$p_best)` | `threshold`, `strategy`, `p_best` |
+| `as.data.frame(o)` | `threshold`, `future_n`, `EVSI`, `EVPI` |
+
+With `per`, the per-patient columns are kept and the scaled ones added (e.g.
+`EVPI_per_100000`). As the tables share `threshold` (and `model`), they can be
+combined, e.g. into one table per threshold and model for a report:
+
+```{r df}
+d <- merge(as.data.frame(res)[, c("threshold", "model", "NB_model", "delta_NB")],
+           as.data.frame(e$p_useful), by = c("threshold", "model"))
+d <- merge(d, as.data.frame(e, per = 100000)[, c("threshold", "EVPI_per_100000")],
+           by = "threshold")
+d[round(d$threshold, 2) %in% c(0.02, 0.05, 0.1), ]
+```
+
+Thresholds made with `seq()` are not exact decimals, so select them with
+`round()`, as above. The plots take `labels` (other names for the curves),
+`colors` (e.g. `colors = c(Full = "darkred")`) and `interactive = TRUE` (with
+the plotly package).
+
+## Credible intervals {#sec-ci}
+
+`nb_val()` can also give credible intervals of the net benefit, with
+`interval = 0.95` (from `n_sim` draws, as in @sec-voi). We do not recommend
+them for deciding whether to use a model: an interval shows the uncertainty of
+each net benefit on its own, while the decision depends on which strategy is
+best, and on whether more data could change that choice, which is what EVPI,
+P(useful) and P(best) measure (see also @vickers2023ci). For this reason,
+`nb_val()` and every method that shows the intervals give a warning.
+
+```{r ci}
+set.seed(1)
+res_int <- nb_val(data = val, predicted_risk = "p_full", outcome = "day30",
+                  thresholds = seq(0.01, 0.30, by = 0.01), label = "Full",
+                  interval = 0.95)
+```
+
+```{r ci-show}
+#| warning: false
+summary(res_int, thresholds = c(0.05, 0.1, 0.2))
+plot(res_int, type = "delta", bands = TRUE)
+```
+
+`print()` and `summary()` show each interval after its estimate,
+`as.data.frame()` has the bounds (`NB_model_lower`, `NB_model_upper`, ...), and
+`plot(bands = TRUE)` draws them as bands (the default plot has none; for a
+result without intervals, `bands = TRUE` gives an error). For survival
+outcomes, the intervals come from the Bayesian bootstrap.
+
+## Choosing the options {#sec-options}
+
+| Choice | Argument | Recommendation |
+|---|---|---|
+| Thresholds | `thresholds` in `nb_val()` | the range of thresholds that are clinically reasonable for the decision |
+| Several models | `predicted_risk = list(...)` | compare them in one call, on the same patients |
+| Prior | `prior` in `nb_val()` | the default (no prior information); `nb_informative()` for small effective sample sizes, reported with and without it |
+| Censoring | `cipcw` in `nb_val()` | Kaplan-Meier (default) when censoring is unrelated to the outcome; `cipcw = ~ covariates` when it may depend on them |
+| Number of draws | `n_sim` in `evpi()`, `evsi()` | 1,000 (default); more (e.g. 5,000) for stable results at thresholds with little data; set a seed |
+| Future study sizes | `future_n` in `evsi()` | sizes that could realistically be collected |
+| Scale | `per` in `print()`, `summary()`, `plot()`, `as.data.frame()` | e.g. 100,000 for reporting |
+| Case weights | `weights` in `nb_val()` | for samples that do not represent the target population in equal proportions (e.g. oversampled events): the inverse of the sampling probability |
+| Credible intervals | `interval` in `nb_val()` | not needed for the decision; use the VoI measures |
+
+The help pages give the details of every function and argument (see the
+Reference).
+
+## References
