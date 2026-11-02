@@ -29,6 +29,7 @@ articles:
   contents:
   - voipred_nb_guide
   - voipred_voi_guide
+  - voipred_subgroup_guide
 
 reference:
 - title: Net benefit and decision curves
@@ -59,3 +60,6 @@ reference:
 - title: Package
   contents:
   - voipred.dev-package
+- title: internal
+  contents:
+  - k_value

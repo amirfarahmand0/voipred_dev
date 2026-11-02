@@ -71,8 +71,9 @@ Every result has `print()` (a short table), `summary()` (the main findings),
 
 **What you need.** For each patient in the validation sample: the predicted
 risk of the event, from any model or software (or the fitted model itself),
-and the observed outcome: 0/1 for a binary outcome, or a time and a status
-for a survival or competing-risk outcome.
+and the observed outcome: for a binary outcome, 0/1, `TRUE`/`FALSE`, or a
+factor with two levels; for a survival or competing-risk outcome, a time and a
+status.
 
 ## Installation
 
@@ -133,7 +134,10 @@ head(val[, c("day30", "age", "Killip", "p_full", "p_age")])
 
 `nb_val()` takes the validation data, the predicted risks (`predicted_risk`:
 a vector, or the name of the column that holds them), the outcome and the
-thresholds. The thresholds should cover the range that is clinically
+thresholds. A binary outcome can be coded 0/1 (1 = event), as `TRUE`/`FALSE`
+(`TRUE` = event), or as a factor with two levels (the event is the level `"1"`
+if there is one, otherwise the second level, e.g. `"dead"` in
+`factor(..., levels = c("alive", "dead"))`); the results are the same. The thresholds should cover the range that is clinically
 reasonable for the decision; here, risks of 30-day death from 1% to 30%.
 
 ```{r nb-one}
@@ -278,6 +282,14 @@ information would add 10% to it.
 ```{r evpi-summary}
 summary(e, thresholds = c(0.02, 0.05, 0.1, 0.2))
 plot(e)
+```
+
+`plot(e, type = "relative")` draws the relative EVPI, which puts EVPI on a
+scale comparable across thresholds; the dashed line at 1 means no value of
+perfect information:
+
+```{r evpi-relative}
+plot(e, type = "relative")
 ```
 
 ```{r evpi-numbers}
