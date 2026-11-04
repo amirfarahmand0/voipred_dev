@@ -3,7 +3,7 @@ Title: Value of Information Analysis for Clinical Prediction Models
 Version: 0.0.2.9000
 Authors@R: c(
     person(given = "Amirhosein",
-           family = "Farahmand Piruz",
+           family = "Farahmand",
            role = c("aut", "cre"),
            email = "amirhosein.farahmand.piruz@gmail.com"),
     person(given = "Mohsen",

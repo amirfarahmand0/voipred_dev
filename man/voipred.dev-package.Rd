@@ -9,11 +9,11 @@
 Net benefit, decision curve and value of information (VoI) calculations for clinical prediction models, for model development and validation (including tutorials).
 }
 \author{
-\strong{Maintainer}: Amirhosein Farahmand Piruz \email{amirhosein.farahmand.piruz@gmail.com}
+\strong{Maintainer}: Amirhosein Farahmand \email{amirhosein.farahmand.piruz@gmail.com}
 
 Authors:
 \itemize{
-  \item Amirhosein Farahmand Piruz \email{amirhosein.farahmand.piruz@gmail.com}
+  \item Amirhosein Farahmand \email{amirhosein.farahmand.piruz@gmail.com}
   \item Mohsen Sadatsafavi \email{mohsen.sadatsafavi@ubc.ca}
   \item Laure Wynants
 }
