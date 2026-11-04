@@ -36,9 +36,11 @@
 #'   subgroups) ranges, e.g. `list(male = c(0.2, 0.3), ...)`; `shares`, the
 #'   relative sizes of the subgroups in the target population (default: in the
 #'   sample). `summary()` then adds the checks of Wang et al.: the subgroup
-#'   differences, their share-weighted sum (the population difference), whether
+#'   differences in net benefit against the comparator (`diff_NB_<subgroup>`;
+#'   distinct from `delta_NB`, which is against the best default strategy of
+#'   each group), their share-weighted sum (`diff_NB_population`), whether
 #'   they have the same sign, the K-value (two subgroups) and, with `k`, the
-#'   utility-weighted difference (`delta_U`) and whether population net benefit
+#'   utility-weighted difference (`diff_utility`) and whether population net benefit
 #'   and population utility favour the same strategy (`consistent`).
 #' @param thresholds Optional thresholds to show in the table (among those of
 #'   the result); default: all, of which the first 10 are printed.
@@ -173,7 +175,7 @@ summary.voipred_nb <- function(object, thresholds = NULL,
   if (!is.null(object$subgroups)) {
     chk <- subgroup_check(object, comparator = comparator, k = k, shares = shares)
     st <- chk$table
-    st <- scale_cols(st, grep("^delta_NB_", names(st), value = TRUE), per)
+    st <- scale_cols(st, grep("^diff_NB_", names(st), value = TRUE), per)
     zs <- unique(st$threshold)[select_rows(unique(st$threshold), thresholds)]
     st <- st[vapply(st$threshold, function(t) any(abs(t - zs) < 1e-9), logical(1)), ,
              drop = FALSE]

@@ -19,13 +19,13 @@ test_that("the motivating example of the paper is reproduced", {
   expect_equal(round(res$estimates$NB_all, 4), 0.4667)
   s <- summary(res, k = c(`Group 1` = 60, `Group 2` = 45))
   t <- s$subgroups$table
-  expect_equal(t[["delta_NB_Group 1"]], 0.45 - 0.01 / 15 - (0.5 - 0.5 / 15))
-  expect_equal(t[["delta_NB_Group 2"]], 0.49 - 0.01 / 15 - (0.5 - 0.5 / 15))
-  expect_equal(t$delta_NB_population, res$estimates$NB_model - res$estimates$NB_all)
+  expect_equal(t[["diff_NB_Group 1"]], 0.45 - 0.01 / 15 - (0.5 - 0.5 / 15))
+  expect_equal(t[["diff_NB_Group 2"]], 0.49 - 0.01 / 15 - (0.5 - 0.5 / 15))
+  expect_equal(t$diff_NB_population, res$estimates$NB_model - res$estimates$NB_all)
   expect_equal(t$signs, "opposite")
   expect_equal(round(t$K, 3), 1.308)
   # population utility favours treat all (183 vs 182.98, summed over the two groups)
-  expect_equal(t$delta_U, (182.98 - 183) / 2, tolerance = 1e-10)
+  expect_equal(t$diff_utility, (182.98 - 183) / 2, tolerance = 1e-10)
   expect_false(t$consistent)
   expect_match(paste(s$subgroups$lines, collapse = " "),
                "favour different strategies at 0.0625")
@@ -76,7 +76,7 @@ test_that("same signs: never inconsistent, whatever k", {
   expect_equal(e$NB_model[e$subgroup == "male"], m$estimates$NB_model)
   expect_equal(e$NB_all[e$subgroup == "male"], m$estimates$NB_all)
   # population delta NB = share-weighted subgroup delta NB (binary: exact)
-  expect_equal(t$delta_NB_population, res$estimates$NB_model - res$estimates$NB_all)
+  expect_equal(t$diff_NB_population, res$estimates$NB_model - res$estimates$NB_all)
 })
 
 test_that("more than two subgroups: k as values or ranges, no K-value", {
@@ -88,13 +88,13 @@ test_that("more than two subgroups: k as values or ranges, no K-value", {
   t <- summary(res)$subgroups$table
   expect_null(t$K)
   tv <- summary(res, k = c(a = 1, b = 2, c = 3))$subgroups$table
-  ex <- as.matrix(t[, c("delta_NB_a", "delta_NB_b", "delta_NB_c")]) %*% (c(a = 1, b = 2, c = 3) / 3)
-  expect_equal(tv$delta_U, as.vector(ex))
+  ex <- as.matrix(t[, c("diff_NB_a", "diff_NB_b", "diff_NB_c")]) %*% (c(a = 1, b = 2, c = 3) / 3)
+  expect_equal(tv$diff_utility, as.vector(ex))
   tr <- summary(res, k = list(a = c(1, 1), b = c(2, 2), c = c(3, 3)))$subgroups$table
-  expect_equal(tr$delta_U_lower, as.vector(ex))
-  expect_equal(tr$delta_U_upper, as.vector(ex))
+  expect_equal(tr$diff_utility_lower, as.vector(ex))
+  expect_equal(tr$diff_utility_upper, as.vector(ex))
   wide <- summary(res, k = list(a = c(0.1, 10), b = c(0.1, 10), c = c(0.1, 10)))$subgroups$table
-  expect_true(all(wide$delta_U_lower <= wide$delta_U_upper))
+  expect_true(all(wide$diff_utility_lower <= wide$diff_utility_upper))
   expect_error(plot(res, type = "region", threshold = 0.3), "for two subgroups")
 })
 
@@ -103,14 +103,14 @@ test_that("comparator and shares", {
   res <- nb_val(d, list(A = "p", B = d$p * 0.9), "y", thresholds = 0.0625, subgroup = "group")
   t0 <- summary(res, comparator = "Treat None")$subgroups$table
   e <- res$subgroups$estimates
-  expect_equal(t0[["delta_NB_Group 1"]][t0$model == "A"], e$NB_model[e$model == "A" & e$subgroup == "Group 1"])
+  expect_equal(t0[["diff_NB_Group 1"]][t0$model == "A"], e$NB_model[e$model == "A" & e$subgroup == "Group 1"])
   tb <- summary(res, comparator = "B")$subgroups$table
   expect_equal(unique(tb$model), "A")
   td <- summary(res, comparator = "best default")$subgroups$table
-  expect_equal(td[["delta_NB_Group 1"]], summary(res)$subgroups$table[["delta_NB_Group 1"]])
+  expect_equal(td[["diff_NB_Group 1"]], summary(res)$subgroups$table[["diff_NB_Group 1"]])
   ts <- summary(res, shares = c(`Group 1` = 3, `Group 2` = 1))$subgroups$table
-  expect_equal(ts$delta_NB_population,
-               0.75 * ts[["delta_NB_Group 1"]] + 0.25 * ts[["delta_NB_Group 2"]])
+  expect_equal(ts$diff_NB_population,
+               0.75 * ts[["diff_NB_Group 1"]] + 0.25 * ts[["diff_NB_Group 2"]])
   expect_error(summary(res, comparator = "Nope"), "`comparator` must be one of")
   expect_error(summary(res, shares = c(x = 1, y = 1)), "named by the subgroups")
   expect_error(summary(res, k = c(`Group 1` = -1, `Group 2` = 1)), "positive values")

@@ -4,21 +4,21 @@
 \alias{k_value}
 \title{The K-value from subgroup-specific net benefits}
 \usage{
-k_value(dnb, shares = NULL, k = NULL)
+k_value(diff_nb, shares = NULL, k = NULL)
 }
 \arguments{
-\item{dnb}{The difference in net benefit between the model and the
-comparator in each of the two subgroups, named by subgroup, e.g.
+\item{diff_nb}{The difference in net benefit between the model and the
+comparator (the same strategy in both subgroups) in each of the two subgroups, named by subgroup, e.g.
 \code{c(Men = -0.0016, Women = 0.00345)}.}
 
-\item{shares}{Optional relative sizes of the two subgroups, named like \code{dnb}.
+\item{shares}{Optional relative sizes of the two subgroups, named like \code{diff_nb}.
 Default: equal.}
 
 \item{k}{Optional \eqn{a - c} of each subgroup (e.g. the relative risk
-reductions of the treatment), named like \code{dnb}.}
+reductions of the treatment), named like \code{diff_nb}.}
 }
 \value{
-An object of class \code{voipred_k_value}, a list with \code{dnb}, \code{shares},
+An object of class \code{voipred_k_value}, a list with \code{diff_nb}, \code{shares},
 \code{K} (NA when the signs are the same), \code{k} and \code{consistent} (with \code{k}:
 whether population net benefit and population utility favour the same
 strategy), printed as a short report.

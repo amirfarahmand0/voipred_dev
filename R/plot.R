@@ -134,7 +134,7 @@ plot.voipred_nb <- function(x, ..., type = c("nb", "delta", "subgroups", "region
       return(subgroup_region_plot(res, threshold, model, comparator, k, shares))
     }
     sp <- scale_spec(subgroup_curve_spec(res, comparator, shares), per,
-                     paste0("\u0394NB against ", comparator))
+                     paste0("Difference in NB against ", comparator))
     sp <- recolor(list(sp), colors, levels(sp$data$label), "curve")
     return(render_plot(sp, interactive))
   }

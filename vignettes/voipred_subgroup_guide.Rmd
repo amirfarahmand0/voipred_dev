@@ -1,6 +1,6 @@
 ---
 title: "Subgroup utility heterogeneity in decision curve analysis with voipred.dev"
-date: "November 2, 2026"
+date: "November 4, 2026"
 output:
   html_document:
     toc: true
@@ -88,13 +88,24 @@ is the critical ratio $k_1/k_2$: when $k_1 > k_2$, population net benefit and
 utility favour different strategies if $k_1/k_2 > K$ (and if $k_1/k_2 < K$ when
 $k_1 < k_2$).
 
+**Notation.** In the paper, $\Delta NB_i$ is the difference in net benefit
+between the model and a comparator that is the **same strategy in every
+subgroup** (e.g. treat all), so that the sums above compare two population
+strategies. voipred.dev calls it **`diff_NB`** (columns `diff_NB_<subgroup>`,
+and `diff_NB_population` for the share-weighted sum), to keep it apart from
+**`delta_NB`**, which in `nb_val()` compares the model with the best default
+strategy of each group, $\max(NB_{all}, NB_{none})$, chosen separately in each
+subgroup. The two coincide only when the best default strategy is the
+comparator in every subgroup. The utility-weighted difference
+$\sum_i n_i k_i \Delta NB_i$ is **`diff_utility`**.
+
 **The framework of the paper, and where it is in voipred.dev:**
 
 | Step | In the paper | In voipred.dev |
 |---|---|---|
 | 1 | Decision curve analysis within subgroups | `nb_val(..., subgroup = )` |
-| 2 | Do the subgroup $\Delta NB$ have the same sign? If so, differences in $k$ cannot change the population conclusion | `summary(res)`: column `signs` |
-| 3 | If not: is $(\Delta NB_1, \Delta NB_2)$ in the inconsistency region (with external evidence on $k$, e.g. the relative risk reductions of the treatment for a prognostic model), or what is the K-value? With more than two subgroups: values or ranges of the $k_i$ | `summary(res, k = )`: columns `K`, `delta_U` and `consistent`; `plot(res, type = "region")` |
+| 2 | Do the subgroup $\Delta NB_i$ have the same sign? If so, differences in $k$ cannot change the population conclusion | `summary(res)`: columns `diff_NB_<subgroup>` and `signs` |
+| 3 | If not: is $(\Delta NB_1, \Delta NB_2)$ in the inconsistency region (with external evidence on $k$, e.g. the relative risk reductions of the treatment for a prognostic model), or what is the K-value? With more than two subgroups: values or ranges of the $k_i$ | `summary(res, k = )`: columns `K`, `diff_utility` and `consistent`; `plot(res, type = "region")` |
 | | The K-value from published results | `k_value()` |
 
 # The motivating example of the paper
@@ -129,10 +140,11 @@ here with the $k$ of the two groups:
 summary(res_m, k = c(`Group 1` = 60, `Group 2` = 45))
 ```
 
-The subgroup $\Delta NB$ against treat all have opposite signs (Step 2), the
-K-value is 1.308, and with $k_1 / k_2 = 60/45 = 1.333 > K$, population net
-benefit and population utility favour different strategies (`consistent` is
-`FALSE`): the utility-weighted difference `delta_U` is negative (treat all is
+The subgroup differences in net benefit against treat all (`diff_NB_Group 1`
+and `diff_NB_Group 2`) have opposite signs (Step 2), the K-value is 1.308, and
+with $k_1 / k_2 = 60/45 = 1.333 > K$, population net benefit and population
+utility favour different strategies (`consistent` is `FALSE`): the
+utility-weighted difference `diff_utility` is negative (treat all is
 better on the utility scale, as the population utilities of 183 and 182.98 in
 the paper show). The region plot shows the observed point inside the
 inconsistency region:
@@ -145,8 +157,10 @@ plot(res_m, type = "region", threshold = 0.0625, k = c(`Group 1` = 60, `Group 2`
 
 The paper took the net benefit of SCORE2 at a 3% threshold in men and women
 from a published validation study, assuming equal proportions of men and
-women: $\Delta NB$ against treat all was $-0.00160$ in men and $0.00345$ in
-women. Without patient data, `k_value()` does the calculation; the relative
+women: the difference in net benefit against treat all ($\Delta NB_i$, our
+`diff_NB`) was $-0.00160$ in men and $0.00345$ in women. Without patient data,
+`k_value()` does the calculation from these two values (its first argument,
+`diff_nb`); the relative
 risk reductions of LDL-lowering therapy (0.28 in men, 0.15 in women) give the
 ratio of $k$:
 
@@ -184,9 +198,10 @@ res_g <- nb_val(data = val,
 res_g
 ```
 
-**Step 1 and 2.** `summary()` gives the subgroup $\Delta NB$ against treat all,
-their share-weighted sum (the population $\Delta NB$), and whether they have
-the same sign; `plot(type = "subgroups")` draws them:
+**Step 1 and 2.** `summary()` gives the subgroup differences in net benefit
+against treat all (`diff_NB_under 65`, `diff_NB_65 and over`), their
+share-weighted sum (`diff_NB_population`), and whether they have the same sign;
+`plot(type = "subgroups")` draws them:
 
 ```{r gusto-summary}
 summary(res_g, thresholds = c(0.02, 0.03, 0.04, 0.05, 0.06, 0.10))
@@ -224,7 +239,7 @@ plot(res_g, type = "region", threshold = z_opp,
 
 # Options
 
-**The comparator.** By default, the subgroup $\Delta NB$ are against treat all
+**The comparator.** By default, the subgroup differences (`diff_NB`) are against treat all
 (as in the case study of the paper). `comparator` can be `"Treat None"`,
 `"best default"` (treat all or treat none, whichever is better in the whole
 sample at the threshold, the same for every subgroup) or another model:
@@ -246,7 +261,7 @@ summary(res_g, thresholds = opp$threshold,
 paper notes that it does not generalise to a single ratio); instead, give
 plausible values or ranges of the $k_i$, and `summary()` checks whether the
 utility-weighted sum changes sign relative to the size-weighted sum
-(`delta_U_lower`, `delta_U_upper` and `consistent` with ranges):
+(`diff_utility_lower`, `diff_utility_upper` and `consistent` with ranges):
 
 ```{r multiple}
 res_l <- nb_val(data = val,
@@ -264,7 +279,9 @@ summary(res_l, thresholds = c(0.01, 0.02, 0.05),
 vector with one subgroup per patient (e.g. `subgroup = val$age >= 65`). Every
 patient needs a subgroup, and numeric variables with many values must be cut
 into categories first. `as.data.frame()` has the net benefit of the whole
-sample (`"All"`) and of each subgroup:
+sample (`"All"`) and of each subgroup, with the usual columns of `nb_val()`:
+its `delta_NB` is against the best default strategy of each group, not the
+comparator of the checks (for those, see `diff_NB` in `summary()`):
 
 ```{r df}
 head(as.data.frame(res_g), 3)

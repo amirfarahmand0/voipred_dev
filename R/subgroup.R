@@ -2,7 +2,8 @@
 # Wang, Wang, Van Calster, van Geloven, Steyerberg and Wynants (Population-level
 # decision curve analysis may mislead the evaluation of prediction model
 # usefulness under subgroup utility heterogeneity): decision curve analysis
-# within subgroups (Step 1), whether the subgroup-specific delta NB have the same
+# within subgroups (Step 1), whether the subgroup-specific differences in net
+# benefit against a comparator (diff_NB; the Delta NB_i of the paper) have the same
 # sign (Step 2), and the inconsistency conditions (Step 3): the inconsistency
 # region and the K-value for two subgroups, and the utility-weighted sum for
 # any number of subgroups.
@@ -141,8 +142,8 @@ check_k <- function(k, lev) {
 }
 
 # The checks of the framework at each threshold and for each model: the
-# subgroup-specific delta NB against the comparator, the population delta NB
-# (their share-weighted sum), whether they have the same sign (Step 2), the
+# subgroup-specific differences in net benefit against the comparator (diff_NB),
+# the population difference (their share-weighted sum), whether they have the same sign (Step 2), the
 # K-value (two subgroups with opposite signs) and, with k, whether population
 # NB and population utility favour different strategies (Step 3).
 subgroup_check <- function(x, comparator = "Treat All", k = NULL, shares = NULL) {
@@ -172,8 +173,8 @@ subgroup_check <- function(x, comparator = "Treat All", k = NULL, shares = NULL)
     conflict <- apply(d, 1, function(v) any(v > 1e-12, na.rm = TRUE) &&
                                           any(v < -1e-12, na.rm = TRUE))
     out <- data.frame(threshold = z, model = m, check.names = FALSE)
-    for (j in seq_len(G)) out[[paste0("delta_NB_", lev[j])]] <- d[, j]
-    out$delta_NB_population <- pop
+    for (j in seq_len(G)) out[[paste0("diff_NB_", lev[j])]] <- d[, j]
+    out$diff_NB_population <- pop
     out$signs <- ifelse(apply(d, 1, anyNA), NA, ifelse(conflict, "opposite", "same"))
     if (G == 2) {
       K <- -(s[2] * d[, 2]) / (s[1] * d[, 1])
@@ -182,7 +183,7 @@ subgroup_check <- function(x, comparator = "Treat All", k = NULL, shares = NULL)
     if (!is.null(kk)) {
       if (!kk$range) {
         u <- as.vector(d %*% (s * kk$lower))
-        out$delta_U <- u
+        out$diff_utility <- u
         out$consistent <- ifelse(is.na(u) | is.na(pop), NA,
                                  !(sign(u) * sign(pop) < 0))
       } else {
@@ -190,8 +191,8 @@ subgroup_check <- function(x, comparator = "Treat All", k = NULL, shares = NULL)
                              d * rep(kk$upper, each = nrow(d))) %*% s)
         hi <- as.vector(pmax(d * rep(kk$lower, each = nrow(d)),
                              d * rep(kk$upper, each = nrow(d))) %*% s)
-        out$delta_U_lower <- lo
-        out$delta_U_upper <- hi
+        out$diff_utility_lower <- lo
+        out$diff_utility_upper <- hi
         out$consistent <- ifelse(is.na(pop), NA,
                                  !((pop > 0 & lo < 0) | (pop < 0 & hi > 0)))
       }
@@ -210,7 +211,7 @@ subgroup_lines <- function(chk) {
   lev <- chk$levels
   lines <- paste0("Subgroups (", chk$variable, "): ",
                   paste0(lev, " (", round(100 * s), "%)", collapse = ", "),
-                  "; delta NB against ", chk$comparator)
+                  "; difference in net benefit (diff_NB) against ", chk$comparator)
   tab <- chk$table
   for (m in unique(tab$model)) {
     t <- tab[tab$model == m, ]
@@ -218,7 +219,7 @@ subgroup_lines <- function(chk) {
     opp <- !is.na(t$signs) & t$signs == "opposite"
     who <- if (length(unique(tab$model)) > 1) paste0(m, ": ") else ""
     if (!any(opp)) {
-      lines <- c(lines, paste0(who, "the subgroup delta NB have the same sign at every ",
+      lines <- c(lines, paste0(who, "the subgroup differences in net benefit have the same sign at every ",
                                "threshold, so differences in a - c between subgroups ",
                                "cannot change the population conclusion"))
       next
@@ -256,14 +257,14 @@ subgroup_lines <- function(chk) {
 #' With patient data, `summary()` of a result of [nb_val()] with `subgroup`
 #' gives the same check at every threshold.
 #'
-#' @param dnb The difference in net benefit between the model and the
-#'   comparator in each of the two subgroups, named by subgroup, e.g.
+#' @param diff_nb The difference in net benefit between the model and the
+#'   comparator (the same strategy in both subgroups) in each of the two subgroups, named by subgroup, e.g.
 #'   `c(Men = -0.0016, Women = 0.00345)`.
-#' @param shares Optional relative sizes of the two subgroups, named like `dnb`.
+#' @param shares Optional relative sizes of the two subgroups, named like `diff_nb`.
 #'   Default: equal.
 #' @param k Optional \eqn{a - c} of each subgroup (e.g. the relative risk
-#'   reductions of the treatment), named like `dnb`.
-#' @return An object of class `voipred_k_value`, a list with `dnb`, `shares`,
+#'   reductions of the treatment), named like `diff_nb`.
+#' @return An object of class `voipred_k_value`, a list with `diff_nb`, `shares`,
 #'   `K` (NA when the signs are the same), `k` and `consistent` (with `k`:
 #'   whether population net benefit and population utility favour the same
 #'   strategy), printed as a short report.
@@ -277,38 +278,38 @@ subgroup_lines <- function(chk) {
 #' k_value(c(Men = -0.0016, Women = 0.00345), k = c(Men = 0.28, Women = 0.15))
 #' k_value(c(Men = -0.0016, Women = 0.00345), k = c(Men = 0.28, Women = 0.12))
 #' @export
-k_value <- function(dnb, shares = NULL, k = NULL) {
-  if (!is.numeric(dnb) || length(dnb) != 2 || anyNA(dnb) || is.null(names(dnb)) ||
-      any(!nzchar(names(dnb))))
-    stop("`dnb` must be the delta NB of two subgroups, named by subgroup, e.g. ",
+k_value <- function(diff_nb, shares = NULL, k = NULL) {
+  if (!is.numeric(diff_nb) || length(diff_nb) != 2 || anyNA(diff_nb) || is.null(names(diff_nb)) ||
+      any(!nzchar(names(diff_nb))))
+    stop("`diff_nb` must be the differences in net benefit of two subgroups, named by subgroup, e.g. ",
          "c(Men = -0.0016, Women = 0.00345).", call. = FALSE)
-  lev <- names(dnb)
+  lev <- names(diff_nb)
   s <- if (is.null(shares)) c(0.5, 0.5) else {
     if (!is.numeric(shares) || !setequal(names(shares), lev) || any(shares <= 0))
-      stop("`shares` must be two positive numbers named like `dnb`.", call. = FALSE)
+      stop("`shares` must be two positive numbers named like `diff_nb`.", call. = FALSE)
     shares[lev] / sum(shares)
   }
   names(s) <- lev
-  opposite <- sign(dnb[1]) * sign(dnb[2]) < 0
-  K <- if (opposite) unname(-(s[2] * dnb[2]) / (s[1] * dnb[1])) else NA_real_
+  opposite <- sign(diff_nb[1]) * sign(diff_nb[2]) < 0
+  K <- if (opposite) unname(-(s[2] * diff_nb[2]) / (s[1] * diff_nb[1])) else NA_real_
   kk <- NULL
   consistent <- NA
   if (!is.null(k)) {
     if (!is.numeric(k) || !setequal(names(k), lev) || any(k <= 0))
-      stop("`k` must be two positive numbers named like `dnb`.", call. = FALSE)
+      stop("`k` must be two positive numbers named like `diff_nb`.", call. = FALSE)
     kk <- k[lev]
-    pop <- sum(s * dnb)
-    u <- sum(s * kk * dnb)
+    pop <- sum(s * diff_nb)
+    u <- sum(s * kk * diff_nb)
     consistent <- !(sign(u) * sign(pop) < 0)
   }
-  structure(list(dnb = dnb, shares = s, K = K, k = kk, consistent = consistent),
+  structure(list(diff_nb = diff_nb, shares = s, K = K, k = kk, consistent = consistent),
             class = "voipred_k_value")
 }
 
 #' @export
 print.voipred_k_value <- function(x, ...) {
-  lev <- names(x$dnb)
-  cat("Subgroup delta NB: ", paste(lev, fmt_num(x$dnb), collapse = ", "),
+  lev <- names(x$diff_nb)
+  cat("Subgroup difference in net benefit (diff_NB): ", paste(lev, fmt_num(x$diff_nb), collapse = ", "),
       if (is.na(x$K)) " (same sign)" else " (opposite signs)", "\n", sep = "")
   cat("Shares: ", paste0(lev, " ", round(100 * x$shares), "%", collapse = ", "), "\n", sep = "")
   if (is.na(x$K)) {
@@ -331,8 +332,9 @@ print.voipred_k_value <- function(x, ...) {
 
 # ---- plots -------------------------------------------------------------------
 
-# The subgroup-specific delta NB against the comparator across thresholds,
-# one curve per subgroup (and model), with the population delta NB.
+# The subgroup-specific differences in net benefit against the comparator
+# (diff_NB) across thresholds, one curve per subgroup (and model), with the
+# population difference.
 subgroup_curve_spec <- function(x, comparator, shares) {
   chk <- subgroup_check(x, comparator = comparator, shares = shares)
   tab <- chk$table
@@ -341,7 +343,7 @@ subgroup_curve_spec <- function(x, comparator, shares) {
   for (m in unique(tab$model)) {
     t <- tab[tab$model == m, ]
     for (lev in c(chk$levels, "population")) {
-      col <- paste0("delta_NB_", lev)
+      col <- paste0("diff_NB_", lev)
       lab <- if (lev == "population") "Population" else lev
       if (several) lab <- paste0(m, ": ", lab)
       curves[[length(curves) + 1]] <- curve_data(t$threshold, lab, t[[col]])
@@ -351,13 +353,13 @@ subgroup_curve_spec <- function(x, comparator, shares) {
   d$label <- factor(d$label, levels = unique(d$label))
   lev <- levels(d$label)
   new_spec(d, stats::setNames(default_hues(length(lev)), lev), "Threshold Probability",
-           paste0("\u0394NB against ", chk$comparator), hline = 0)
+           paste0("Difference in NB against ", chk$comparator), hline = 0)
 }
 
 # The inconsistency region at one threshold (two subgroups), as in Figures 2
 # and 5 of Wang et al.: the boundary lines y = -(n1/n2) x and, with k,
 # y = -(n1 k1)/(n2 k2) x, the region between them shaded, the observed point
-# (delta NB_1, delta NB_2), and the line through it, whose slope gives the
+# (diff_NB_1, diff_NB_2), and the line through it, whose slope gives the
 # K-value.
 subgroup_region_plot <- function(x, threshold, model, comparator, k, shares) {
   chk <- subgroup_check(x, comparator = comparator, k = k, shares = shares)
@@ -382,8 +384,8 @@ subgroup_region_plot <- function(x, threshold, model, comparator, k, shares) {
   if (!length(j))
     stop("`threshold` (", threshold, ") is not one of the thresholds of the result.",
          call. = FALSE)
-  px <- t[[paste0("delta_NB_", lev[1])]][j]
-  py <- t[[paste0("delta_NB_", lev[2])]][j]
+  px <- t[[paste0("diff_NB_", lev[1])]][j]
+  py <- t[[paste0("diff_NB_", lev[2])]][j]
   s <- chk$shares
   s1 <- -s[1] / s[2]
   lim <- 1.6 * max(abs(c(px, py)), 1e-6)
@@ -412,7 +414,7 @@ subgroup_region_plot <- function(x, threshold, model, comparator, k, shares) {
     ggplot2::geom_point(data = data.frame(x = px, y = py), size = 3) +
     scale_color_manual(values = cols, name = NULL) +
     coord_cartesian(xlim = c(-lim, lim), ylim = c(-lim, lim)) +
-    labs(x = paste0("\u0394NB in ", lev[1]), y = paste0("\u0394NB in ", lev[2]),
+    labs(x = paste0("Difference in NB in ", lev[1]), y = paste0("Difference in NB in ", lev[2]),
          title = paste0(model, " at threshold ", threshold, ", against ", chk$comparator),
          subtitle = if (!is.null(chk$k))
            paste0("Grey: inconsistency region (k_", lev[1], " / k_", lev[2], " = ",

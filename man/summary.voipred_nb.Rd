@@ -56,9 +56,11 @@ subgroup, e.g. \code{c(male = 0.28, female = 0.15)}, or (any number of
 subgroups) ranges, e.g. \code{list(male = c(0.2, 0.3), ...)}; \code{shares}, the
 relative sizes of the subgroups in the target population (default: in the
 sample). \code{summary()} then adds the checks of Wang et al.: the subgroup
-differences, their share-weighted sum (the population difference), whether
+differences in net benefit against the comparator (\verb{diff_NB_<subgroup>};
+distinct from \code{delta_NB}, which is against the best default strategy of
+each group), their share-weighted sum (\code{diff_NB_population}), whether
 they have the same sign, the K-value (two subgroups) and, with \code{k}, the
-utility-weighted difference (\code{delta_U}) and whether population net benefit
+utility-weighted difference (\code{diff_utility}) and whether population net benefit
 and population utility favour the same strategy (\code{consistent}).}
 
 \item{row.names, optional}{Not used (as in \code{\link[=as.data.frame]{as.data.frame()}}).}
