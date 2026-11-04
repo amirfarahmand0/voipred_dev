@@ -49,7 +49,7 @@ this over a range of thresholds.
 **Value of information.** A validation sample is finite, so the estimated
 net benefit is uncertain, and the strategy that looks best (a model,
 treating everyone or treating no one) may not be the best in the
-population. value of information analysis asks how much this uncertainty matters for the
+population. Value of information analysis asks how much this uncertainty matters for the
 decision: the expected value of perfect information (EVPI) is the expected
 loss in net benefit due to it, and the expected value of sample information
 (EVSI) is the expected gain from a further validation study of a given size.

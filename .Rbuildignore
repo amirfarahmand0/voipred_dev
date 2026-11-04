@@ -1,10 +1,10 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^docs$
-^_pkgdown\.yml$
 ^README\.md$
 ^reports$
 ^src/.*\.o$
 ^src/.*\.so$
-^pkgdown$
 ^vignettes/articles$
+^altdoc$
+^_quarto$

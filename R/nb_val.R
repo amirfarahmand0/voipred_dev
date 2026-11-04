@@ -4,7 +4,7 @@
 #' or above the threshold), of treating everyone, and of treating no one, at
 #' each risk threshold, for a binary, survival or competing-risks outcome,
 #' for one model or several models validated on the same patients.
-#' This is the core quantity every other voipred validation metric (ΔNB,
+#' This is the core quantity every other voipred validation metric (\eqn{\Delta NB},
 #' P(useful), P(best), EVPI, EVSI) is built on.
 #'
 #' **Binary outcome.** With outcome \eqn{Y}, predicted risk \eqn{\hat\pi} and

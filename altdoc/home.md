@@ -8,7 +8,7 @@ remaining uncertainty matters for the decision of whether to use them.
   competing-risk outcomes, for one model or several compared on the same
   patients; with Kaplan-Meier or conditional inverse probability of
   censoring weights (cIPCW) for informative censoring.
-- **Value-of-information analysis**: the expected value of perfect
+- **Value of information analysis**: the expected value of perfect
   information (EVPI), the probability that each model is useful and that
   each strategy is the best (`evpi()`), and the expected value of sample
   information of a further validation study (`evsi()`).
@@ -25,7 +25,7 @@ remotes::install_github("amirfarahmand0/voipred_dev")
 
 ## Get started
 
-The article [Introduction to voipred](articles/voipred.html) walks through a
+The article [Introduction to voipred](vignettes/voipred.qmd) walks through a
 complete analysis: net benefit and decision curves, comparing models, value
 of information, prior information, survival and competing-risk outcomes, and
-reporting. The [Reference](reference/index.html) documents every function.
+reporting. The Reference (in the menu) documents every function.

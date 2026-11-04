@@ -4,3 +4,5 @@ src/*.dll
 docs/
 vignettes/articles/*.html
 vignettes/articles/*_files/
+_quarto/
+altdoc/freeze.rds

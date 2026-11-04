@@ -1,0 +1,43 @@
+project:
+  type: website
+  output-dir: ../docs/
+
+website:
+  title: "voipred"
+  site-url: https://amirfarahmand0.github.io/voipred/
+  repo-url: https://github.com/amirfarahmand0/voipred_dev
+  page-navigation: true
+  navbar:
+    search: true
+    left:
+      - text: Tutorial
+        href: vignettes/voipred.qmd
+      - text: Reference
+        href: man/nb_val.qmd
+    right:
+      - icon: github
+        href: https://github.com/amirfarahmand0/voipred_dev
+        aria-label: voipred on GitHub
+  sidebar:
+    collapse-level: 1
+    contents:
+      - text: Home
+        file: index.md
+      - section: $ALTDOC_VIGNETTE_BLOCK
+      - section: $ALTDOC_MAN_BLOCK
+      - text: Citation
+        file: $ALTDOC_CITATION
+  page-footer:
+    left: "Developed by Amirhosein Farahmand, Mohsen Sadatsafavi and Laure Wynants."
+    right: "Built with [altdoc](https://altdoc.etiennebacher.com) and [Quarto](https://quarto.org)."
+
+format:
+  html:
+    theme:
+      light: cosmo
+      dark: darkly
+    toc: true
+    toc-depth: 4
+    toc-title: "On this page"
+    code-copy: true
+    code-link: true
