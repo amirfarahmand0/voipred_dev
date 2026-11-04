@@ -28,7 +28,7 @@ remaining uncertainty matters for the decision of whether to use them. It
 implements decision curve analysis based on **net benefit**
 [@vickers2006; @vickers2019], for binary, survival and competing-risk
 outcomes [@vickers2008], in a Bayesian framework [@wynants2018; @cruz2025],
-and **value-of-information (VoI) analysis** for model validation
+and **value of information analysis** for model validation
 [@sadatsafavi2023; @sadatsafavi2025].
 
 **Net benefit.** A prediction model is used to decide on treatment by
@@ -49,7 +49,7 @@ this over a range of thresholds.
 **Value of information.** A validation sample is finite, so the estimated
 net benefit is uncertain, and the strategy that looks best (a model,
 treating everyone or treating no one) may not be the best in the
-population. VoI analysis asks how much this uncertainty matters for the
+population. value of information analysis asks how much this uncertainty matters for the
 decision: the expected value of perfect information (EVPI) is the expected
 loss in net benefit due to it, and the expected value of sample information
 (EVSI) is the expected gain from a further validation study of a given size.
@@ -58,7 +58,7 @@ and the probability that each strategy is the best, P(best).
 
 **Workflow.** The main function is `nb_val()`, which computes the net
 benefit of one or several models at a range of thresholds. Its result is
-used by the VoI functions:
+used by the value of information functions:
 
 | Step | Function | Result |
 |---|---|---|
@@ -75,6 +75,14 @@ risk of the event, from any model or software (or the fitted model itself),
 and the observed outcome: for a binary outcome, 0/1, `TRUE`/`FALSE`, or a
 factor with two levels; for a survival or competing-risk outcome, a time and a
 status.
+
+**How this article is organised.** @sec-binary shows the complete analysis
+for a binary outcome: net benefit and decision curves, prior information, and
+the value of information analysis. @sec-survival shows the same analyses for a
+survival outcome, with what differs (censoring, and competing risks). The
+sections after them apply to both: subgroups (@sec-subgroups), reporting
+(@sec-reporting) and credible intervals (@sec-ci); @sec-options summarises the
+choices.
 
 ## Installation
 
@@ -129,9 +137,15 @@ val$p_age <- predict(fit_age, newdata = val, type = "response")
 head(val[, c("day30", "age", "Killip", "p_full", "p_age")])
 ```
 
-## Net benefit and decision curves {#sec-nb}
+## Binary outcome {#sec-binary}
 
-### Net benefit of one model
+This section analyses the GUSTO-I example (@sec-data), a binary outcome: the
+net benefit and decision curves of the models, prior information (which is
+for binary outcomes only), and the value of information analysis.
+
+### Net benefit and decision curves {#sec-nb}
+
+#### Net benefit of one model
 
 `nb_val()` takes the validation data, the predicted risks (`predicted_risk`:
 a vector, or the name of the column that holds them), the outcome and the
@@ -200,7 +214,7 @@ the best default strategy. At the lowest thresholds the gain is small, because
 treating everyone is almost as good when nearly all patients would be treated
 anyway.
 
-### Comparing models
+#### Comparing models
 
 To compare models, give them to one call of `nb_val()` as a list, one element
 per model. Every other argument applies to all of them, and every result
@@ -229,7 +243,7 @@ The age-only model is useful at `r length(age_useful)` of the
 predictors, is useful at all of them. Around 5%, the two models have almost
 the same net benefit, and the best strategy switches between them; with only
 500 patients, the data may not tell them apart there. Whether such
-differences are real is what the value-of-information analysis (@sec-voi)
+differences are real is what the value of information analysis (@sec-voi)
 quantifies.
 
 **Giving the models.** `predicted_risk` takes, for one model, a vector of risks
@@ -244,11 +258,70 @@ name in the list, otherwise by the column name or the name in the call.
 Results computed separately, on the same data and thresholds, can be
 combined with `c()`.
 
-## Value-of-information analysis {#sec-voi}
+### Prior information (the Bayesian framework) {#sec-priors}
 
-### How the uncertainty is represented
+voipred.dev computes the net benefit in a Bayesian framework. By default it
+uses no prior information, so the estimates are those of standard decision
+curve analysis, and the uncertainty is that of the data alone (for a binary
+outcome, the posterior draws then have exactly the distribution of the
+Bayesian bootstrap, the approach of @sadatsafavi2023). Prior information can
+be added for binary outcomes with the `prior` argument of `nb_val()`:
 
-The VoI functions take the result of `nb_val()` and draw the net benefit of
+| Prior | What it assumes |
+|---|---|
+| `nb_improper()` (default) | no prior information: Beta(0, 0) for prevalence, sensitivity and specificity |
+| `nb_uniform()`, `nb_jeffreys()` | Beta(1, 1) or Beta(0.5, 0.5) for all three |
+| `nb_beta()` | your own Beta priors, e.g. on the prevalence from earlier studies; the parts not given are Beta(0, 0) |
+| `nb_informative()` | the informative prior of bayesDCA [@cruz2025], whose priors on sensitivity and specificity change with the threshold |
+
+**When to use prior information.** It matters when the effective sample size
+is small, for example when most predicted risks are on one side of a
+threshold, so that few patients are treated (or untreated) there [@cruz2025].
+At other thresholds, and with reasonably large samples, priors change the
+results little.
+
+**The informative prior.** Every model treats everyone at a threshold of 0
+(sensitivity 1, specificity 0) and no one at a threshold above all predicted
+risks (sensitivity 0, specificity 1). Near the ends of the decision curve,
+where the data say little, `nb_informative()` states, with little weight
+(about 5 patients), that the model behaves like treat all at the lowest
+threshold and like treat none at the highest, and stays vague in between; the
+prevalence has a uniform prior. @cruz2025 found that it keeps EVPI decreasing
+with the sample size in small samples. It reproduces bayesDCA's construction
+and defaults, and is for binary outcomes only; the prior at a threshold
+depends on the range of thresholds given to `nb_val()`.
+
+```{r prior}
+res_inf <- nb_val(data = val,
+                  predicted_risk = list(Full = "p_full", `Age only` = "p_age"),
+                  outcome = "day30",
+                  thresholds = seq(0.01, 0.30, by = 0.01),
+                  prior = nb_informative())
+res_inf$prior_shapes[c(1, 5, 10, 20, 30), ]    # the prior at some thresholds
+```
+
+Reporting the results with and without the prior shows how much it matters;
+@sec-small compares the EVPI under the two priors.
+
+**Common concerns.**
+
+- *Is the Bayesian analysis complicated?* With the default prior,
+  `nb_val()` gives the usual net benefit; the Bayesian framework only
+  represents its uncertainty for the value of information functions.
+- *Do I have to choose a prior?* No; priors are an option for small effective
+  sample sizes.
+- *Do I have to monitor convergence?* No: the draws are exact (closed form, or
+  the Bayesian bootstrap), with no MCMC.
+- *Will the prior make the results subjective?* With the default prior, the
+  results are those of standard decision curve analysis. A prior matters only
+  where the data are scarce, and its influence can be shown by reporting the
+  results with and without it.
+
+### Value of information analysis {#sec-voi}
+
+#### How the uncertainty is represented
+
+The value of information functions take the result of `nb_val()` and draw the net benefit of
 every strategy `n_sim` times from its distribution given the validation data;
 all their results are computed from these draws. For a binary outcome, the
 draws come from the posterior of the prevalence, sensitivity and specificity,
@@ -261,7 +334,7 @@ monitor. When models are compared, all of them are evaluated on the same
 patients within each draw, so their correlation is preserved. The draws are
 random: set a seed to reproduce them.
 
-### EVPI, P(useful) and P(best)
+#### EVPI, P(useful) and P(best)
 
 `evpi()` computes three measures at each threshold from one set of draws:
 
@@ -338,7 +411,7 @@ model in `r pct(pb_k$p_best[pb_k$strategy == "Age only"])`: the data cannot
 tell the two models apart, which is why perfect information has most value
 there.
 
-### EVSI: the value of a further validation study
+#### EVSI: the value of a further validation study
 
 The expected gain in net benefit from a future validation study of $N$
 patients (`future_n`), added to the current sample, before choosing the
@@ -370,7 +443,7 @@ can be obtained with a moderate study, with diminishing returns beyond it.
 Multiplied by the number of patients affected by the decision, EVSI can be
 compared with the cost of the study.
 
-### EVPI and EVSI below the decision curve
+#### EVPI and EVSI below the decision curve
 
 `plot()` of the result of `nb_val()` draws EVPI and EVSI in a panel below the
 decision curve, so that the net benefit and the value of information can be
@@ -381,52 +454,17 @@ read together:
 plot(res, evpi = e, evsi = o)
 ```
 
-**Small effective sample sizes.** Where few patients are on one side of a
+#### Small effective sample sizes {#sec-small}
+
+Where few patients are on one side of a
 threshold (typically at very low or very high thresholds), the data say
-little, and the VoI measures can behave unexpectedly; for example, EVPI may
+little, and the value of information measures can behave unexpectedly; for example, EVPI may
 not decrease steadily as the sample size grows [@sadatsafavi2023]. Interpret
 them with care there; prior information (@sec-priors) can stabilise them.
 
-## Prior information {#sec-priors}
+For example, with the informative prior of @sec-priors:
 
-voipred.dev computes the net benefit in a Bayesian framework. By default it
-uses no prior information, so the estimates are those of standard decision
-curve analysis, and the uncertainty is that of the data alone (for a binary
-outcome, the posterior draws then have exactly the distribution of the
-Bayesian bootstrap, the approach of @sadatsafavi2023). Prior information can
-be added for binary outcomes with the `prior` argument of `nb_val()`:
-
-| Prior | What it assumes |
-|---|---|
-| `nb_improper()` (default) | no prior information: Beta(0, 0) for prevalence, sensitivity and specificity |
-| `nb_uniform()`, `nb_jeffreys()` | Beta(1, 1) or Beta(0.5, 0.5) for all three |
-| `nb_beta()` | your own Beta priors, e.g. on the prevalence from earlier studies; the parts not given are Beta(0, 0) |
-| `nb_informative()` | the informative prior of bayesDCA [@cruz2025], whose priors on sensitivity and specificity change with the threshold |
-
-**When to use prior information.** It matters when the effective sample size
-is small, for example when most predicted risks are on one side of a
-threshold, so that few patients are treated (or untreated) there [@cruz2025].
-At other thresholds, and with reasonably large samples, priors change the
-results little.
-
-**The informative prior.** Every model treats everyone at a threshold of 0
-(sensitivity 1, specificity 0) and no one at a threshold above all predicted
-risks (sensitivity 0, specificity 1). Near the ends of the decision curve,
-where the data say little, `nb_informative()` states, with little weight
-(about 5 patients), that the model behaves like treat all at the lowest
-threshold and like treat none at the highest, and stays vague in between; the
-prevalence has a uniform prior. @cruz2025 found that it keeps EVPI decreasing
-with the sample size in small samples. It reproduces bayesDCA's construction
-and defaults, and is for binary outcomes only; the prior at a threshold
-depends on the range of thresholds given to `nb_val()`.
-
-```{r prior}
-res_inf <- nb_val(data = val,
-                  predicted_risk = list(Full = "p_full", `Age only` = "p_age"),
-                  outcome = "day30",
-                  thresholds = seq(0.01, 0.30, by = 0.01),
-                  prior = nb_informative())
-res_inf$prior_shapes[c(1, 5, 10, 20, 30), ]    # the prior at some thresholds
+```{r small-samples}
 set.seed(10)
 e_inf <- evpi(res_inf, n_sim = 5000)
 round(data.frame(threshold = ee$threshold,
@@ -435,26 +473,17 @@ round(data.frame(threshold = ee$threshold,
 ```
 
 With 500 patients, the two priors give similar EVPI, except near the ends of
-the range, where the informative prior expresses its assumptions. Reporting
-the results with and without the prior shows how much it matters.
+the range, where the informative prior expresses its assumptions.
 
-**Common concerns.**
+## Survival outcome {#sec-survival}
 
-- *Is the Bayesian analysis complicated?* With the default prior,
-  `nb_val()` gives the usual net benefit; the Bayesian framework only
-  represents its uncertainty for the VoI functions.
-- *Do I have to choose a prior?* No; priors are an option for small effective
-  sample sizes.
-- *Do I have to monitor convergence?* No: the draws are exact (closed form, or
-  the Bayesian bootstrap), with no MCMC.
-- *Will the prior make the results subjective?* With the default prior, the
-  results are those of standard decision curve analysis. A prior matters only
-  where the data are scarce, and its influence can be shown by reporting the
-  results with and without it.
+The same analyses for a survival outcome, where the event is the event by a
+time horizon and some patients are censored before it: net benefit and
+decision curves (with Kaplan-Meier, or with cIPCW when censoring is
+informative), the value of information analysis, and competing risks. The
+methods are those of @sec-binary; only what differs is explained here.
 
-## Survival and competing-risk outcomes {#sec-survival}
-
-### Net benefit by a time horizon
+### Net benefit and decision curves
 
 For a survival outcome, the event is the event by a time horizon, and the
 predicted risks are the risks of the event by that horizon. We use the
@@ -549,9 +578,9 @@ parametric model or a random survival forest; `cipcw_control()` sets the other
 options (truncation, given weights, how to refit the model). See
 `?cipcw_control`, which includes an example with a random survival forest.
 
-### Value of information for survival outcomes
+### Value of information analysis
 
-The VoI functions work in the same way. Their draws are the Bayesian
+The value of information functions work in the same way. Their draws are the Bayesian
 bootstrap; with cIPCW, the censoring model is refitted in every draw, which
 takes longer.
 
@@ -619,6 +648,8 @@ With `r pct(res_cr$outcome$prevalence)` of the women having a recurrence within
 `r pct(ec$threshold[jc])`.
 
 ## Subgroups: utility heterogeneity {#sec-subgroups}
+
+This section applies to binary and survival outcomes alike.
 
 ### The idea
 
@@ -768,6 +799,8 @@ Credible intervals are not available with subgroups.
 
 ## Reporting the results {#sec-reporting}
 
+For binary and survival outcomes alike.
+
 ### Net benefit per 100,000 patients
 
 Net benefit, EVPI and EVSI are per patient, so their values are small.
@@ -814,6 +847,8 @@ the plotly package).
 
 ## Credible intervals {#sec-ci}
 
+For binary and survival outcomes alike.
+
 `nb_val()` can also give credible intervals of the net benefit, with
 `interval = 0.95` (from `n_sim` draws, as in @sec-voi). We do not recommend
 them for deciding whether to use a model: an interval shows the uncertainty of
@@ -853,7 +888,7 @@ outcomes, the intervals come from the Bayesian bootstrap.
 | Future study sizes | `future_n` in `evsi()` | sizes that could realistically be collected |
 | Scale | `per` in `print()`, `summary()`, `plot()`, `as.data.frame()` | e.g. 100,000 for reporting |
 | Case weights | `weights` in `nb_val()` | for samples that do not represent the target population in equal proportions (e.g. oversampled events): the inverse of the sampling probability |
-| Credible intervals | `interval` in `nb_val()` | not needed for the decision; use the VoI measures |
+| Credible intervals | `interval` in `nb_val()` | not needed for the decision; use the value of information measures |
 | Subgroups | `subgroup` in `nb_val()`; `k`, `comparator`, `shares` in `summary()` | for clinically relevant subgroups that are large or may differ in $a - c$ (e.g. treatment effect) |
 
 The help pages give the details of every function and argument (see the
