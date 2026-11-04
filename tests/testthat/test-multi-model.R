@@ -21,7 +21,7 @@ test_that("several models are given as a list, mixing fitted models, column name
   expect_equal(dim(ref$risk), c(nrow(v), 2))
   expect_equal(colnames(ref$risk), c("Full", "Age"))
   expect_named(ref$estimates, c("threshold", "model", "NB_model", "NB_all", "NB_none",
-                                "delta_NB"))
+                                "delta_NB", "net_FP_avoided"))
   expect_equal(ref$estimates$model, rep(c("Full", "Age"), each = length(z)))
   same <- function(r) {
     expect_equal(r$estimates, ref$estimates)

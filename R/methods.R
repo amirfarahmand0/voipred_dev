@@ -13,7 +13,8 @@
 #'
 #' All three have the same layout, for one model or several: one row per
 #' threshold and model, the model's label in the column `model`, and the
-#' columns `NB_model`, `NB_all`, `NB_none` and `delta_NB` (`summary()` adds
+#' columns `NB_model`, `NB_all`, `NB_none`, `delta_NB` and `net_FP_avoided`
+#' (net false positives avoided against treat all; see [nb_val()]) (`summary()` adds
 #' `Se` and `Sp`). `print()` and `summary()` sort the rows by threshold, so
 #' that the models are side by side; `as.data.frame()` keeps the order of the
 #' estimates (by model, then threshold).
@@ -98,7 +99,8 @@ print.voipred_nb <- function(x, n = 10, per = getOption("voipred.per", 1), ...) 
   if (!is.null(x$interval)) interval_warning()
   cat(with_per(nb_header(x), per), "\n\n", sep = "")
   e <- scale_cols(by_threshold(x$estimates, "model", x$models), nb_cols, per)
-  tab <- e[, c("threshold", "model", "NB_model", "NB_all", "NB_none", "delta_NB")]
+  tab <- e[, c("threshold", "model", "NB_model", "NB_all", "NB_none", "delta_NB",
+               "net_FP_avoided")]
   print_rows(with_ci(tab, e, x$interval), n, "use summary() or as.data.frame()",
              per_threshold = TRUE)
   if (!is.null(x$subgroups))
@@ -154,7 +156,7 @@ summary.voipred_nb <- function(object, thresholds = NULL,
         else sens_spec_km(object)
   tab <- data.frame(threshold = e$threshold, model = e$model, Se = ss$Se, Sp = ss$Sp,
                     NB_model = e$NB_model, NB_all = e$NB_all, NB_none = e$NB_none,
-                    delta_NB = e$delta_NB)
+                    delta_NB = e$delta_NB, net_FP_avoided = e$net_FP_avoided)
   es <- scale_cols(e, nb_cols, per)
   best <- best_strategy(object)
   o <- order(z)
@@ -214,10 +216,11 @@ as.data.frame.voipred_nb <- function(x, row.names = NULL, optional = FALSE,
     # the whole sample ("All") and each subgroup, with its own delta NB
     s <- x$subgroups$estimates
     s$delta_NB <- s$NB_model - pmax(s$NB_all, 0)
+    s$net_FP_avoided <- net_fp_avoided(s$NB_model, s$NB_all, s$threshold)
     e$subgroup <- "All"
     e$n <- if (is.null(x$weights)) x$outcome$n else sum(x$weights)
     cols <- c("threshold", "model", "subgroup", "n", "NB_model", "NB_all", "NB_none",
-              "delta_NB")
+              "delta_NB", "net_FP_avoided")
     e <- rbind(e[, cols], s[, cols])
     e$subgroup <- factor(e$subgroup, levels = c("All", levels(x$subgroups$group)))
     rownames(e) <- NULL
@@ -257,6 +260,13 @@ as.data.frame.voipred_nb <- function(x, row.names = NULL, optional = FALSE,
 #'   largest EVPI; for P(useful), none (only the bands), and with
 #'   `thresholds` also P(useful) at each of them.
 #' @param n Number of thresholds printed. Default 10.
+#' @param unit The unit of EVPI and EVSI: `"tp"` (default), net true
+#'   positives, the unit of net benefit; or `"fp"`, net false positives
+#'   avoided, i.e. divided by the threshold odds \eqn{t/(1-t)} (as the gain of a
+#'   model over treat all is converted into net false positives avoided; not
+#'   defined at a threshold of 0). The header (and the y axis) says so;
+#'   `as.data.frame(unit = "fp")` adds the converted columns (`EVPI_fp_avoided`,
+#'   `EVSI_fp_avoided`) to the per-patient ones.
 #' @param per Scale of EVPI and EVSI: the number of patients they are
 #'   expressed per. Default 1 (per patient); e.g. `per = 100000` gives the
 #'   expected gain in net true positives per 100,000 patients. `print()` and
@@ -303,10 +313,13 @@ NULL
 
 #' @rdname summary.voipred_voi
 #' @export
-print.voipred_evpi <- function(x, n = 10, per = getOption("voipred.per", 1), ...) {
+print.voipred_evpi <- function(x, n = 10, per = getOption("voipred.per", 1),
+                               unit = c("tp", "fp"), ...) {
   per <- check_per(per)
-  cat(voi_header("EVPI", x, per), "\n\n", sep = "")
-  print_rows(scale_cols(x$estimates[, c("threshold", "EVPI", "rEVPI")], "EVPI", per), n,
+  unit <- check_unit(unit)
+  cat(voi_header("EVPI", x, per, unit), "\n\n", sep = "")
+  e <- fp_units(x$estimates[, c("threshold", "EVPI", "rEVPI")], "EVPI", unit)
+  print_rows(scale_cols(e, "EVPI", per), n,
              "use summary() or as.data.frame()")
   if (!is.null(x$p_best))
     cat("# From the same draws: P(useful) in $p_useful, P(best) in $p_best\n")
@@ -316,9 +329,11 @@ print.voipred_evpi <- function(x, n = 10, per = getOption("voipred.per", 1), ...
 #' @rdname summary.voipred_voi
 #' @export
 summary.voipred_evpi <- function(object, thresholds = NULL,
-                                 per = getOption("voipred.per", 1), ...) {
+                                 per = getOption("voipred.per", 1), unit = c("tp", "fp"),
+                                 ...) {
   per <- check_per(per)
-  e <- object$estimates
+  unit <- check_unit(unit)
+  e <- fp_units(object$estimates, "EVPI", unit)
   pos <- is.finite(e$EVPI) & e$EVPI > 1e-12
   line <- if (any(pos)) {
     j <- which(pos)[which.max(e$EVPI[pos])]
@@ -330,18 +345,20 @@ summary.voipred_evpi <- function(object, thresholds = NULL,
   # EVPI only (as as.data.frame()); P(useful) and P(best) have their own summary()
   tab <- data.frame(threshold = e$threshold, EVPI = e$EVPI * per, rEVPI = e$rEVPI)
   rows <- select_rows(e$threshold, thresholds)
-  structure(list(header = voi_header("EVPI", object, per), lines = line,
+  structure(list(header = voi_header("EVPI", object, per, unit), lines = line,
                  table = tab[rows, , drop = FALSE], all_rows = is.null(thresholds)),
             class = "summary.voipred_evpi")
 }
 
 #' @rdname summary.voipred_voi
 #' @export
-print.voipred_evsi <- function(x, n = 10, per = getOption("voipred.per", 1), ...) {
+print.voipred_evsi <- function(x, n = 10, per = getOption("voipred.per", 1),
+                               unit = c("tp", "fp"), ...) {
   per <- check_per(per)
-  cat(voi_header("EVSI", x, per), "\n\n", sep = "")
-  print_rows(scale_cols(by_threshold(x$estimates, "future_n", x$future_n),
-                        c("EVSI", "EVPI"), per), n,
+  unit <- check_unit(unit)
+  cat(voi_header("EVSI", x, per, unit), "\n\n", sep = "")
+  e <- fp_units(by_threshold(x$estimates, "future_n", x$future_n), c("EVSI", "EVPI"), unit)
+  print_rows(scale_cols(e, c("EVSI", "EVPI"), per), n,
              "use summary() or as.data.frame()", per_threshold = TRUE)
   invisible(x)
 }
@@ -349,15 +366,17 @@ print.voipred_evsi <- function(x, n = 10, per = getOption("voipred.per", 1), ...
 #' @rdname summary.voipred_voi
 #' @export
 summary.voipred_evsi <- function(object, thresholds = NULL,
-                                 per = getOption("voipred.per", 1), ...) {
+                                 per = getOption("voipred.per", 1), unit = c("tp", "fp"),
+                                 ...) {
   per <- check_per(per)
+  unit <- check_unit(unit)
   zs <- pick_thresholds(object, thresholds, n_default = 3, max_all = 3)
   e <- by_threshold(object$estimates, "future_n", object$future_n)
   share <- e[vapply(e$threshold, function(t) any(near(zs, t)), logical(1)), , drop = FALSE]
   share[["EVSI / EVPI"]] <- ifelse(is.finite(share$EVPI) & share$EVPI > 1e-12,
                                    paste0(round(100 * share$EVSI / share$EVPI), "%"), "-")
-  share <- scale_cols(share, c("EVSI", "EVPI"), per)
-  structure(list(header = voi_header("EVSI", object, per),
+  share <- scale_cols(fp_units(share, c("EVSI", "EVPI"), unit), c("EVSI", "EVPI"), per)
+  structure(list(header = voi_header("EVSI", object, per, unit),
                  lines = if (is.null(thresholds))
                    "EVSI / EVPI at the thresholds with the largest EVPI:"
                  else "EVSI / EVPI at the chosen thresholds:",
@@ -447,14 +466,28 @@ print.summary.voipred_p_best <- function(x, n = 10, ...) print_voi_summary(x, n,
 #' @rdname summary.voipred_voi
 #' @export
 as.data.frame.voipred_evpi <- function(x, row.names = NULL, optional = FALSE,
-                                       per = getOption("voipred.per", 1), ...)
-  add_per_cols(x$estimates, c("ENB_current", "ENB_perfect", "EVPI"), check_per(per))
+                                       per = getOption("voipred.per", 1),
+                                       unit = c("tp", "fp"), ...) {
+  unit <- check_unit(unit)
+  e <- x$estimates
+  if (unit == "fp") e$EVPI_fp_avoided <- fp_units(e, "EVPI", "fp")$EVPI
+  add_per_cols(e, c("ENB_current", "ENB_perfect", "EVPI", "EVPI_fp_avoided"), check_per(per))
+}
 
 #' @rdname summary.voipred_voi
 #' @export
 as.data.frame.voipred_evsi <- function(x, row.names = NULL, optional = FALSE,
-                                       per = getOption("voipred.per", 1), ...)
-  add_per_cols(x$estimates, c("EVSI", "EVPI"), check_per(per))
+                                       per = getOption("voipred.per", 1),
+                                       unit = c("tp", "fp"), ...) {
+  unit <- check_unit(unit)
+  e <- x$estimates
+  if (unit == "fp") {
+    f <- fp_units(e, c("EVSI", "EVPI"), "fp")
+    e$EVSI_fp_avoided <- f$EVSI
+    e$EVPI_fp_avoided <- f$EVPI
+  }
+  add_per_cols(e, c("EVSI", "EVPI", "EVSI_fp_avoided", "EVPI_fp_avoided"), check_per(per))
+}
 
 #' @rdname summary.voipred_voi
 #' @export
@@ -479,11 +512,30 @@ check_per <- function(per) {
 }
 
 nb_cols <- c("NB_model", "NB_model_lower", "NB_model_upper", "NB_all", "NB_all_lower",
-             "NB_all_upper", "NB_none", "delta_NB", "delta_NB_lower", "delta_NB_upper")
+             "NB_all_upper", "NB_none", "delta_NB", "delta_NB_lower", "delta_NB_upper",
+             "net_FP_avoided", "net_FP_avoided_lower", "net_FP_avoided_upper")
 
 per_text <- function(per)
   paste0("per ", format(per, big.mark = ",", scientific = FALSE, trim = TRUE),
          if (per == 1) " patient" else " patients")
+
+check_unit <- function(unit) {
+  if (identical(unit, c("tp", "fp"))) return("tp")
+  if (!is.character(unit) || length(unit) != 1 || !unit %in% c("tp", "fp"))
+    stop("`unit` must be \"tp\" (net true positives, the default) or \"fp\" (net false ",
+         "positives avoided).", call. = FALSE)
+  unit
+}
+
+# EVPI and EVSI in net false positives avoided (unit = "fp"): divided by the
+# threshold odds t / (1 - t), as the gain over treat all is converted into net
+# false positives avoided; NA at t = 0.
+fp_units <- function(d, cols, unit) {
+  if (unit != "fp") return(d)
+  odds <- d$threshold / (1 - d$threshold)
+  for (k in intersect(cols, names(d))) d[[k]] <- ifelse(odds > 0, d[[k]] / odds, NA_real_)
+  d
+}
 
 # A header line, with the scale when it is not per patient.
 with_per <- function(header, per) if (per == 1) header else paste0(header, ", ", per_text(per))
@@ -536,7 +588,7 @@ censoring_text <- function(x) {
 }
 
 # The first line of print() and summary() of the value-of-information results.
-voi_header <- function(what, x, per = 1) {
+voi_header <- function(what, x, per = 1, unit = "tp") {
   evsi <- what == "EVSI"
   first <- paste0(what, ": ", paste(x$models, collapse = ", "), "; ",
                   outcome_text(x$outcome, if (isTRUE(x$case_weights)) TRUE),
@@ -545,6 +597,7 @@ voi_header <- function(what, x, per = 1) {
                   x$n_sim, if (x$draws == "posterior") " posterior draws" else
                     " Bayesian bootstrap draws")
   first <- with_per(first, per)
+  if (unit == "fp") first <- paste0(first, ", in net false positives avoided")
   if (!evsi) return(first)
   # EVSI: the information before the future study (the same as for EVPI) and
   # what is known after it, each with its prior

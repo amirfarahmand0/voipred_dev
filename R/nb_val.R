@@ -301,9 +301,15 @@
 #'     one, always 0) and `delta_NB`, the difference in net benefit between the
 #'     model and the best default strategy,
 #'     \eqn{NB_{model} - \max(NB_{all}, NB_{none})}: positive where the model
-#'     is useful; with `interval`, also the bounds `NB_model_lower`,
+#'     is useful; `net_FP_avoided`, the net false positives avoided by the
+#'     model compared with treat all (the net interventions avoided of Vickers
+#'     and Elkin), \eqn{(NB_{model} - NB_{all}) / (t/(1-t))}: the gain in net
+#'     benefit over treat all in units of false positives, e.g. 0.09 at
+#'     \eqn{t = 10\%} is 9 unnecessary treatments avoided per 100 patients
+#'     without missing more events (not defined at \eqn{t = 0}); with
+#'     `interval`, also the bounds `NB_model_lower`,
 #'     `NB_model_upper`, `NB_all_lower`, `NB_all_upper`, `delta_NB_lower` and
-#'     `delta_NB_upper`;
+#'     `delta_NB_upper`, `net_FP_avoided_lower`, `net_FP_avoided_upper`;
 #'   * `interval` (with `interval`): the level, `n_sim` and the kind of draws
 #'     (`"posterior"` or `"Bayesian bootstrap"`);
 #'   * `models` (the labels of the models), `call` and `prior`;
@@ -552,6 +558,7 @@ nb_val <- function(data, predicted_risk = NULL, outcome,
     data.frame(threshold = thresholds, model = labels[m], NB_model = nb_model[[m]],
                NB_all = res$NB_all, NB_none = 0)))
   est$delta_NB <- est$NB_model - pmax(est$NB_all, 0)
+  est$net_FP_avoided <- net_fp_avoided(est$NB_model, est$NB_all, est$threshold)
   rownames(est) <- NULL
   out <- structure(list(call = call, models = labels, estimates = est, prior = prior,
                         prior_shapes = if (info$type == "binary") prior_shapes(prior, thresholds),
@@ -617,12 +624,16 @@ add_intervals <- function(x, level, n_sim) {
     nb_m <- draws_of(m)
     qm <- q(nb_m)
     qd <- q(nb_m - pmax(nb_all, 0))
+    qf <- q(nb_m - nb_all)          # against treat all, for net FPs avoided
+    odds <- e$threshold[rows] / (1 - e$threshold[rows])
     e$NB_model_lower[rows] <- qm$lo
     e$NB_model_upper[rows] <- qm$hi
     e$NB_all_lower[rows] <- qa$lo
     e$NB_all_upper[rows] <- qa$hi
     e$delta_NB_lower[rows] <- qd$lo
     e$delta_NB_upper[rows] <- qd$hi
+    e$net_FP_avoided_lower[rows] <- ifelse(odds > 0, qf$lo / odds, NA_real_)
+    e$net_FP_avoided_upper[rows] <- ifelse(odds > 0, qf$hi / odds, NA_real_)
   }
   bad <- is.na(e$NB_model_lower) & !is.na(e$NB_model)
   if (any(bad))
@@ -638,7 +649,14 @@ add_intervals <- function(x, level, n_sim) {
 # The columns of the estimates with credible intervals.
 interval_cols <- c("threshold", "model", "NB_model", "NB_model_lower", "NB_model_upper",
                    "NB_all", "NB_all_lower", "NB_all_upper", "NB_none",
-                   "delta_NB", "delta_NB_lower", "delta_NB_upper")
+                   "delta_NB", "delta_NB_lower", "delta_NB_upper",
+                   "net_FP_avoided", "net_FP_avoided_lower", "net_FP_avoided_upper")
+
+# Net false positives avoided (net interventions avoided; Vickers and Elkin
+# 2006): the gain in net benefit over treat all, in units of false positives,
+# (NB_model - NB_all) / (t / (1 - t)). Not defined at t = 0.
+net_fp_avoided <- function(nb, nb_all, z)
+  ifelse(z > 0, (nb - nb_all) / (z / (1 - z)), NA_real_)
 
 # Counts (weighted with case weights) of treated and untreated patients with
 # and without the event at each threshold, for the model `label`.

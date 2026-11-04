@@ -197,6 +197,8 @@ threshold and model, the same layout for one model or several, in
 - `NB_none`: net benefit of treating no one (always 0);
 - `delta_NB`: $NB_{model} - \max(NB_{all}, NB_{none})$, the gain of the model
   over the best default strategy. The model is useful where it is positive.
+- `net_FP_avoided`: the net false positives avoided by the model compared with
+  treat all (see "Net false positives avoided" below).
 
 In the header, "prior improper Beta(0, 0)" means the default prior,
 `nb_improper()`: no prior information is used, the estimates come from the
@@ -265,6 +267,29 @@ options(voipred.per = 100000)
 summary(res_glm, thresholds = 0.1)
 options(voipred.per = NULL)            # back to the default, per patient
 ```
+
+**Net false positives avoided.** Net benefit is in units of true positives
+(net true positives). The same result can be expressed in units of false
+positives: the net false positives avoided by the model compared with treating
+everyone, i.e. the unnecessary treatments avoided without missing more patients
+who need treatment (the "net interventions avoided" of Vickers and Elkin, 2006,
+as in `dcurves::net_intervention_avoided()`):
+$$\text{net FPs avoided} = \frac{NB_{model} - NB_{all}}{t/(1-t)}.$$
+The gain over treat all is divided by the threshold odds, as one missed
+patient is worth $(1-t)/t$ false positives. This scale suits settings where the
+default is to treat (or test) everyone. Every output of `nb_val()` has it as the
+column `net_FP_avoided` (not defined at $t = 0$), `per` scales it like the net
+benefit, credible intervals give its bounds, and `plot(type = "fp_avoided")`
+draws it, with treat all as the line at 0:
+
+```{r nfa-glm}
+summary(res_glm, thresholds = c(0.05, 0.1, 0.2), per = 100)
+plot(res_glm, type = "fp_avoided")
+```
+
+At a threshold of 10%, for example, `net_FP_avoided` per 100 patients is the
+number of unnecessary treatments the model avoids per 100 patients compared
+with treating everyone, without missing more patients who die within 30 days.
 
 ## Credible intervals
 
@@ -702,7 +727,7 @@ nb_val(data = df_val_binary, predicted_risk = df_val_binary$p_glm[-1], outcome =
 | Argument | What it does |
 |---|---|
 | `x`, `...` | A result of `nb_val()` (with one model or several). More results drawn together must come from the same data, outcome and thresholds (voipred checks this). |
-| `type` | `"nb"`: decision curve with Treat All and Treat None (default). `"delta"`: $\Delta NB$ of each model, with a dashed line at 0. |
+| `type` | `"nb"`: decision curve with Treat All and Treat None (default). `"delta"`: $\Delta NB$ of each model, with a dashed line at 0. `"fp_avoided"`: net false positives avoided against treat all (the line at 0). For results with subgroups, also `"subgroups"` and `"region"`. |
 | `labels` | Names of the curves, one per model. Default: the models' labels. |
 | `colors` | Optional colours of the curves: named by label (e.g. `c(Logistic = "darkred", "Treat All" = "grey50")`; the others keep theirs), or unnamed, one per model in order. By default a model has the same colour in every plot. |
 | `per` | Scale of the net benefit: the number of patients it is expressed per (default 1; e.g. `100000`). The y axis says "(per 100,000 patients)". |

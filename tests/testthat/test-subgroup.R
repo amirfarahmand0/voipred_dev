@@ -150,7 +150,7 @@ test_that("print(), as.data.frame(), plots, c() and survival outcomes", {
   expect_output(print(res), "# Subgroups \\(group\\): Group 1, Group 2; summary\\(\\) checks them")
   df <- as.data.frame(res)
   expect_named(df, c("threshold", "model", "subgroup", "n", "NB_model", "NB_all", "NB_none",
-                     "delta_NB"))
+                     "delta_NB", "net_FP_avoided"))
   expect_equal(levels(df$subgroup), c("All", "Group 1", "Group 2"))
   expect_equal(nrow(df), 2 * 3)
   expect_true("NB_model_per_1000" %in% names(as.data.frame(res, per = 1000)))

@@ -22,6 +22,12 @@
 #'   named by curve label, or unnamed, one per curve in order (with
 #'   `type = "p_useful"` or `"p_best"`, as in [plot.voipred_p_useful()] and
 #'   [plot.voipred_p_best()]).
+#' @param unit The unit of EVPI and EVSI: `"tp"` (default), net true
+#'   positives, the unit of net benefit; or `"fp"`, net false positives
+#'   avoided, i.e. divided by the threshold odds \eqn{t/(1-t)} (as the gain of a
+#'   model over treat all is converted into net false positives avoided; not
+#'   defined at a threshold of 0). The header (and the y axis) says so;
+#'   For the plot of EVPI (`type = "evpi"`) and of EVSI.
 #' @param per Scale of EVPI (`type = "evpi"`): the number of patients it is
 #'   expressed per. Default 1 (per patient); e.g. `per = 100000`, and the y
 #'   axis says "(per 100,000 patients)". Relative EVPI, P(useful) and P(best)
@@ -49,10 +55,12 @@
 #' @export
 plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "p_best"),
                               labels = NULL, colors = NULL,
-                              per = getOption("voipred.per", 1), interactive = FALSE) {
+                              per = getOption("voipred.per", 1), unit = c("tp", "fp"),
+                              interactive = FALSE) {
   type <- match.arg(type)
   check_interactive(interactive)
   per <- check_per(per)
+  unit <- check_unit(unit)
   if (type %in% c("p_useful", "p_best")) {
     # P(useful) or P(best) from the draws of evpi()
     if (length(list(...)))
@@ -68,10 +76,13 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
            else plot(obj, colors = colors, interactive = interactive))
   }
   res <- collect_results(x, list(...), labels, "voipred_evpi", "evpi()", "plot()",
-                         "`type`, `labels`, `colors`, `per` and `interactive`", "EVPI")
+                         "`type`, `labels`, `colors`, `per`, `unit` and `interactive`", "EVPI")
   col <- if (type == "evpi") "EVPI" else "rEVPI"
-  d <- do.call(rbind, Map(function(r, l) curve_data(r$estimates$threshold, l,
-                                                     r$estimates[[col]]),
+  d <- do.call(rbind, Map(function(r, l) {
+                            e <- if (type == "evpi") fp_units(r$estimates, "EVPI", unit)
+                                 else r$estimates
+                            curve_data(e$threshold, l, e[[col]])
+                          },
                           res, names(res)))
   d$label <- factor(d$label, levels = names(res))
   sp <- new_spec(d, stats::setNames(series_colors(length(res)), names(res)),
@@ -79,7 +90,11 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
                  if (type == "evpi") "EVPI" else "Relative EVPI",
                  hline = if (type == "relative") 1, fmt = if (type == "evpi") ".5f" else ".3f")
   # EVPI per `per` patients; relative EVPI has no unit
-  if (type == "evpi") sp <- scale_spec(sp, per, "EVPI")
+  if (type == "evpi") {
+    lab <- if (unit == "fp") "EVPI (net false positives avoided)" else "EVPI"
+    sp <- scale_spec(sp, per, lab)
+    if (per == 1) sp$ylab <- sp$ylab_text <- lab
+  }
   render_plot(recolor(list(sp), colors, names(res), "result"), interactive)
 }
 
@@ -98,6 +113,12 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
 #' @param colors Optional colours of the curves (one per threshold), instead
 #'   of the defaults: named by curve label (e.g. `"Threshold 10%"`), or
 #'   unnamed, one per curve in order.
+#' @param unit The unit of EVPI and EVSI: `"tp"` (default), net true
+#'   positives, the unit of net benefit; or `"fp"`, net false positives
+#'   avoided, i.e. divided by the threshold odds \eqn{t/(1-t)} (as the gain of a
+#'   model over treat all is converted into net false positives avoided; not
+#'   defined at a threshold of 0). The header (and the y axis) says so;
+#'   For the plot of EVPI (`type = "evpi"`) and of EVSI.
 #' @param per Scale of EVSI and EVPI: the number of patients they are
 #'   expressed per. Default 1 (per patient); e.g. `per = 100000`, and the y
 #'   axis says "(per 100,000 patients)". The default can be set with
@@ -122,11 +143,13 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
 #' plot(o, thresholds = 0.05)
 #' @export
 plot.voipred_evsi <- function(x, ..., thresholds = NULL, colors = NULL,
-                              per = getOption("voipred.per", 1), interactive = FALSE) {
+                              per = getOption("voipred.per", 1), unit = c("tp", "fp"),
+                              interactive = FALSE) {
   check_interactive(interactive)
   per <- check_per(per)
-  check_no_dots(list(...), "plot()", "`thresholds`, `colors`, `per` and `interactive`")
-  o <- x$estimates
+  unit <- check_unit(unit)
+  check_no_dots(list(...), "plot()", "`thresholds`, `colors`, `per`, `unit` and `interactive`")
+  o <- fp_units(x$estimates, c("EVSI", "EVPI"), unit)
   zs <- pick_thresholds(x, thresholds, n_default = 4, max_all = 5)
   lev <- paste0("Threshold ", format(100 * zs, trim = TRUE), "%")
   ns <- sort(unique(o$future_n))
@@ -143,7 +166,10 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, colors = NULL,
   ref$label <- factor(ref$label, levels = lev)
   sp <- new_spec(d, stats::setNames(series_colors(length(lev)), lev),
                  "Future sample size", "EVSI", ref = ref, percent = FALSE, fmt = ".5f")
-  render_plot(recolor(list(scale_spec(sp, per, "EVSI")), colors, lev, "threshold"), interactive)
+  lab <- if (unit == "fp") "EVSI (net false positives avoided)" else "EVSI"
+  sp <- scale_spec(sp, per, lab)
+  if (per == 1) sp$ylab <- sp$ylab_text <- lab
+  render_plot(recolor(list(sp), colors, lev, "threshold"), interactive)
 }
 
 #' Plot the probability that a model is useful

@@ -22,7 +22,8 @@ test_that("binary: the quantiles of the posterior draws (the draws of evpi())", 
   expect_equal(res$interval, list(level = 0.95, n_sim = 400, draws = "posterior"))
   expect_named(res$estimates, c("threshold", "model", "NB_model", "NB_model_lower",
                                 "NB_model_upper", "NB_all", "NB_all_lower", "NB_all_upper",
-                                "NB_none", "delta_NB", "delta_NB_lower", "delta_NB_upper"))
+                                "NB_none", "delta_NB", "delta_NB_lower", "delta_NB_upper",
+                                "net_FP_avoided", "net_FP_avoided_lower", "net_FP_avoided_upper"))
   # the same draws as nb_draws() with the same seed
   base <- res
   base$estimates <- base$estimates[, c("threshold", "model", "NB_model", "NB_all", "NB_none",

@@ -448,6 +448,18 @@ summary(e, thresholds = c(0.02, 0.05, 0.1, 0.2), per = 100000)
 plot(e, per = 100000)
 ```
 
+**In net false positives avoided (`unit`).** EVPI and EVSI are, like net
+benefit, in units of net true positives. `unit = "fp"` in `print()`,
+`summary()`, `plot()` and `as.data.frame()` of their results expresses them in
+net false positives avoided, i.e. divided by the threshold odds $t/(1-t)$, as
+the gain of a model over treat all is converted into net false positives
+avoided (see the net benefit guide); it combines with `per`:
+
+```{r evpi-fp}
+summary(e, thresholds = c(0.02, 0.05, 0.1, 0.2), per = 100000, unit = "fp")
+plot(e, unit = "fp")
+```
+
 `plot(e, type = "p_useful")` and `plot(e, type = "p_best")` draw P(useful)
 and P(best) from the result of `evpi()`, the same as `plot(e$p_useful)` and
 `plot(e$p_best)`:
@@ -608,7 +620,7 @@ model, strategy or future sample size):
 
 | Data frame | Columns |
 |---|---|
-| `as.data.frame(e)` | `threshold`, `ENB_current`, `ENB_perfect`, `EVPI`, `rEVPI` |
+| `as.data.frame(e)` | `threshold`, `ENB_current`, `ENB_perfect`, `EVPI`, `rEVPI` (with `unit = "fp"`, also `EVPI_fp_avoided`) |
 | `as.data.frame(e$p_useful)` | `threshold`, `model`, `p_useful` |
 | `as.data.frame(e$p_best)` | `threshold`, `strategy`, `p_best` |
 | `as.data.frame(o)` (EVSI) | `threshold`, `future_n`, `EVSI`, `EVPI` |

@@ -48,7 +48,7 @@ test_that("print() and summary() of nb_val() are short and say what the result i
   expect_length(out, 1 + 1 + 1 + 10 + 1)                     # header, blank, column names, 10 thresholds, footer
   expect_match(out[length(out)], "^# 20 more thresholds; use summary\\(\\) or as.data.frame\\(\\)$")
   # the same layout as as.data.frame(), with the label in `model`
-  expect_match(out[3], "^ threshold +model +NB_model +NB_all +NB_none +delta_NB$")
+  expect_match(out[3], "^ threshold +model +NB_model +NB_all +NB_none +delta_NB +net_FP_avoided$")
   expect_match(out[4], "^ +0\\.[0-9]+ +Full ")
   expect_length(capture.output(print(s$r1, n = 3)), 1 + 1 + 1 + 3 + 1)
   sm <- summary(s$r1)
@@ -57,7 +57,7 @@ test_that("print() and summary() of nb_val() are short and say what the result i
   expect_match(so[2], "^Best strategy: ")
   expect_match(so[3], "^Largest delta_NB: Full [0-9.]+ at 0\\.[0-9]+$")    # always with the label
   expect_named(sm$table, c("threshold", "model", "Se", "Sp", "NB_model", "NB_all", "NB_none",
-                           "delta_NB"))
+                           "delta_NB", "net_FP_avoided"))
   expect_equal(unique(sm$table$model), "Full")
   # sensitivity and specificity are the observed proportions with the improper prior
   y <- s$val$day30
@@ -83,7 +83,8 @@ test_that("print() and summary() of nb_val() are short and say what the result i
   expect_match(capture.output(print(k))[1],
                "^Net benefit of Cox: survival, horizon 5, n = 1482, risk by horizon [0-9.]+%, censoring cIPCW \\(coxph\\), prior improper")
   st <- summary(k)$table
-  expect_named(st, c("threshold", "model", "Se", "Sp", "NB_model", "NB_all", "NB_none", "delta_NB"))
+  expect_named(st, c("threshold", "model", "Se", "Sp", "NB_model", "NB_all", "NB_none", "delta_NB",
+                     "net_FP_avoided"))
   # Se and Sp are those implied by the net benefit and the risk by the horizon
   F <- k$outcome$prevalence
   odds <- c(0.1, 0.3) / c(0.9, 0.7)

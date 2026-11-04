@@ -16,7 +16,7 @@ test_that("nb_val() returns one row per threshold with the expected columns", {
   expect_s3_class(res, "voipred_nb")
   expect_s3_class(res$estimates, "data.frame")
   expect_named(res$estimates, c("threshold", "model", "NB_model", "NB_all", "NB_none",
-                                "delta_NB"))
+                                "delta_NB", "net_FP_avoided"))
   expect_identical(as.data.frame(res), res$estimates)
   expect_equal(res$estimates$threshold, z)
   expect_true(all(res$estimates$NB_none == 0))

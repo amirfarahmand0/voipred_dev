@@ -172,9 +172,15 @@ estimated, see Details), \code{NB_all} (treat everyone), \code{NB_none} (treat n
 one, always 0) and \code{delta_NB}, the difference in net benefit between the
 model and the best default strategy,
 \eqn{NB_{model} - \max(NB_{all}, NB_{none})}: positive where the model
-is useful; with \code{interval}, also the bounds \code{NB_model_lower},
+is useful; \code{net_FP_avoided}, the net false positives avoided by the
+model compared with treat all (the net interventions avoided of Vickers
+and Elkin), \eqn{(NB_{model} - NB_{all}) / (t/(1-t))}: the gain in net
+benefit over treat all in units of false positives, e.g. 0.09 at
+\eqn{t = 10\%} is 9 unnecessary treatments avoided per 100 patients
+without missing more events (not defined at \eqn{t = 0}); with
+\code{interval}, also the bounds \code{NB_model_lower},
 \code{NB_model_upper}, \code{NB_all_lower}, \code{NB_all_upper}, \code{delta_NB_lower} and
-\code{delta_NB_upper};
+\code{delta_NB_upper}, \code{net_FP_avoided_lower}, \code{net_FP_avoided_upper};
 \item \code{interval} (with \code{interval}): the level, \code{n_sim} and the kind of draws
 (\code{"posterior"} or \code{"Bayesian bootstrap"});
 \item \code{models} (the labels of the models), \code{call} and \code{prior};

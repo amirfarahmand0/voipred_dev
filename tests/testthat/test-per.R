@@ -20,10 +20,10 @@ test_that("as.data.frame(): per-patient columns kept, scaled ones added", {
   cs <- per_case()
   K <- 1e5
   d <- as.data.frame(cs$res, per = K)
-  expect_equal(d[, 1:6], as.data.frame(cs$res))
+  expect_equal(d[, 1:7], as.data.frame(cs$res))
   expect_named(d, c("threshold", "model", "NB_model", "NB_all", "NB_none", "delta_NB",
-                    "NB_model_per_100000", "NB_all_per_100000", "NB_none_per_100000",
-                    "delta_NB_per_100000"))
+                    "net_FP_avoided", "NB_model_per_100000", "NB_all_per_100000",
+                    "NB_none_per_100000", "delta_NB_per_100000", "net_FP_avoided_per_100000"))
   expect_equal(d$delta_NB_per_100000, cs$res$estimates$delta_NB * K)
   de <- as.data.frame(cs$e, per = K)
   expect_equal(de$EVPI_per_100000, cs$e$estimates$EVPI * K)

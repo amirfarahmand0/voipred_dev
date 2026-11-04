@@ -42,7 +42,9 @@
 #' @param x A result of [nb_val()], for one model or several.
 #' @param ... More results of [nb_val()] to draw on the same plot. A result with
 #'   one model given here with a name is labelled with its name.
-#' @param type `"nb"` (decision curve, default) or `"delta"` (\eqn{\Delta NB});
+#' @param type `"nb"` (decision curve, default), `"delta"` (\eqn{\Delta NB}),
+#'   or `"fp_avoided"` (net false positives avoided against treat all, the line
+#'   at 0; see `net_FP_avoided` in [nb_val()]);
 #'   for a result with subgroups (`nb_val(subgroup = )`), also `"subgroups"`
 #'   (the difference in net benefit against `comparator` in each subgroup and in
 #'   the population, across thresholds) and `"region"` (two subgroups: the
@@ -110,7 +112,8 @@
 #' if (requireNamespace("plotly", quietly = TRUE)) plot(res1, evpi = e, interactive = TRUE)
 #' }
 #' @export
-plot.voipred_nb <- function(x, ..., type = c("nb", "delta", "subgroups", "region"),
+plot.voipred_nb <- function(x, ..., type = c("nb", "delta", "fp_avoided", "subgroups",
+                                             "region"),
                             labels = NULL, evpi = NULL, evsi = NULL, colors = NULL,
                             per = getOption("voipred.per", 1), bands = FALSE,
                             threshold = NULL, model = NULL, comparator = "Treat All",
@@ -145,7 +148,8 @@ plot.voipred_nb <- function(x, ..., type = c("nb", "delta", "subgroups", "region
     interval_warning()
   }
   specs <- list(scale_spec(dca_spec(res, type, bands), per,
-                           if (type == "nb") "Net Benefit" else "\u0394NB"))
+                           switch(type, nb = "Net Benefit", delta = "\u0394NB",
+                                  fp_avoided = "Net false positives avoided")))
   if (!is.null(evpi) || !is.null(evsi)) {
     bottom <- voi_panel_spec(evpi, evsi)
     specs[[2]] <- scale_spec(bottom, per, bottom$ylab_text)
@@ -181,7 +185,7 @@ dca_spec <- function(x, type, bands = TRUE) {
   # around Treat All in the decision curve
   band <- NULL
   if (bands && !is.null(x$interval)) {
-    k <- if (type == "nb") "NB_model" else "delta_NB"
+    k <- switch(type, nb = "NB_model", delta = "delta_NB", fp_avoided = "net_FP_avoided")
     band <- do.call(rbind, lapply(lab, function(l) {
       d <- e[e$model == l, ]
       data.frame(x = d$threshold, label = l, lower = d[[paste0(k, "_lower")]],
@@ -198,7 +202,8 @@ dca_spec <- function(x, type, bands = TRUE) {
   cols <- default_hues(length(lab) + 2)
   models <- do.call(rbind, lapply(lab, function(l) {
     d <- e[e$model == l, ]
-    curve_data(d$threshold, l, if (type == "nb") d$NB_model else d$delta_NB)
+    curve_data(d$threshold, l, switch(type, nb = d$NB_model, delta = d$delta_NB,
+                                      fp_avoided = d$net_FP_avoided))
   }))
   if (type == "nb") {
     d <- rbind(curve_data(z, "Treat All", nb_all(x)),
@@ -208,6 +213,12 @@ dca_spec <- function(x, type, bands = TRUE) {
     prev <- x$outcome$prevalence
     new_spec(d, stats::setNames(cols, levels(d$label)), "Threshold Probability",
              "Net Benefit", ylim = c(-0.1 * prev, prev), band = band)
+  } else if (type == "fp_avoided") {
+    # net false positives avoided, against treat all (the line at 0)
+    d <- models
+    d$label <- factor(d$label, levels = lab)
+    new_spec(d, stats::setNames(cols[-(1:2)], lab), "Threshold Probability",
+             "Net false positives avoided (against treat all)", hline = 0, band = band)
   } else {
     d <- models
     d$label <- factor(d$label, levels = lab)
@@ -569,7 +580,7 @@ merge_nb <- function(res, labels = NULL) {
             "`n_sim` of nb_val()), so the combined result has none.", call. = FALSE)
     res <- lapply(res, function(r) {
       r$estimates <- r$estimates[, c("threshold", "model", "NB_model", "NB_all", "NB_none",
-                                     "delta_NB")]
+                                     "delta_NB", "net_FP_avoided")]
       r$interval <- NULL
       r
     })

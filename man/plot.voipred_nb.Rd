@@ -7,7 +7,7 @@
 \method{plot}{voipred_nb}(
   x,
   ...,
-  type = c("nb", "delta", "subgroups", "region"),
+  type = c("nb", "delta", "fp_avoided", "subgroups", "region"),
   labels = NULL,
   evpi = NULL,
   evsi = NULL,
@@ -28,7 +28,9 @@
 \item{...}{More results of \code{\link[=nb_val]{nb_val()}} to draw on the same plot. A result with
 one model given here with a name is labelled with its name.}
 
-\item{type}{\code{"nb"} (decision curve, default) or \code{"delta"} (\eqn{\Delta NB});
+\item{type}{\code{"nb"} (decision curve, default), \code{"delta"} (\eqn{\Delta NB}),
+or \code{"fp_avoided"} (net false positives avoided against treat all, the line
+at 0; see \code{net_FP_avoided} in \code{\link[=nb_val]{nb_val()}});
 for a result with subgroups (\code{nb_val(subgroup = )}), also \code{"subgroups"}
 (the difference in net benefit against \code{comparator} in each subgroup and in
 the population, across thresholds) and \code{"region"} (two subgroups: the

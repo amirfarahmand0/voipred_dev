@@ -82,7 +82,8 @@ estimates at every threshold.
 \details{
 All three have the same layout, for one model or several: one row per
 threshold and model, the model's label in the column \code{model}, and the
-columns \code{NB_model}, \code{NB_all}, \code{NB_none} and \code{delta_NB} (\code{summary()} adds
+columns \code{NB_model}, \code{NB_all}, \code{NB_none}, \code{delta_NB} and \code{net_FP_avoided}
+(net false positives avoided against treat all; see \code{\link[=nb_val]{nb_val()}}) (\code{summary()} adds
 \code{Se} and \code{Sp}). \code{print()} and \code{summary()} sort the rows by threshold, so
 that the models are side by side; \code{as.data.frame()} keeps the order of the
 estimates (by model, then threshold).

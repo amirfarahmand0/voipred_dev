@@ -176,7 +176,9 @@ alone, and the net benefit is the usual one of decision curve analysis
 - `NB_all` and `NB_none`: the net benefit of treating everyone, and of
   treating no one (always 0);
 - `delta_NB`: $NB_{model} - \max(NB_{all}, NB_{none})$, the gain of the model
-  over the best default strategy; the model is useful where it is positive.
+  over the best default strategy; the model is useful where it is positive;
+- `net_FP_avoided`: the net false positives avoided by the model compared with
+  treat all (see @sec-nfa).
 
 `summary()` gives the main findings: the best strategy along the thresholds,
 the largest gain of the model, and its sensitivity and specificity, at all
@@ -258,6 +260,36 @@ other, give `predict_function` (see `?nb_val`). Each model is labelled by its
 name in the list, otherwise by the column name or the name in the call.
 Results computed separately, on the same data and thresholds, can be
 combined with `c()`.
+
+#### Net false positives avoided {#sec-nfa}
+
+Net benefit is in units of true positives (net true positives). The same
+result can be expressed in units of false positives: the **net false
+positives avoided** by the model compared with treating everyone, i.e. the
+unnecessary treatments avoided without missing more patients who need
+treatment, the "net interventions avoided" of @vickers2006 (as in the
+`net_intervention_avoided()` of the dcurves package):
+$$\text{net FPs avoided} = \frac{NB_{model} - NB_{all}}{t/(1-t)}.$$
+The gain of the model over treat all is divided by the threshold odds, as one
+missed patient is worth $(1-t)/t$ false positives at threshold $t$. This scale
+is natural when the default is to treat (or test) everyone. It is the column
+`net_FP_avoided` of every output (not defined at $t = 0$), and
+`plot(type = "fp_avoided")` draws it, with treat all as the line at 0:
+
+```{r nfa}
+plot(res, type = "fp_avoided")
+```
+
+```{r nfa-numbers}
+#| include: false
+f10 <- res$estimates[res$estimates$model == "Full" & abs(res$estimates$threshold - 0.10) < 1e-9, ]
+```
+
+At a threshold of 10%, the full model avoids `r fmt(f10$net_FP_avoided, 3)`
+net false positives per patient compared with treat all, i.e. about
+`r round(100 * f10$net_FP_avoided)` unnecessary treatments per 100 patients,
+without missing more patients who die within 30 days. With `per` (@sec-reporting),
+it is reported per 100, or per 100,000, patients, like the net benefit.
 
 ### Prior information (the Bayesian framework) {#sec-priors}
 
@@ -869,6 +901,16 @@ summary(e, thresholds = c(0.02, 0.05, 0.1, 0.2), per = 100000)
 plot(res, evpi = e, evsi = o, per = 100000)
 ```
 
+**In net false positives avoided.** EVPI and EVSI are, like net benefit, in
+units of net true positives. `unit = "fp"` in `print()`, `summary()`,
+`plot()` and `as.data.frame()` of their results expresses them in net false
+positives avoided (divided by the threshold odds, as in @sec-nfa), alone or
+with `per`:
+
+```{r per-fp}
+summary(e, thresholds = c(0.02, 0.05, 0.1, 0.2), per = 100000, unit = "fp")
+```
+
 ### Results as data frames
 
 `as.data.frame()` gives the full results, with fixed column names and one row
@@ -910,6 +952,7 @@ the plotly package).
 | Number of draws | `n_sim` in `evpi()`, `evsi()` | 1,000 (default); more (e.g. 5,000) for stable results at thresholds with little data; set a seed |
 | Future study sizes | `future_n` in `evsi()` | sizes that could realistically be collected |
 | Scale | `per` in `print()`, `summary()`, `plot()`, `as.data.frame()` | e.g. 100,000 for reporting |
+| Unit | `net_FP_avoided` and `plot(type = "fp_avoided")` for the net benefit; `unit = "fp"` for EVPI and EVSI | net false positives avoided when the default is to treat everyone; net true positives (default) otherwise |
 | Case weights | `weights` in `nb_val()` | for samples that do not represent the target population in equal proportions (e.g. oversampled events): the inverse of the sampling probability |
 | Credible intervals | `interval` in `nb_val()` | not needed for the decision; use the value of information measures |
 | Subgroups | `subgroup` in `nb_val()`; `k`, `comparator`, `shares` in `summary()` | for clinically relevant subgroups that are large or may differ in $a - c$ (e.g. treatment effect) |
