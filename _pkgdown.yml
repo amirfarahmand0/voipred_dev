@@ -54,12 +54,12 @@ reference:
 - title: Censoring
   contents:
   - cipcw_control
+- title: Subgroups
+  contents:
+  - k_value
 - title: Data
   contents:
   - gusto
 - title: Package
   contents:
   - voipred.dev-package
-- title: internal
-  contents:
-  - k_value

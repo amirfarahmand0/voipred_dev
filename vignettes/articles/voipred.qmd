@@ -65,6 +65,7 @@ used by the VoI functions:
 | Net benefit and decision curves | `nb_val()` | net benefit of each model, of treating all and of treating none, at each threshold |
 | Uncertainty for the current decision | `evpi()` | EVPI; P(useful) (in `$p_useful`) and P(best) (in `$p_best`), from the same draws |
 | Value of a future validation study | `evsi()` | EVSI for each future sample size |
+| Subgroups with different utilities | `nb_val(..., subgroup = )`, `summary()`, `k_value()` | whether population net benefit can mislead when $a - c$ differs between subgroups [@wang2026] |
 
 Every result has `print()` (a short table), `summary()` (the main findings),
 `plot()` and `as.data.frame()` (the full results) methods.
@@ -617,6 +618,154 @@ With `r pct(res_cr$outcome$prevalence)` of the women having a recurrence within
 `r pct(first_cr)`, with its largest gain, `r fmt(ec$delta_NB[jc], 3)`, at
 `r pct(ec$threshold[jc])`.
 
+## Subgroups: utility heterogeneity {#sec-subgroups}
+
+### The idea
+
+Net benefit is expressed in units of $a - c$, the incremental utility of a
+true positive relative to a false negative (written $k$): within a population,
+the difference in utility between two strategies is $k \, \Delta NB$, so net
+benefit and utility favour the same strategy. When the population consists of
+subgroups whose $k$ differs, for example because a treatment is more effective
+in men than in women, this no longer holds [@wang2026]. With subgroups
+$i = 1, \dots, m$ of sizes $n_i$, the population difference in net benefit
+weights the subgroup differences by size only, whereas the population
+difference in utility also weights them by $k_i$:
+$$\Delta NB \propto \sum_i n_i \, \Delta NB_i, \qquad
+  \Delta U \propto \sum_i n_i \, k_i \, \Delta NB_i .$$
+The two can therefore favour different strategies: population net benefit can
+favour the model while population utility favours the comparator, or the
+reverse. This is possible only when the subgroup $\Delta NB_i$ do not all have
+the same sign. For two subgroups, the combinations of $(\Delta NB_1,
+\Delta NB_2)$ for which it happens form the **inconsistency region**, between
+the lines $y = -(n_1/n_2)\,x$ and $y = -(n_1 k_1)/(n_2 k_2)\,x$, and the
+**K-value**
+$$K = -\frac{n_2 \, \Delta NB_2}{n_1 \, \Delta NB_1}$$
+is the critical ratio $k_1/k_2$ at which the conclusion changes: when
+$k_1 > k_2$, population net benefit and utility favour different strategies if
+$k_1/k_2 > K$ (and if $k_1/k_2 < K$ when $k_1 < k_2$). Like the E-value for
+unmeasured confounding, it measures how robust the population-level conclusion
+is [@wang2026].
+
+@wang2026 propose a framework in three steps, which voipred.dev implements:
+
+| Step | Framework of @wang2026 | In voipred.dev |
+|---|---|---|
+| 1 | Decision curve analysis within relevant subgroups | `nb_val(..., subgroup = )` |
+| 2 | Do the subgroup $\Delta NB_i$ have the same sign? If so, differences in $a - c$ cannot change the population conclusion | `summary(res)` |
+| 3 | If not: with external evidence on $k$, is $(\Delta NB_1, \Delta NB_2)$ in the inconsistency region? Without it, the K-value. For more than two subgroups: plausible values or ranges of the $k_i$ | `summary(res, k = )`, `plot(res, type = "region")` |
+
+The evidence on $k$ comes from the treatment effect: for a diagnostic model,
+the effect of treatment among people with the target disease; for a
+prognostic model, under the assumptions of @wang2026, the relative risk
+reduction (RRR) of the treatment in each subgroup.
+
+**Notation.** In the framework, $\Delta NB_i$ is the difference in net benefit
+between the model and a comparator that is the same strategy in every
+subgroup (by default treat all), so that the sums above compare two population
+strategies. voipred.dev calls it `diff_NB` (`diff_NB_<subgroup>`, and
+`diff_NB_population` for the size-weighted sum), to keep it apart from
+`delta_NB`, which compares the model with the best default strategy chosen in
+each group. The utility-weighted difference is `diff_utility`.
+
+### Subgroups in GUSTO-I: age
+
+Subgroup estimates need more data than population estimates, so for this
+section we validate the full model on 5,000 patients (the next 5,000 in the
+random order of @sec-data), with two subgroups: patients younger than 65
+years, and those 65 and over. `subgroup` takes the name of a column of `data`
+(as here), several column names (their combinations), or a factor or vector
+with one subgroup per patient.
+
+```{r subgroup-data}
+val_age <- gusto[i[5001:10000], ]
+val_age$p_full <- predict(fit_full, newdata = val_age, type = "response")
+val_age$age_group <- factor(val_age$age >= 65, labels = c("under 65", "65 and over"))
+res_age <- nb_val(data = val_age,
+                  predicted_risk = "p_full",
+                  outcome = "day30",
+                  thresholds = seq(0.01, 0.30, by = 0.01),
+                  label = "Full",
+                  subgroup = "age_group")
+```
+
+**Steps 1 and 2.** `summary()` adds, for each threshold, the subgroup
+differences in net benefit against treat all, their size-weighted sum, and
+whether they have the same sign; `plot(type = "subgroups")` draws them:
+
+```{r subgroup-summary}
+summary(res_age, thresholds = c(0.02, 0.03, 0.04, 0.05, 0.06, 0.10))
+plot(res_age, type = "subgroups")
+```
+
+```{r subgroup-numbers}
+#| include: false
+tg <- summary(res_age)$subgroups$table
+opp <- tg[!is.na(tg$signs) & tg$signs == "opposite", ]
+z_opp <- opp$threshold[which.min(abs(log(opp$K)))]
+```
+
+At `r pct(min(opp$threshold))` to `r pct(max(opp$threshold))`, the model is
+better than treat all in one age group and worse in the other, so Step 3 is
+needed there; at the other thresholds the signs agree, and differences in
+$a - c$ between the age groups cannot change the conclusion.
+
+**Step 3.** The K-values at these thresholds range from
+`r signif(min(opp$K), 2)` to `r signif(max(opp$K), 2)`: the conclusion would
+change only if $a - c$ in patients 65 and over were `r round(1 / max(opp$K))`
+to `r round(1 / min(opp$K))` times that in younger patients, so it is robust to
+plausible differences between the age groups. With evidence on $k$, give it
+as `k` (the values below are hypothetical, for illustration only);
+`diff_utility` is then the utility-weighted difference, and `consistent` says
+whether population net benefit and population utility favour the same
+strategy. `plot(type = "region")` locates the observed point relative to the
+inconsistency region at one threshold, as in @wang2026:
+
+```{r subgroup-k}
+summary(res_age, thresholds = opp$threshold,
+        k = c(`under 65` = 0.30, `65 and over` = 0.20))
+plot(res_age, type = "region", threshold = z_opp,
+     k = c(`under 65` = 0.30, `65 and over` = 0.20))
+```
+
+### From published results
+
+Without patient data, `k_value()` computes the K-value from published
+subgroup differences in net benefit. In the case study of @wang2026, SCORE2 at
+a 3% threshold had a difference against treat all of $-0.00160$ in men and
+$0.00345$ in women (equal proportions assumed), and LDL-lowering therapy has
+RRRs of 0.28 in men and 0.15 in women:
+
+```{r subgroup-kvalue}
+k_value(c(Men = -0.0016, Women = 0.00345), k = c(Men = 0.28, Women = 0.15))
+```
+
+The evidence-based ratio, 1.867, is below the K-value of 2.156, so population
+net benefit and population utility favour the same strategy, as in the paper.
+
+### Interpreting conflicting signs
+
+Following @wang2026: when the subgroup estimates are precise, the subgroup
+conclusions may themselves be informative; when they are imprecise, the
+population-level decision curve analysis remains a reasonable starting point,
+but opposite signs are a warning that motivates Step 3. If the observed point
+falls in the inconsistency region, population net benefit should not be
+interpreted as a proxy for population utility. A negative subgroup difference
+may also come from miscalibration, which recalibration would be expected to
+remove [@vancalster2015]; the framework is for assessing the available
+evidence when the model cannot be updated.
+
+**Options.** `summary()` and `plot()` take `comparator` (`"Treat All"` by
+default, as in the case study; `"Treat None"`, `"best default"` or another
+model), `shares` (the subgroup proportions in the target population, by
+default those of the sample) and `k`. With more than two subgroups there is no
+single K-value; give values or ranges for every subgroup, e.g.
+`k = list(A = c(0.2, 0.3), B = c(0.1, 0.2), C = c(0.2, 0.4))`, and `summary()`
+checks whether the utility-weighted sum can change sign. For survival outcomes,
+each subgroup uses the same estimator (Kaplan-Meier, or cIPCW with the
+censoring weights of the whole sample); the checks use the size-weighted sum.
+Credible intervals are not available with subgroups.
+
 ## Reporting the results {#sec-reporting}
 
 ### Net benefit per 100,000 patients
@@ -705,6 +854,7 @@ outcomes, the intervals come from the Bayesian bootstrap.
 | Scale | `per` in `print()`, `summary()`, `plot()`, `as.data.frame()` | e.g. 100,000 for reporting |
 | Case weights | `weights` in `nb_val()` | for samples that do not represent the target population in equal proportions (e.g. oversampled events): the inverse of the sampling probability |
 | Credible intervals | `interval` in `nb_val()` | not needed for the decision; use the VoI measures |
+| Subgroups | `subgroup` in `nb_val()`; `k`, `comparator`, `shares` in `summary()` | for clinically relevant subgroups that are large or may differ in $a - c$ (e.g. treatment effect) |
 
 The help pages give the details of every function and argument (see the
 Reference).
