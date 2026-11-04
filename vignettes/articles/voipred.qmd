@@ -77,11 +77,11 @@ factor with two levels; for a survival or competing-risk outcome, a time and a
 status.
 
 **How this article is organised.** @sec-binary shows the complete analysis
-for a binary outcome: net benefit and decision curves, prior information, and
-the value of information analysis. @sec-survival shows the same analyses for a
-survival outcome, with what differs (censoring, and competing risks). The
-sections after them apply to both: subgroups (@sec-subgroups), reporting
-(@sec-reporting) and credible intervals (@sec-ci); @sec-options summarises the
+for a binary outcome: net benefit and decision curves, prior information, the
+value of information analysis and credible intervals. @sec-survival shows the
+same analyses for a survival outcome, with what differs (censoring, and
+competing risks). The sections after them apply to both: subgroups
+(@sec-subgroups) and reporting (@sec-reporting); @sec-options summarises the
 choices.
 
 ## Installation
@@ -141,7 +141,8 @@ head(val[, c("day30", "age", "Killip", "p_full", "p_age")])
 
 This section analyses the GUSTO-I example (@sec-data), a binary outcome: the
 net benefit and decision curves of the models, prior information (which is
-for binary outcomes only), and the value of information analysis.
+for binary outcomes only), the value of information analysis, and credible
+intervals.
 
 ### Net benefit and decision curves {#sec-nb}
 
@@ -475,12 +476,42 @@ round(data.frame(threshold = ee$threshold,
 With 500 patients, the two priors give similar EVPI, except near the ends of
 the range, where the informative prior expresses its assumptions.
 
+### Credible intervals {#sec-ci}
+
+`nb_val()` can also give credible intervals of the net benefit, with
+`interval = 0.95` (from `n_sim` draws, as in @sec-voi). We do not recommend
+them for deciding whether to use a model: an interval shows the uncertainty of
+each net benefit on its own, while the decision depends on which strategy is
+best, and on whether more data could change that choice, which is what EVPI,
+P(useful) and P(best) measure (see also @vickers2023ci). For this reason,
+`nb_val()` and every method that shows the intervals give a warning.
+
+```{r ci}
+set.seed(1)
+res_int <- nb_val(data = val, predicted_risk = "p_full", outcome = "day30",
+                  thresholds = seq(0.01, 0.30, by = 0.01), label = "Full",
+                  interval = 0.95)
+```
+
+```{r ci-show}
+#| warning: false
+summary(res_int, thresholds = c(0.05, 0.1, 0.2))
+plot(res_int, type = "delta", bands = TRUE)
+```
+
+`print()` and `summary()` show each interval after its estimate,
+`as.data.frame()` has the bounds (`NB_model_lower`, `NB_model_upper`, ...), and
+`plot(bands = TRUE)` draws them as bands (the default plot has none; for a
+result without intervals, `bands = TRUE` gives an error). For survival
+outcomes, see @sec-ci-surv.
+
 ## Survival outcome {#sec-survival}
 
 The same analyses for a survival outcome, where the event is the event by a
 time horizon and some patients are censored before it: net benefit and
 decision curves (with Kaplan-Meier, or with cIPCW when censoring is
-informative), the value of information analysis, and competing risks. The
+informative), the value of information analysis, credible intervals, and
+competing risks. The
 methods are those of @sec-binary; only what differs is explained here.
 
 ### Net benefit and decision curves
@@ -605,6 +636,29 @@ that the data rarely show which one is best; it is largest,
 small compared with the gain of either model over the default strategies (up
 to `r fmt(best_cox, 3)`): the uncertainty is mostly about which of two almost
 equally good models to use.
+
+### Credible intervals {#sec-ci-surv}
+
+Credible intervals (@sec-ci) are computed in the same way for survival and
+competing-risk outcomes, with `interval`. There is no closed-form posterior of
+the net benefit with censored data, so the draws are the Bayesian bootstrap:
+random weights on the patients, with the net benefit recomputed in each draw
+(with cIPCW, the censoring model is also refitted in every draw, which takes
+longer). As for a binary outcome, we recommend the value of information
+analysis for the decision, and every use of the intervals gives a warning:
+
+```{r ci-surv}
+#| warning: false
+set.seed(1)
+res_s_int <- nb_val(data = val_s,
+                    predicted_risk = list(Cox = fit_cox, Weibull = fit_wb),
+                    outcome = ~ Surv(years, death),
+                    horizon = 5,
+                    thresholds = seq(0.05, 0.60, by = 0.01),
+                    interval = 0.95, n_sim = 500)
+summary(res_s_int, thresholds = c(0.2, 0.3, 0.4))
+plot(res_s_int, type = "delta", bands = TRUE)
+```
 
 ### Competing risks
 
@@ -844,37 +898,6 @@ Thresholds made with `seq()` are not exact decimals, so select them with
 `round()`, as above. The plots take `labels` (other names for the curves),
 `colors` (e.g. `colors = c(Full = "darkred")`) and `interactive = TRUE` (with
 the plotly package).
-
-## Credible intervals {#sec-ci}
-
-For binary and survival outcomes alike.
-
-`nb_val()` can also give credible intervals of the net benefit, with
-`interval = 0.95` (from `n_sim` draws, as in @sec-voi). We do not recommend
-them for deciding whether to use a model: an interval shows the uncertainty of
-each net benefit on its own, while the decision depends on which strategy is
-best, and on whether more data could change that choice, which is what EVPI,
-P(useful) and P(best) measure (see also @vickers2023ci). For this reason,
-`nb_val()` and every method that shows the intervals give a warning.
-
-```{r ci}
-set.seed(1)
-res_int <- nb_val(data = val, predicted_risk = "p_full", outcome = "day30",
-                  thresholds = seq(0.01, 0.30, by = 0.01), label = "Full",
-                  interval = 0.95)
-```
-
-```{r ci-show}
-#| warning: false
-summary(res_int, thresholds = c(0.05, 0.1, 0.2))
-plot(res_int, type = "delta", bands = TRUE)
-```
-
-`print()` and `summary()` show each interval after its estimate,
-`as.data.frame()` has the bounds (`NB_model_lower`, `NB_model_upper`, ...), and
-`plot(bands = TRUE)` draws them as bands (the default plot has none; for a
-result without intervals, `bands = TRUE` gives an error). For survival
-outcomes, the intervals come from the Bayesian bootstrap.
 
 ## Choosing the options {#sec-options}
 
