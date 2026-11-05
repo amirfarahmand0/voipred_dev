@@ -222,13 +222,17 @@ P(useful), P(best), EVPI, EVSI) is built on.
 \details{
 \strong{Binary outcome.} With outcome \eqn{Y}, predicted risk \eqn{\hat\pi} and
 threshold \eqn{z},
-\deqn{NB_{model}(z) = \frac{1}{n}\sum_i Y_i T_i - \frac{1}{n}\sum_i (1-Y_i) T_i \frac{z}{1-z},\quad T_i = 1(\hat\pi_i \ge z)}
+\deqn{NB_{model}(z) = \frac{1}{n}\sum_i Y_i \, 1(\hat\pi_i \ge z) - \frac{z}{1-z}\,\frac{1}{n}\sum_i (1-Y_i) \, 1(\hat\pi_i \ge z),}
+where \eqn{1(\hat\pi_i \ge z)} is 1 for the patients treated at threshold
+\eqn{z} (predicted risk at or above it), and 0 otherwise;
 \deqn{NB_{all}(z) = \bar Y - (1-\bar Y)\frac{z}{1-z}, \qquad NB_{none}(z) = 0.}
 
 \strong{Survival outcome} (\code{Surv(time, status)}, with a \code{horizon}). The event is
 "the event by the horizon". With \eqn{q} the share treated at threshold
 \eqn{z} and \eqn{F_+} the risk of the event by the horizon among them,
-\eqn{NB_{model} = q F_+ - q (1 - F_+) z/(1-z)}. Two estimators:
+\eqn{NB_{model} = q F_+ - q (1 - F_+) z/(1-z)}, i.e. the share of patients
+who are treated and have the event by the horizon, minus the share treated
+without it, weighted by \eqn{z/(1-z)}. Two estimators of these shares:
 \itemize{
 \item Kaplan-Meier (default, \code{cipcw} not given): \eqn{F_+} and the overall risk are
 Kaplan-Meier estimates (Aalen-Johansen for competing risks), as in
