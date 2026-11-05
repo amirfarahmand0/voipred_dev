@@ -23,7 +23,7 @@
 #'   `type = "p_useful"` or `"p_best"`, as in [plot.voipred_p_useful()] and
 #'   [plot.voipred_p_best()]).
 #' @param unit The unit of EVPI and EVSI: `"tp"` (default), net true
-#'   positives, the unit of net benefit; or `"fp"`, net false positives
+#'   positives, the unit of net benefit; or `"fp_avoided"`, net false positives
 #'   avoided, i.e. divided by the threshold odds \eqn{t/(1-t)} (as the gain of a
 #'   model over treat all is converted into net false positives avoided; not
 #'   defined at a threshold of 0). The header (and the y axis) says so;
@@ -55,7 +55,7 @@
 #' @export
 plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "p_best"),
                               labels = NULL, colors = NULL,
-                              per = getOption("voipred.per", 1), unit = c("tp", "fp"),
+                              per = getOption("voipred.per", 1), unit = c("tp", "fp_avoided"),
                               interactive = FALSE) {
   type <- match.arg(type)
   check_interactive(interactive)
@@ -91,7 +91,7 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
                  hline = if (type == "relative") 1, fmt = if (type == "evpi") ".5f" else ".3f")
   # EVPI per `per` patients; relative EVPI has no unit
   if (type == "evpi") {
-    lab <- if (unit == "fp") "EVPI (net false positives avoided)" else "EVPI"
+    lab <- if (unit == "fp_avoided") "EVPI (net false positives avoided)" else "EVPI"
     sp <- scale_spec(sp, per, lab)
     if (per == 1) sp$ylab <- sp$ylab_text <- lab
   }
@@ -114,7 +114,7 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
 #'   of the defaults: named by curve label (e.g. `"Threshold 10%"`), or
 #'   unnamed, one per curve in order.
 #' @param unit The unit of EVPI and EVSI: `"tp"` (default), net true
-#'   positives, the unit of net benefit; or `"fp"`, net false positives
+#'   positives, the unit of net benefit; or `"fp_avoided"`, net false positives
 #'   avoided, i.e. divided by the threshold odds \eqn{t/(1-t)} (as the gain of a
 #'   model over treat all is converted into net false positives avoided; not
 #'   defined at a threshold of 0). The header (and the y axis) says so;
@@ -143,7 +143,7 @@ plot.voipred_evpi <- function(x, ..., type = c("evpi", "relative", "p_useful", "
 #' plot(o, thresholds = 0.05)
 #' @export
 plot.voipred_evsi <- function(x, ..., thresholds = NULL, colors = NULL,
-                              per = getOption("voipred.per", 1), unit = c("tp", "fp"),
+                              per = getOption("voipred.per", 1), unit = c("tp", "fp_avoided"),
                               interactive = FALSE) {
   check_interactive(interactive)
   per <- check_per(per)
@@ -166,7 +166,7 @@ plot.voipred_evsi <- function(x, ..., thresholds = NULL, colors = NULL,
   ref$label <- factor(ref$label, levels = lev)
   sp <- new_spec(d, stats::setNames(series_colors(length(lev)), lev),
                  "Future sample size", "EVSI", ref = ref, percent = FALSE, fmt = ".5f")
-  lab <- if (unit == "fp") "EVSI (net false positives avoided)" else "EVSI"
+  lab <- if (unit == "fp_avoided") "EVSI (net false positives avoided)" else "EVSI"
   sp <- scale_spec(sp, per, lab)
   if (per == 1) sp$ylab <- sp$ylab_text <- lab
   render_plot(recolor(list(sp), colors, lev, "threshold"), interactive)

@@ -16,23 +16,35 @@
 \alias{as.data.frame.voipred_p_best}
 \title{Summarise value-of-information results}
 \usage{
-\method{print}{voipred_evpi}(x, n = 10, per = getOption("voipred.per", 1), unit = c("tp", "fp"), ...)
+\method{print}{voipred_evpi}(
+  x,
+  n = 10,
+  per = getOption("voipred.per", 1),
+  unit = c("tp", "fp_avoided"),
+  ...
+)
 
 \method{summary}{voipred_evpi}(
   object,
   thresholds = NULL,
   per = getOption("voipred.per", 1),
-  unit = c("tp", "fp"),
+  unit = c("tp", "fp_avoided"),
   ...
 )
 
-\method{print}{voipred_evsi}(x, n = 10, per = getOption("voipred.per", 1), unit = c("tp", "fp"), ...)
+\method{print}{voipred_evsi}(
+  x,
+  n = 10,
+  per = getOption("voipred.per", 1),
+  unit = c("tp", "fp_avoided"),
+  ...
+)
 
 \method{summary}{voipred_evsi}(
   object,
   thresholds = NULL,
   per = getOption("voipred.per", 1),
-  unit = c("tp", "fp"),
+  unit = c("tp", "fp_avoided"),
   ...
 )
 
@@ -49,7 +61,7 @@
   row.names = NULL,
   optional = FALSE,
   per = getOption("voipred.per", 1),
-  unit = c("tp", "fp"),
+  unit = c("tp", "fp_avoided"),
   ...
 )
 
@@ -58,7 +70,7 @@
   row.names = NULL,
   optional = FALSE,
   per = getOption("voipred.per", 1),
-  unit = c("tp", "fp"),
+  unit = c("tp", "fp_avoided"),
   ...
 )
 
@@ -80,11 +92,11 @@ are never scaled. The result itself is always per patient. The default
 can be set once with \code{options(voipred.per = 100000)}.}
 
 \item{unit}{The unit of EVPI and EVSI: \code{"tp"} (default), net true
-positives, the unit of net benefit; or \code{"fp"}, net false positives
+positives, the unit of net benefit; or \code{"fp_avoided"}, net false positives
 avoided, i.e. divided by the threshold odds \eqn{t/(1-t)} (as the gain of a
 model over treat all is converted into net false positives avoided; not
 defined at a threshold of 0). The header (and the y axis) says so;
-\code{as.data.frame(unit = "fp")} adds the converted columns (\code{EVPI_fp_avoided},
+\code{as.data.frame(unit = "fp_avoided")} adds the converted columns (\code{EVPI_fp_avoided},
 \code{EVSI_fp_avoided}) to the per-patient ones.}
 
 \item{...}{Not used.}

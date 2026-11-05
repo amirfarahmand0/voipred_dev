@@ -261,11 +261,11 @@ as.data.frame.voipred_nb <- function(x, row.names = NULL, optional = FALSE,
 #'   `thresholds` also P(useful) at each of them.
 #' @param n Number of thresholds printed. Default 10.
 #' @param unit The unit of EVPI and EVSI: `"tp"` (default), net true
-#'   positives, the unit of net benefit; or `"fp"`, net false positives
+#'   positives, the unit of net benefit; or `"fp_avoided"`, net false positives
 #'   avoided, i.e. divided by the threshold odds \eqn{t/(1-t)} (as the gain of a
 #'   model over treat all is converted into net false positives avoided; not
 #'   defined at a threshold of 0). The header (and the y axis) says so;
-#'   `as.data.frame(unit = "fp")` adds the converted columns (`EVPI_fp_avoided`,
+#'   `as.data.frame(unit = "fp_avoided")` adds the converted columns (`EVPI_fp_avoided`,
 #'   `EVSI_fp_avoided`) to the per-patient ones.
 #' @param per Scale of EVPI and EVSI: the number of patients they are
 #'   expressed per. Default 1 (per patient); e.g. `per = 100000` gives the
@@ -314,7 +314,7 @@ NULL
 #' @rdname summary.voipred_voi
 #' @export
 print.voipred_evpi <- function(x, n = 10, per = getOption("voipred.per", 1),
-                               unit = c("tp", "fp"), ...) {
+                               unit = c("tp", "fp_avoided"), ...) {
   per <- check_per(per)
   unit <- check_unit(unit)
   cat(voi_header("EVPI", x, per, unit), "\n\n", sep = "")
@@ -329,7 +329,7 @@ print.voipred_evpi <- function(x, n = 10, per = getOption("voipred.per", 1),
 #' @rdname summary.voipred_voi
 #' @export
 summary.voipred_evpi <- function(object, thresholds = NULL,
-                                 per = getOption("voipred.per", 1), unit = c("tp", "fp"),
+                                 per = getOption("voipred.per", 1), unit = c("tp", "fp_avoided"),
                                  ...) {
   per <- check_per(per)
   unit <- check_unit(unit)
@@ -353,7 +353,7 @@ summary.voipred_evpi <- function(object, thresholds = NULL,
 #' @rdname summary.voipred_voi
 #' @export
 print.voipred_evsi <- function(x, n = 10, per = getOption("voipred.per", 1),
-                               unit = c("tp", "fp"), ...) {
+                               unit = c("tp", "fp_avoided"), ...) {
   per <- check_per(per)
   unit <- check_unit(unit)
   cat(voi_header("EVSI", x, per, unit), "\n\n", sep = "")
@@ -366,7 +366,7 @@ print.voipred_evsi <- function(x, n = 10, per = getOption("voipred.per", 1),
 #' @rdname summary.voipred_voi
 #' @export
 summary.voipred_evsi <- function(object, thresholds = NULL,
-                                 per = getOption("voipred.per", 1), unit = c("tp", "fp"),
+                                 per = getOption("voipred.per", 1), unit = c("tp", "fp_avoided"),
                                  ...) {
   per <- check_per(per)
   unit <- check_unit(unit)
@@ -467,10 +467,10 @@ print.summary.voipred_p_best <- function(x, n = 10, ...) print_voi_summary(x, n,
 #' @export
 as.data.frame.voipred_evpi <- function(x, row.names = NULL, optional = FALSE,
                                        per = getOption("voipred.per", 1),
-                                       unit = c("tp", "fp"), ...) {
+                                       unit = c("tp", "fp_avoided"), ...) {
   unit <- check_unit(unit)
   e <- x$estimates
-  if (unit == "fp") e$EVPI_fp_avoided <- fp_units(e, "EVPI", "fp")$EVPI
+  if (unit == "fp_avoided") e$EVPI_fp_avoided <- fp_units(e, "EVPI", "fp_avoided")$EVPI
   add_per_cols(e, c("ENB_current", "ENB_perfect", "EVPI", "EVPI_fp_avoided"), check_per(per))
 }
 
@@ -478,11 +478,11 @@ as.data.frame.voipred_evpi <- function(x, row.names = NULL, optional = FALSE,
 #' @export
 as.data.frame.voipred_evsi <- function(x, row.names = NULL, optional = FALSE,
                                        per = getOption("voipred.per", 1),
-                                       unit = c("tp", "fp"), ...) {
+                                       unit = c("tp", "fp_avoided"), ...) {
   unit <- check_unit(unit)
   e <- x$estimates
-  if (unit == "fp") {
-    f <- fp_units(e, c("EVSI", "EVPI"), "fp")
+  if (unit == "fp_avoided") {
+    f <- fp_units(e, c("EVSI", "EVPI"), "fp_avoided")
     e$EVSI_fp_avoided <- f$EVSI
     e$EVPI_fp_avoided <- f$EVPI
   }
@@ -520,18 +520,18 @@ per_text <- function(per)
          if (per == 1) " patient" else " patients")
 
 check_unit <- function(unit) {
-  if (identical(unit, c("tp", "fp"))) return("tp")
-  if (!is.character(unit) || length(unit) != 1 || !unit %in% c("tp", "fp"))
-    stop("`unit` must be \"tp\" (net true positives, the default) or \"fp\" (net false ",
+  if (identical(unit, c("tp", "fp_avoided"))) return("tp")
+  if (!is.character(unit) || length(unit) != 1 || !unit %in% c("tp", "fp_avoided"))
+    stop("`unit` must be \"tp\" (net true positives, the default) or \"fp_avoided\" (net false ",
          "positives avoided).", call. = FALSE)
   unit
 }
 
-# EVPI and EVSI in net false positives avoided (unit = "fp"): divided by the
+# EVPI and EVSI in net false positives avoided (unit = "fp_avoided"): divided by the
 # threshold odds t / (1 - t), as the gain over treat all is converted into net
 # false positives avoided; NA at t = 0.
 fp_units <- function(d, cols, unit) {
-  if (unit != "fp") return(d)
+  if (unit != "fp_avoided") return(d)
   odds <- d$threshold / (1 - d$threshold)
   for (k in intersect(cols, names(d))) d[[k]] <- ifelse(odds > 0, d[[k]] / odds, NA_real_)
   d
@@ -597,7 +597,7 @@ voi_header <- function(what, x, per = 1, unit = "tp") {
                   x$n_sim, if (x$draws == "posterior") " posterior draws" else
                     " Bayesian bootstrap draws")
   first <- with_per(first, per)
-  if (unit == "fp") first <- paste0(first, ", in net false positives avoided")
+  if (unit == "fp_avoided") first <- paste0(first, ", in net false positives avoided")
   if (!evsi) return(first)
   # EVSI: the information before the future study (the same as for EVPI) and
   # what is known after it, each with its prior

@@ -902,13 +902,13 @@ plot(res, evpi = e, evsi = o, per = 100000)
 ```
 
 **In net false positives avoided.** EVPI and EVSI are, like net benefit, in
-units of net true positives. `unit = "fp"` in `print()`, `summary()`,
+units of net true positives. `unit = "fp_avoided"` in `print()`, `summary()`,
 `plot()` and `as.data.frame()` of their results expresses them in net false
 positives avoided (divided by the threshold odds, as in @sec-nfa), alone or
 with `per`:
 
 ```{r per-fp}
-summary(e, thresholds = c(0.02, 0.05, 0.1, 0.2), per = 100000, unit = "fp")
+summary(e, thresholds = c(0.02, 0.05, 0.1, 0.2), per = 100000, unit = "fp_avoided")
 ```
 
 ### Results as data frames
@@ -952,7 +952,7 @@ the plotly package).
 | Number of draws | `n_sim` in `evpi()`, `evsi()` | 1,000 (default); more (e.g. 5,000) for stable results at thresholds with little data; set a seed |
 | Future study sizes | `future_n` in `evsi()` | sizes that could realistically be collected |
 | Scale | `per` in `print()`, `summary()`, `plot()`, `as.data.frame()` | e.g. 100,000 for reporting |
-| Unit | `net_FP_avoided` and `plot(type = "fp_avoided")` for the net benefit; `unit = "fp"` for EVPI and EVSI | net false positives avoided when the default is to treat everyone; net true positives (default) otherwise |
+| Unit | `net_FP_avoided` and `plot(type = "fp_avoided")` for the net benefit; `unit = "fp_avoided"` for EVPI and EVSI | net false positives avoided when the default is to treat everyone; net true positives (default) otherwise |
 | Case weights | `weights` in `nb_val()` | for samples that do not represent the target population in equal proportions (e.g. oversampled events): the inverse of the sampling probability |
 | Credible intervals | `interval` in `nb_val()` | not needed for the decision; use the value of information measures |
 | Subgroups | `subgroup` in `nb_val()`; `k`, `comparator`, `shares` in `summary()` | for clinically relevant subgroups that are large or may differ in $a - c$ (e.g. treatment effect) |

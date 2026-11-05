@@ -10,7 +10,7 @@
   thresholds = NULL,
   colors = NULL,
   per = getOption("voipred.per", 1),
-  unit = c("tp", "fp"),
+  unit = c("tp", "fp_avoided"),
   interactive = FALSE
 )
 }
@@ -32,7 +32,7 @@ axis says "(per 100,000 patients)". The default can be set with
 \code{options(voipred.per = )}.}
 
 \item{unit}{The unit of EVPI and EVSI: \code{"tp"} (default), net true
-positives, the unit of net benefit; or \code{"fp"}, net false positives
+positives, the unit of net benefit; or \code{"fp_avoided"}, net false positives
 avoided, i.e. divided by the threshold odds \eqn{t/(1-t)} (as the gain of a
 model over treat all is converted into net false positives avoided; not
 defined at a threshold of 0). The header (and the y axis) says so;
