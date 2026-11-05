@@ -220,31 +220,58 @@ This is the core quantity every other voipred validation metric (\eqn{\Delta NB}
 P(useful), P(best), EVPI, EVSI) is built on.
 }
 \details{
-\strong{Binary outcome.} With outcome \eqn{Y}, predicted risk \eqn{\hat\pi} and
-threshold \eqn{z},
-\deqn{NB_{model}(z) = \frac{1}{n}\sum_i Y_i \, 1(\hat\pi_i \ge z) - \frac{z}{1-z}\,\frac{1}{n}\sum_i (1-Y_i) \, 1(\hat\pi_i \ge z),}
-where \eqn{1(\hat\pi_i \ge z)} is 1 for the patients treated at threshold
-\eqn{z} (predicted risk at or above it), and 0 otherwise;
-\deqn{NB_{all}(z) = \bar Y - (1-\bar Y)\frac{z}{1-z}, \qquad NB_{none}(z) = 0.}
+\strong{Net benefit.} A patient is treated when the predicted risk
+\eqn{\hat\pi} is at or above the threshold \eqn{z}. With \eqn{D} the event
+(\eqn{D = 1}) or its absence (\eqn{D = 0}), the net benefit of the model is
+\deqn{NB_{model}(z) = \rho \, Se(z) - (1 - \rho) \, \{1 - Sp(z)\} \, \frac{z}{1-z},}
+with \eqn{\rho = P(D = 1)} the prevalence, \eqn{Se(z) = P(\hat\pi \ge z \mid D = 1)}
+the sensitivity and \eqn{Sp(z) = P(\hat\pi < z \mid D = 0)} the specificity:
+the share of patients who are treated and have the event, minus the share
+treated without it, weighted by the odds of the threshold. Treating everyone
+and treating no one give
+\deqn{NB_{all}(z) = \rho - (1 - \rho) \, \frac{z}{1-z}, \qquad NB_{none}(z) = 0.}
+\code{nb_val()} estimates these quantities as follows.
 
-\strong{Survival outcome} (\code{Surv(time, status)}, with a \code{horizon}). The event is
-"the event by the horizon". With \eqn{q} the share treated at threshold
-\eqn{z} and \eqn{F_+} the risk of the event by the horizon among them,
-\eqn{NB_{model} = q F_+ - q (1 - F_+) z/(1-z)}, i.e. the share of patients
-who are treated and have the event by the horizon, minus the share treated
-without it, weighted by \eqn{z/(1-z)}. Two estimators of these shares:
+\strong{Binary outcome.} \eqn{D = Y}, the observed outcome. The estimates are the
+empirical proportions:
+\deqn{\widehat{NB}_{model}(z) = \frac{1}{n}\sum_i Y_i \, 1(\hat\pi_i \ge z) - \frac{z}{1-z}\,\frac{1}{n}\sum_i (1-Y_i) \, 1(\hat\pi_i \ge z),}
+where \eqn{1(\hat\pi_i \ge z)} is 1 for the patients treated at threshold
+\eqn{z} and 0 otherwise, and \eqn{\hat\rho = \bar Y} in \eqn{NB_{all}}.
+
+\strong{Survival outcome} (\code{Surv(time, status)}, with a \code{horizon} \eqn{\tau}). The
+outcome is time-dependent: \eqn{D = 1} is the event by the horizon,
+\eqn{T \le \tau}, with \eqn{T} the event time. The quantities above are then
+those at the horizon: \eqn{\rho = P(T \le \tau)} is the risk of the event by
+the horizon, \eqn{Se(z) = P(\hat\pi \ge z \mid T \le \tau)} the cumulative
+sensitivity and \eqn{Sp(z) = P(\hat\pi < z \mid T > \tau)} the dynamic
+specificity. Because of censoring, \eqn{D} is not observed for every
+patient, so these time-dependent quantities are estimated, in one of two
+ways:
 \itemize{
-\item Kaplan-Meier (default, \code{cipcw} not given): \eqn{F_+} and the overall risk are
-Kaplan-Meier estimates (Aalen-Johansen for competing risks), as in
-dcurves. If none of the treated patients is followed up to the horizon,
-the net benefit at that threshold is \code{NA}, with a warning.
+\item Kaplan-Meier (default, \code{cipcw} not given). With \eqn{\hat q} the share of
+patients treated at threshold \eqn{z}, \eqn{\hat F_+} the Kaplan-Meier risk
+of the event by the horizon among them, and \eqn{\hat\rho} the Kaplan-Meier
+risk among all patients (Aalen-Johansen for competing risks), as in
+dcurves,
+\deqn{\widehat{NB}_{model}(z) = \hat q \hat F_+ - \hat q \, (1 - \hat F_+) \, \frac{z}{1-z},}
+which is the formula above rewritten: \eqn{\rho \, Se = q F_+} is the share
+of patients treated who have the event, and
+\eqn{(1 - \rho)(1 - Sp) = q (1 - F_+)} the share treated without it. If none
+of the treated patients is followed up to the horizon, the net benefit at
+that threshold is \code{NA}, with a warning.
 \item cIPCW, when \code{cipcw} is given: conditional inverse probability of censoring
-weighting, which allows censoring to depend on covariates. Patients with
-the event by the horizon are weighted by \eqn{1/\hat G(T_i- \mid X_i)},
-patients event-free at the horizon by \eqn{1/\hat G(\tau \mid X_i)}, and
-patients censored before the horizon get no weight. The risk by the
-horizon is \eqn{\sum_{events} w_i / n}; sensitivity and specificity are
-weighted proportions, and \eqn{NB = \pi Se - (1-\pi)(1-Sp) z/(1-z)}.
+weighting, which allows censoring to depend on covariates. With
+\eqn{C_i} the censoring time of patient \eqn{i}, \eqn{\tilde T_i = \min(T_i, C_i)}
+the observed time, \eqn{X_i} the covariates of the censoring model and
+\eqn{\hat G(t \mid X)} the estimated probability of remaining uncensored
+up to time \eqn{t} given \eqn{X}, each patient gets a weight
+\eqn{w_i = 1/\hat G(\tilde T_i- \mid X_i)} if an event is observed by the
+horizon (\eqn{\tilde T_i \le \tau}), \eqn{w_i = 1/\hat G(\tau \mid X_i)} if
+the patient is event-free at the horizon (\eqn{\tilde T_i > \tau}), and
+\eqn{w_i = 0} if censored before the horizon. \eqn{\hat\rho} is the weighted
+share of patients with the event by the horizon, and \eqn{\widehat{Se}} and
+\eqn{\widehat{Sp}} are the weighted proportions treated among those with
+and without it; they are plugged into the formula above.
 Usually \code{cipcw} is just the covariates of the censoring, e.g.
 \code{cipcw = ~ age + nodes}: voipred fits a Cox model of the censoring times
 of \code{data} on them and truncates the probabilities of remaining uncensored
@@ -255,11 +282,10 @@ model, given weights, or other truncation.
 \strong{Competing risks} (\code{Surv(time, status)} with a factor status whose first
 level is censoring). The event is \code{cause} (default: the first event level)
 by the horizon; a patient with a competing event by the horizon counts as
-not having the event. The model must predict the cumulative incidence of
+not having the event (\eqn{D = 0}). The model must predict the cumulative incidence of
 that cause; for competing risks only true censoring is censoring.
 
-A patient is treated when the predicted risk is at or above the threshold,
-and a predicted risk of exactly 0 is never treated, as in dcurves.
+A predicted risk of exactly 0 is never treated, as in dcurves.
 
 \strong{Prior.} \code{nb_val()} works in a Bayesian framework, which the
 value-of-information functions (\code{\link[=evpi]{evpi()}}, with P(useful) and P(best), and
