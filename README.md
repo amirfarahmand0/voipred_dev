@@ -30,46 +30,6 @@ voipred.dev when GitHub has a newer version. voipred.dev needs riskRegression
 2026.3.11 or later, and a compiler for its C++ code (Rtools on Windows, the
 Xcode command line tools on macOS).
 
-## What it does
-
-For a validation sample, from the predicted risks of one model or several
-(from any model or software, or the fitted models themselves) and the observed
-outcomes (binary, survival or competing risks):
-
-- **Net benefit and decision curves** (`nb_val()`): the net benefit of each
-  model, of treating everyone and of treating no one, at each threshold; also
-  as net false positives avoided compared with treating everyone. For
-  survival outcomes, with Kaplan-Meier or conditional inverse probability of
-  censoring weights (cIPCW) for informative censoring.
-- **Value of information analysis**: `evpi()` (EVPI, and the probabilities that
-  each model is useful and that each strategy is the best) and `evsi()` (the
-  value of a further validation study).
-- **A Bayesian framework**: the usual net benefit by default, with optional
-  prior information, including the informative prior of bayesDCA
-  (`nb_informative()`).
-- **Subgroups**: whether population-level net benefit can mislead when the
-  benefit of treatment differs between subgroups (Wang et al., 2026).
-- **Reporting**: `print()`, `summary()`, `plot()` and `as.data.frame()` for
-  every result, per 100,000 patients (`per`) if wanted, and optional credible
-  intervals (value of information analysis is recommended instead).
-
-```r
-library(voipred.dev)
-dev <- gusto[1:5000, ]
-val <- gusto[5001:5500, ]
-fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
-val$p <- predict(fit, newdata = val, type = "response")
-
-res <- nb_val(data = val, predicted_risk = "p", outcome = "day30",
-              thresholds = seq(0.01, 0.3, by = 0.01), label = "Logistic")
-summary(res)
-plot(res)
-
-e <- evpi(res)
-summary(e)
-plot(res, evpi = e)
-```
-
 ## Guides for collaborators
 
 Detailed guides that go through every option and check (the tutorial above is
