@@ -30,8 +30,8 @@ test_that("the internal KM and Aalen-Johansen match survival::survfit, with weig
                  1 - summary(km, times = tau, extend = TRUE)$surv, tolerance = 1e-12)
     aj <- survival::survfit(survival::Surv(tt, factor(st, 0:2)) ~ 1, weights = w)
     ps <- summary(aj, times = tau, extend = TRUE)$pstate
-    expect_equal(km_cuminc(tt, st, 1, w, tau), ps[, 2], tolerance = 1e-12)
-    expect_equal(km_cuminc(tt, st, 2, w, tau), ps[, 3], tolerance = 1e-12)
+    expect_equal(km_cuminc(tt, st, 1, w, tau), unname(ps[, 2]), tolerance = 1e-12)
+    expect_equal(km_cuminc(tt, st, 2, w, tau), unname(ps[, 3]), tolerance = 1e-12)
   }
 })
 

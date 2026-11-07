@@ -1,7 +1,19 @@
 # voipred.dev
 
-Value of information (VoI) analysis for clinical prediction models
-(development version of voipred).
+Decision curve analysis and value of information analysis for the validation
+of clinical prediction models (development version of voipred).
+
+## Tutorial
+
+**For how to use voipred, go to our tutorial:**
+**<https://amirfarahmand0.github.io/voipred/vignettes/voipred.html>**
+
+It walks through a complete analysis, for binary and survival outcomes: net
+benefit and decision curves, comparing models, prior information, value of
+information analysis (EVPI, P(useful), P(best), EVSI), credible intervals,
+informative censoring (cIPCW), competing risks, subgroups, and reporting. The
+[package website](https://amirfarahmand0.github.io/voipred/) also has a
+Reference page for every function.
 
 ## Installation
 
@@ -11,180 +23,76 @@ remotes::install_github("amirfarahmand0/voipred_dev", upgrade = "never")
 library(voipred.dev)
 ```
 
-`upgrade = "never"` installs only the missing dependencies and does not stop
-to offer updates of packages you already have. voipred.dev needs
-riskRegression 2026.3.11 or later: if yours is older, update it first with
-`install.packages("riskRegression")`.
-
-Run this in a fresh R session (RStudio: Session > Restart R): R cannot
-replace a package that is loaded, which gives the warning "package
+Install (or update) in a new R session (RStudio: Session > Restart R): R
+cannot replace a package that is loaded, which gives the warning "package
 'voipred.dev' is in use and will not be installed". Running it again updates
-voipred.dev when GitHub has a newer version.
+voipred.dev when GitHub has a newer version. voipred.dev needs riskRegression
+2026.3.11 or later, and a compiler for its C++ code (Rtools on Windows, the
+Xcode command line tools on macOS).
 
-**The guides install and update automatically.** When a guide
-([net benefit](vignettes/voipred_nb_guide.Rmd),
-[value of information](vignettes/voipred_voi_guide.Rmd)) is knitted, its
+## What it does
+
+For a validation sample, from the predicted risks of one model or several
+(from any model or software, or the fitted models themselves) and the observed
+outcomes (binary, survival or competing risks):
+
+- **Net benefit and decision curves** (`nb_val()`): the net benefit of each
+  model, of treating everyone and of treating no one, at each threshold; also
+  as **net false positives avoided** compared with treating everyone. For
+  survival outcomes, with Kaplan-Meier or conditional inverse probability of
+  censoring weights (cIPCW) for informative censoring.
+- **Value of information analysis**: `evpi()` (EVPI, and the probabilities that
+  each model is useful and that each strategy is the best) and `evsi()` (the
+  value of a further validation study).
+- **A Bayesian framework**: the usual net benefit by default, with optional
+  prior information, including the informative prior of bayesDCA
+  (`nb_informative()`).
+- **Subgroups**: whether population-level net benefit can mislead when the
+  benefit of treatment differs between subgroups (Wang et al., 2026).
+- **Reporting**: `print()`, `summary()`, `plot()` and `as.data.frame()` for
+  every result, per 100,000 patients (`per`) if wanted, and optional credible
+  intervals (value of information analysis is recommended instead).
+
+```r
+library(voipred.dev)
+dev <- gusto[1:5000, ]
+val <- gusto[5001:5500, ]
+fit <- glm(day30 ~ age + Killip + sysbp + pulse, family = binomial, data = dev)
+val$p <- predict(fit, newdata = val, type = "response")
+
+res <- nb_val(data = val, predicted_risk = "p", outcome = "day30",
+              thresholds = seq(0.01, 0.3, by = 0.01), label = "Logistic")
+summary(res)
+plot(res)
+
+e <- evpi(res)
+summary(e)
+plot(res, evpi = e)
+```
+
+## Guides for collaborators
+
+Detailed guides that go through every option and check (the tutorial above is
+the main documentation):
+
+- [Net benefit guide](vignettes/voipred_nb_guide.Rmd)
+  ([rendered](reports/voipred_nb_guide.html))
+- [Value of information guide](vignettes/voipred_voi_guide.Rmd)
+  ([rendered](reports/voipred_voi_guide.html))
+- [Tests and messages](reports/voipred_nb_tests_and_messages.pdf) (October 2026
+  version): the tests (checked against dcurves, the modelling packages' own
+  predictions, predtools, the EVSI paper's code and bayesDCA) and the error and
+  warning messages.
+
+**The guides install and update automatically.** When a guide is knitted, its
 first chunk installs the packages it uses that are missing, and installs or
 updates voipred.dev from GitHub, before anything is loaded (RStudio's Knit
 button runs it in a new R session). `install_github()` asks GitHub for the
 latest version, which GitHub allows 60 times an hour per internet address
 without a login; on a shared network, a GitHub token raises this
-(`usethis::create_github_token()`, then `gitcreds::gitcreds_set()`). If
-GitHub cannot be reached, the guides use the installed version.
+(`usethis::create_github_token()`, then `gitcreds::gitcreds_set()`). If GitHub
+cannot be reached, the guides use the installed version.
 
-## Current scope
+## Authors
 
-This version supports **model validation**: given the predicted risks of a
-validation sample and a range of risk thresholds, `nb_val()` returns the net
-benefit of the model, of treating everyone and of treating no one at each
-threshold, and `delta_NB`, the gain of the model over the best default
-strategy, for a **binary**, **survival** or **competing-risks** outcome.
-The result is an object with `print()`, `summary()` and `plot()` methods:
-`plot()` draws the decision curve and the ΔNB curve, for one model or
-several together.
-
-- **`predicted_risk`** takes, for one model, a vector of risks, the name of
-  the column that holds them, or the fitted model (voipred then predicts the
-  risks; any model works with `predict_function`). **Several models** are
-  validated in one call, on the same patients, as a list mixing these:
-  `predicted_risk = list(Full = fit1, Age = "p_age", Old = val$p_old)`.
-  Results computed separately can be combined with `c(res1, res2)`.
-- Plots take optional colours, by label: `plot(res, colors = c(Full = "darkred"))`.
-
-- Survival and competing-risks outcomes are evaluated at a time horizon, with
-  Kaplan-Meier / Aalen-Johansen estimates or with conditional inverse
-  probability of censoring weights (cIPCW), which allow censoring to depend on
-  covariates: give them as a formula, `cipcw = ~ age + nodes`, and voipred
-  fits a Cox model of the censoring times (with weights truncated at 50);
-  `cipcw_control()` is only for other options.
-- Only the predicted risks are needed (`predicted_risk`, a vector such as
-  `val$p`, or the name of a column of the data such as `"p"`), from any model
-  or software. Optionally, the fitted model can be given instead, and
-  voipred.dev predicts the risks from it once: the common binary, survival
-  and competing-risks models in R work by default, including bayespred and
-  bayespred.dev Bayesian models, and any other model with a
-  `predict_function` that returns its predicted risks (see `?nb_val`).
-- The predictions must be probabilities: scores and class labels are rejected.
-- **Prior information (optional)**: `nb_val()` works in a Bayesian framework.
-  By default (`nb_improper()`, Beta(0, 0)) it uses the data only, with no
-  prior information, and gives the usual net benefit. For a binary outcome,
-  prior information can be added with `nb_uniform()`, `nb_jeffreys()`,
-  your own Beta priors with `nb_beta()` (the conjugate Beta model of
-  bayesDCA), or `nb_informative()`, the informative prior of bayesDCA, whose
-  priors on the sensitivity and specificity change with the threshold.
-
-**Value of information** for validation (Sadatsafavi et al. 2023, 2025), from
-the same `nb_val()` results, for every outcome type and any number of models:
-
-- `evpi()`: from one set of draws, the expected value of perfect information
-  and relative EVPI; the probability that each model is better than treating
-  all and treating none, P(useful), in `e$p_useful`; and the probability that
-  each strategy (each model, treat all, treat none) is the best, P(best), in
-  `e$p_best`;
-- `evsi()`: expected value of sample information of a future validation study
-  of a given size;
-- the uncertainty is represented with `n_sim` draws from the posterior of
-  the net benefit: for a binary outcome from the conjugate Beta model (and
-  `evsi()` uses the conjugate algorithm of Sadatsafavi et al. 2025); for
-  survival and competing risks, and for case weights, with the Bayesian
-  bootstrap;
-- with cIPCW, the censoring model is refitted in every draw, so its
-  uncertainty is included: automatically for `cipcw = ~ covariates` and for
-  your own `coxph`, `survreg`, `cph`, `psm`, `flexsurvreg` and `prodlim`
-  censoring models, with `refit_function` in `cipcw_control()` for others.
-
-**Results**: every result (`nb_val()`, `evpi()` and its `$p_useful` and
-`$p_best`, `evsi()`) has `print()` (a short table), `summary()` (the main findings),
-`as.data.frame()` and `plot()`; `plot(res, evpi = , evsi = )` draws the
-decision curve with EVPI and EVSI in a panel below. Every plot takes
-`interactive = TRUE` for an interactive (plotly) version with a shared hover
-across the curves.
-
-```r
-library(voipred.dev)
-df_dev_binary <- gusto[1:5000, ]
-df_val_binary <- gusto[5001:10000, ]
-fit <- glm(day30 ~ age + Killip + sysbp + pulse,
-           family = binomial, data = df_dev_binary)
-df_val_binary$p <- predict(fit, newdata = df_val_binary, type = "response")
-
-res <- nb_val(data = df_val_binary,
-              predicted_risk = df_val_binary$p,      # or the column name: "p"
-              outcome = "day30",
-              thresholds = seq(0.01, 0.3, by = 0.01),
-              label = "Logistic")
-print(res)
-summary(res)
-plot(res)
-plot(res, type = "delta")
-
-e <- evpi(res)
-summary(e)             # EVPI
-summary(e$p_useful)    # P(useful), from the same draws
-summary(e$p_best)      # P(best), from the same draws
-plot(e, type = "p_best")
-o <- evsi(res, future_n = c(1000, 2000, 4000))
-summary(o)
-plot(o)
-plot(res, evpi = e, evsi = o)
-plot(res, evpi = e, evsi = o, interactive = TRUE)
-
-# several models in one call
-fit_age <- glm(day30 ~ age, family = binomial, data = df_dev_binary)
-df_val_binary$p_age <- predict(fit_age, newdata = df_val_binary, type = "response")
-both <- nb_val(data = df_val_binary,
-               predicted_risk = list(Logistic = "p", `Age only` = fit_age),
-               outcome = "day30",
-               thresholds = seq(0.01, 0.3, by = 0.01))
-plot(both)
-e2 <- evpi(both)
-summary(e2)
-plot(e2, type = "p_best")
-
-# optional: the model instead of the risks
-nb_val(data = df_val_binary,
-       predicted_risk = fit,
-       outcome = "day30")
-
-# optional prior information (binary outcome); the default uses the data only
-res_u <- nb_val(data = df_val_binary,
-                predicted_risk = df_val_binary$p,
-                outcome = "day30",
-                thresholds = seq(0.01, 0.3, by = 0.01),
-                prior = nb_uniform())
-evpi(res_u)
-
-# small effective sample sizes: the informative prior of bayesDCA, whose
-# sensitivity and specificity priors change with the threshold
-res_i <- nb_val(data = df_val_binary,
-                predicted_risk = df_val_binary$p,
-                outcome = "day30",
-                thresholds = seq(0.01, 0.3, by = 0.01),
-                prior = nb_informative())
-```
-
-## Documentation
-
-- [Net benefit guide](vignettes/voipred_nb_guide.Rmd)
-  ([rendered](reports/voipred_nb_guide.html)): binary, survival and
-  competing-risks examples, predicted risks or a fitted model, the prior
-  (the data only by default, or prior information), every option explained,
-  plots, and the list of supported models.
-- [Value of information guide](vignettes/voipred_voi_guide.Rmd)
-  ([rendered](reports/voipred_voi_guide.html)): `evpi()` (EVPI, P(useful)
-  and P(best)), `evsi()` and the results as data frames, for binary, survival and competing-risks outcomes,
-  with their `print()`, `summary()` and plots, EVPI and EVSI below the
-  decision curve, and how to extract values.
-- [Tests and messages](reports/voipred_nb_tests_and_messages.pdf): every
-  test (checked against `dcurves`, each modelling package's own predictions,
-  predtools, the EVSI paper's code and bayesDCA) and every error and warning
-  message.
-- The help pages give the full details: `?nb_val`, `?nb_priors`,
-  `?cipcw_control`, `?evpi`, `?evsi`, `?p_useful`,
-  `?p_best`, `?summary.voipred_nb`, `?summary.voipred_voi`,
-  `?plot.voipred_nb`, `?plot.voipred_evpi`, `?plot.voipred_evsi`,
-  `?plot.voipred_p_useful`, `?plot.voipred_p_best`.
-
-## Next version
-
-Subgroup analysis of the net benefit (subgroup utility heterogeneity).
+Amirhosein Farahmand (maintainer), Mohsen Sadatsafavi, Laure Wynants.
