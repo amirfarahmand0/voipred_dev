@@ -38,7 +38,7 @@ outcomes (binary, survival or competing risks):
 
 - **Net benefit and decision curves** (`nb_val()`): the net benefit of each
   model, of treating everyone and of treating no one, at each threshold; also
-  as **net false positives avoided** compared with treating everyone. For
+  as net false positives avoided compared with treating everyone. For
   survival outcomes, with Kaplan-Meier or conditional inverse probability of
   censoring weights (cIPCW) for informative censoring.
 - **Value of information analysis**: `evpi()` (EVPI, and the probabilities that
